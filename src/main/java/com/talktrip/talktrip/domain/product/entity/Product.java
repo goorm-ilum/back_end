@@ -1,4 +1,4 @@
-package com.talktrip.talktrip.domain.reservation.entity;
+package com.talktrip.talktrip.domain.product.entity;
 
 import jakarta.persistence.*;
 import lombok.*;

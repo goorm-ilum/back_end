@@ -1,5 +1,6 @@
 package com.talktrip.talktrip.domain.reservation.entity;
 
+import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
