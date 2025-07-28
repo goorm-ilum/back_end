@@ -20,21 +20,30 @@ public class Reservation extends BaseEntity {
     private Long id;
 
     //@ManyToOne(fetch = FetchType.LAZY)
-    //@JoinColumn(name = "user_id", nullable = false)
     //private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
     private int peopleCount;
+    private int totalAmount;
 
-    private LocalDateTime reservationDate;
+    @Enumerated(EnumType.STRING)
+    private PaymentMethod paymentMethod;
+
+    private String paymentKey; // PG 식별자
+    private String orderId;
 
     @Enumerated(EnumType.STRING)
     private ReservationStatus status;
 
+    private LocalDateTime reservationDate;
+
+    public enum PaymentMethod {
+        CREDIT_CARD, ACCOUNT_TRANSFER, KAKAO_PAY, TOSS
+    }
+
     public enum ReservationStatus {
-        RESERVED, CANCELLED, COMPLETED
+        COMPLETED, CANCELLED
     }
 }

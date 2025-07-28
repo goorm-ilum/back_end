@@ -34,7 +34,8 @@ public class Product {
     // 출발일시 (여행 시작일, 항공권 출발일 포함)
     private LocalDateTime departureDate;
 
-    // 도착일시 (여행 종료일, 항공권 도착일 포함)
+    // 도착
+    // 일시 (여행 종료일, 항공권 도착일 포함)
     private LocalDateTime arrivalDate;
 
     @Enumerated(EnumType.STRING)

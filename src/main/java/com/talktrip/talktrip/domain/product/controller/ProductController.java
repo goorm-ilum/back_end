@@ -1,36 +1,22 @@
 package com.talktrip.talktrip.domain.product.controller;
 
-import com.talktrip.talktrip.domain.product.dto.response.ProductResponse;
-import com.talktrip.talktrip.domain.product.entity.Product;
-import com.talktrip.talktrip.domain.product.service.ProductService;
-import com.talktrip.talktrip.global.exception.CustomException;
-import lombok.RequiredArgsConstructor;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
+@Tag(name = "Product", description = "상품 관련 API")
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/api/products")
 public class ProductController {
 
-    private final ProductService productService;
-
+    @Operation(summary = "상품 목록 조회")
     @GetMapping
-    public List<ProductResponse> getAllProducts() {
-        return productService.getAllProducts();
-    }
+    public void getProducts() {}
 
-    @GetMapping("/type")
-    public List<ProductResponse> getProductsByType(@RequestParam Product.ProductType type) {
-        return productService.getProductsByType(type);
-    }
-
-    @GetMapping("/search")
-    public List<ProductResponse> searchProducts(@RequestParam String keyword) {
-        return productService.searchProductsByKeyword(keyword);
-    }
+    @Operation(summary = "상품 상세 조회")
+    @GetMapping("/{productId}")
+    public void getProductDetail(@PathVariable Long productId) {}
 }
