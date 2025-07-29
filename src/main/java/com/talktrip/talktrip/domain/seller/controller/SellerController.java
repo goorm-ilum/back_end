@@ -1,4 +1,4 @@
-package com.talktrip.talktrip.domain.user.controller;
+package com.talktrip.talktrip.domain.seller.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -6,8 +6,8 @@ import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "User", description = "유저 관련 API")
 @RestController
-@RequestMapping("/api/user")
-public class UserController {
+@RequestMapping("/api/seller")
+public class SellerController {
 
     @Operation(summary = "로그인", description = "카카오 계정으로 로그인합니다.")
     @PostMapping("/login")
