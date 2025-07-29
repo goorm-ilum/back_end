@@ -26,9 +26,8 @@ public class ProductController {
             @RequestParam(required = false, defaultValue = "") String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "9") int size
-            //@AuthenticationPrincipal CustomUserDetails userDetails
+            //@AuthenticationPrincipal Object userDetails
             ) {
-        //Long userId = (userDetails != null) ? userDetails.getId() : null;
         return ResponseEntity.ok(productService.searchProducts(keyword, null, page, size));
     }
 
@@ -36,10 +35,9 @@ public class ProductController {
     @GetMapping("/{productId}")
     public ResponseEntity<ProductDetailResponse> getProductDetail(
             @PathVariable Long productId,
-            //@AuthenticationPrincipal CustomUserDetails userDetails,
+            //@AuthenticationPrincipal Object userDetails,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "3") int size) {
-        //Long userId = (userDetails != null) ? userDetails.getId() : null;
         return ResponseEntity.ok(productService.getProductDetail(productId, null, page, size));
     }
 }

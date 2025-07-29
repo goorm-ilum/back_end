@@ -27,7 +27,10 @@ public class ProductService {
     private final ReviewRepository reviewRepository;
     private final LikeRepository likeRepository;
 
-    public List<ProductSummaryResponse> searchProducts(String keyword, Long userId, int page, int size) {
+    public List<ProductSummaryResponse> searchProducts(String keyword, Object principal, int page, int size) {
+        //Long buyerId = extractUserId(principal);
+        Long buyerId = 1L;
+
         int offset = page * size;
         List<Product> products;
 
@@ -49,8 +52,8 @@ public class ProductService {
                             .average()
                             .orElse(0.0);
 
-                    boolean isLiked = userId != null &&
-                            likeRepository.existsByProductIdAndBuyerId(product.getId(), userId);
+                    boolean isLiked = buyerId != null &&
+                            likeRepository.existsByProductIdAndBuyerId(product.getId(), buyerId);
 
                     return ProductSummaryResponse.from(product, avgStar, isLiked);
                 })
@@ -58,7 +61,10 @@ public class ProductService {
     }
 
 
-    public ProductDetailResponse getProductDetail(Long productId, Long userId, int page, int size) {
+    public ProductDetailResponse getProductDetail(Long productId, Object principal, int page, int size) {
+        //Long buyerId = extractUserId(principal);
+        Long buyerId = 1L;
+
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
 
@@ -79,7 +85,7 @@ public class ProductService {
 
         List<ReviewResponse> pagedReviews = PaginationUtil.paginate(reviewResponses, page, size);
 
-        boolean isLiked = userId != null && likeRepository.existsByProductIdAndBuyerId(productId, userId);
+        boolean isLiked = buyerId != null && likeRepository.existsByProductIdAndBuyerId(productId, buyerId);
 
         return ProductDetailResponse.from(product, avgStar, pagedReviews, isLiked);
     }
