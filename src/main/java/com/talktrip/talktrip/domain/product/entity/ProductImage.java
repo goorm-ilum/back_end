@@ -1,6 +1,5 @@
 package com.talktrip.talktrip.domain.product.entity;
 
-import com.talktrip.talktrip.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class ProductImage extends BaseEntity {
+public class ProductImage {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

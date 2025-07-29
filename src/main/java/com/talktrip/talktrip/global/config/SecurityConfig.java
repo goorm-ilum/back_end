@@ -29,6 +29,7 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()
+                        .requestMatchers("/api/products", "/api/products/**").permitAll()
                         .requestMatchers("/api/user/login").permitAll()
                         .anyRequest().authenticated()
                 );

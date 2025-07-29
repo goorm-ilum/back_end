@@ -2,11 +2,14 @@ package com.talktrip.talktrip.domain.product.entity;
 
 import com.talktrip.talktrip.domain.like.entity.Like;
 import com.talktrip.talktrip.domain.review.entity.Review;
-import com.talktrip.talktrip.domain.user.entity.User;
+import com.talktrip.talktrip.domain.seller.entity.Seller;
 import com.talktrip.talktrip.global.entity.BaseEntity;
 import com.talktrip.talktrip.global.entity.Country;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,36 +28,41 @@ public class Product extends BaseEntity {
     @Column(length = 100, nullable = false)
     private String productName;
 
+    @Column(length = 50, nullable = false)
+    private String description;
+
     private int price;
 
     private int discountPrice;
 
-    private String regDate;
-
-    private String endDate;
-
-    private int leftCount;
-
     private String thumbnailImageUrl;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User seller;
+    @JoinColumn(name = "seller_id", nullable = false)
+    private Seller seller;
 
     @ManyToOne
     @JoinColumn(name = "country_id")
     private Country country;
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @Builder.Default
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductImage> images = new ArrayList<>();
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @Builder.Default
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Review> reviews = new ArrayList<>();
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @Builder.Default
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Like> likes = new ArrayList<>();
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @Builder.Default
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<HashTag> hashtags = new ArrayList<>();
+
+    @Builder.Default
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProductStock> productStocks = new ArrayList<>();
 }
 

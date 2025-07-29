@@ -1,22 +1,21 @@
-package com.talktrip.talktrip.domain.user.entity;
+package com.talktrip.talktrip.domain.buyer.entity;
 
-import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.global.entity.BaseEntity;
-import jakarta.persistence.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Builder
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class User extends BaseEntity {
+public class Buyer extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,7 +26,4 @@ public class User extends BaseEntity {
     private String nickname;
 
     private String role;
-
-    @OneToMany(mappedBy = "seller")
-    private List<Product> products = new ArrayList<>();
 }

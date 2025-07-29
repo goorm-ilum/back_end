@@ -1,8 +1,7 @@
 package com.talktrip.talktrip.domain.like.entity;
 
+import com.talktrip.talktrip.domain.buyer.entity.Buyer;
 import com.talktrip.talktrip.domain.product.entity.Product;
-import com.talktrip.talktrip.domain.user.entity.User;
-import com.talktrip.talktrip.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,7 +14,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "likes")
-public class Like extends BaseEntity {
+public class Like {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,6 +25,6 @@ public class Like extends BaseEntity {
     private Product product;
 
     @ManyToOne
-    @JoinColumn(name = "user_id")
-    private User user;
+    @JoinColumn(name = "buyer_id")
+    private Buyer buyer;
 }
