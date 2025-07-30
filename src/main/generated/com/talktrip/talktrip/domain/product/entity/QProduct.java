@@ -41,6 +41,8 @@ public class QProduct extends EntityPathBase<Product> {
 
     public final ListPath<com.talktrip.talktrip.domain.like.entity.Like, com.talktrip.talktrip.domain.like.entity.QLike> likes = this.<com.talktrip.talktrip.domain.like.entity.Like, com.talktrip.talktrip.domain.like.entity.QLike>createList("likes", com.talktrip.talktrip.domain.like.entity.Like.class, com.talktrip.talktrip.domain.like.entity.QLike.class, PathInits.DIRECT2);
 
+    public final com.talktrip.talktrip.domain.member.entity.QMember member;
+
     public final NumberPath<Integer> price = createNumber("price", Integer.class);
 
     public final StringPath productName = createString("productName");
@@ -48,8 +50,6 @@ public class QProduct extends EntityPathBase<Product> {
     public final ListPath<ProductStock, QProductStock> productStocks = this.<ProductStock, QProductStock>createList("productStocks", ProductStock.class, QProductStock.class, PathInits.DIRECT2);
 
     public final ListPath<com.talktrip.talktrip.domain.review.entity.Review, com.talktrip.talktrip.domain.review.entity.QReview> reviews = this.<com.talktrip.talktrip.domain.review.entity.Review, com.talktrip.talktrip.domain.review.entity.QReview>createList("reviews", com.talktrip.talktrip.domain.review.entity.Review.class, com.talktrip.talktrip.domain.review.entity.QReview.class, PathInits.DIRECT2);
-
-    public final com.talktrip.talktrip.domain.seller.entity.QSeller seller;
 
     public final StringPath thumbnailImageUrl = createString("thumbnailImageUrl");
 
@@ -75,7 +75,7 @@ public class QProduct extends EntityPathBase<Product> {
     public QProduct(Class<? extends Product> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
         this.country = inits.isInitialized("country") ? new com.talktrip.talktrip.global.entity.QCountry(forProperty("country")) : null;
-        this.seller = inits.isInitialized("seller") ? new com.talktrip.talktrip.domain.seller.entity.QSeller(forProperty("seller")) : null;
+        this.member = inits.isInitialized("member") ? new com.talktrip.talktrip.domain.member.entity.QMember(forProperty("member")) : null;
     }
 
 }
