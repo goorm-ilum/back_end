@@ -33,6 +33,10 @@ public class QMember extends EntityPathBase<Member> {
 
     public final NumberPath<Long> Id = createNumber("Id", Long.class);
 
+    public final EnumPath<com.talktrip.talktrip.domain.member.enums.MemberRole> memberRole = createEnum("memberRole", com.talktrip.talktrip.domain.member.enums.MemberRole.class);
+
+    public final EnumPath<com.talktrip.talktrip.domain.member.enums.MemberState> memberState = createEnum("memberState", com.talktrip.talktrip.domain.member.enums.MemberState.class);
+
     public final StringPath name = createString("name");
 
     public final StringPath nickname = createString("nickname");
@@ -45,10 +49,6 @@ public class QMember extends EntityPathBase<Member> {
 
     //inherited
     public final DateTimePath<java.time.LocalDateTime> updatedAt = _super.updatedAt;
-
-    public final EnumPath<com.talktrip.talktrip.domain.member.enums.UserRole> userRole = createEnum("userRole", com.talktrip.talktrip.domain.member.enums.UserRole.class);
-
-    public final EnumPath<com.talktrip.talktrip.domain.member.enums.UserState> userState = createEnum("userState", com.talktrip.talktrip.domain.member.enums.UserState.class);
 
     public QMember(String variable) {
         super(Member.class, forVariable(variable));

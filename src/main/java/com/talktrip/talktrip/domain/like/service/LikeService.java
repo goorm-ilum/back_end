@@ -37,6 +37,7 @@ public class LikeService {
         }
     }
 
+    @Transactional
     public List<ProductSummaryResponse> getLikedProducts(Long memberId) {
         List<Like> likes = likeRepository.findByMemberId(memberId);
         return likes.stream().map(like -> {
