@@ -74,4 +74,3 @@ public class Product extends BaseEntity {
         this.country = country;
     }
 }
-

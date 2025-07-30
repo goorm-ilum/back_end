@@ -50,6 +50,7 @@ public class Member extends BaseEntity {
     private String profileImage;
 
     @Enumerated(EnumType.STRING)
+
     @Column(name = "member_role", nullable = false)
     private MemberRole memberRole;
 

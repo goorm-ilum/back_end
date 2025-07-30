@@ -1,16 +1,14 @@
 package com.talktrip.talktrip.domain.member.enums;
 
-import lombok.Getter;
-
-@Getter
-public enum Gender {
-    M("남성"),
-    F("여성"),
-    OTHER("기타");
+public enum UserState {
+    A("활성 회원"),
+    I("비활성 회원"),
+    D("탈퇴 회원"),
+    B("정지 회원");
 
     private final String description;
 
-    Gender(String description) {
+    UserState(String description) {
         this.description = description;
     }
 

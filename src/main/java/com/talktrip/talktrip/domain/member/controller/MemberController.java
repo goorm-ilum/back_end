@@ -1,23 +1,46 @@
 package com.talktrip.talktrip.domain.member.controller;
 
+import com.talktrip.talktrip.global.util.JWTUtil;
+import com.talktrip.talktrip.domain.member.dto.response.MemberResponseDTO;
+import com.talktrip.talktrip.domain.member.repository.MemberRepository;
+import com.talktrip.talktrip.domain.member.service.KakaoAuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-@Tag(name = "User", description = "유저 관련 API")
+import java.util.Map;
+
+@Tag(name = "회원", description = "회원 관련 API")
 @RestController
-@RequestMapping("/api/buyer")
+@RequestMapping("/api/member")
+@RequiredArgsConstructor
 public class MemberController {
 
-    @Operation(summary = "로그인", description = "카카오 계정으로 로그인합니다.")
-    @PostMapping("/login")
-    public void login() {}
+    private final KakaoAuthService kakaoAuthService;
+    private final MemberRepository memberRepository;
 
-    @Operation(summary = "로그아웃", description = "로그아웃 처리합니다.")
-    @DeleteMapping("/logout")
-    public void logout() {}
+    @Operation(summary = "카카오 로그인 URL 요청", description = "카카오 로그인 인가 URL을 반환합니다.")
+    @GetMapping("/kakao-login-url")
+    public ResponseEntity<?> getKakaoLoginUrl() {
+        String kakaoUrl = kakaoAuthService.getKakaoAuthorizeUrl();
+        return ResponseEntity.ok(Map.of("url", kakaoUrl));
+    }
 
-    @Operation(summary = "내 정보 수정", description = "내 프로필 정보를 수정합니다.")
-    @PatchMapping("/me")
-    public void updateMyInfo() {}
+    @Operation(summary = "카카오 로그인 콜백", description = "인가 코드를 통해 로그인 처리를 수행합니다.")
+    @GetMapping("/kakao/callback")
+    public ResponseEntity<?> kakaoCallback(@RequestParam String code) {
+        MemberResponseDTO member = kakaoAuthService.loginWithKakao(code);
+
+        Map<String, Object> claims = member.getClaims();
+        String accessToken = JWTUtil.generateToken(claims, 60 * 24); // 1일
+        String refreshToken = JWTUtil.generateToken(claims, 60 * 24 * 30); // 30일
+
+        return ResponseEntity.ok(Map.of(
+                "accessToken", accessToken,
+                "refreshToken", refreshToken,
+                "memberInfo", claims
+        ));
+    }
 }
