@@ -2,8 +2,8 @@ package com.talktrip.talktrip.domain.member.dto.response;
 
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.enums.Gender;
-import com.talktrip.talktrip.domain.member.enums.UserRole;
-import com.talktrip.talktrip.domain.member.enums.UserState;
+import com.talktrip.talktrip.domain.member.enums.MemberRole;
+import com.talktrip.talktrip.domain.member.enums.MemberState;
 import lombok.Getter;
 
 import java.time.LocalDate;
@@ -17,22 +17,22 @@ public class MemberResponseDTO {
     private final String accountEmail;
     private final String name;
     private final String nickname;
-    private final UserRole userRole;
+    private final MemberRole memberRole;
     private final Gender gender;
     private final LocalDate birthday;
     private final String profileImage;
-    private final UserState userState;
+    private final MemberState memberState;
 
     public MemberResponseDTO(Member member) {
-        this.id = member.getUserId();
+        this.id = member.getMemberId();
         this.accountEmail = member.getAccountEmail();
         this.name = member.getName();
         this.nickname = member.getNickname();
-        this.userRole = member.getUserRole();
+        this.memberRole = member.getMemberRole();
         this.gender = member.getGender();
         this.birthday = member.getBirthday();
         this.profileImage = member.getProfileImage();
-        this.userState = member.getUserState();
+        this.memberState = member.getMemberState();
     }
 
     // JWT 토큰 생성 시 claim에 넣을 정보 정리
@@ -42,11 +42,11 @@ public class MemberResponseDTO {
         claims.put("email", accountEmail);
         claims.put("name", name);
         claims.put("nickname", nickname);
-        claims.put("role", userRole.name());
+        claims.put("role", memberRole.name());
         claims.put("gender", gender.name());
         claims.put("birthday", birthday.toString());
         claims.put("profileImage", profileImage);
-        claims.put("state", userState.name());
+        claims.put("state", memberState.name());
         return claims;
     }
 }

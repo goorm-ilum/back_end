@@ -40,7 +40,7 @@ public class MemberController {
         return ResponseEntity.ok(Map.of(
                 "accessToken", accessToken,
                 "refreshToken", refreshToken,
-                "userInfo", claims
+                "memberInfo", claims
         ));
     }
 }

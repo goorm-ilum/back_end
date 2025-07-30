@@ -22,8 +22,6 @@ public class QProductStock extends EntityPathBase<ProductStock> {
 
     public static final QProductStock productStock = new QProductStock("productStock");
 
-    public final DatePath<java.time.LocalDate> endDate = createDate("endDate", java.time.LocalDate.class);
-
     public final NumberPath<Long> id = createNumber("id", Long.class);
 
     public final StringPath option = createString("option");

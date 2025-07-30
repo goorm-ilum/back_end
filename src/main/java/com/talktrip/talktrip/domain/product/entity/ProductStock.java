@@ -21,8 +21,6 @@ public class ProductStock {
 
     private LocalDate startDate;
 
-    private LocalDate endDate;
-
     @Column(name = "stock_option")
     private String option;
 

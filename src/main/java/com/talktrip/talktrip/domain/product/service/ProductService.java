@@ -15,6 +15,7 @@ import com.talktrip.talktrip.global.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
@@ -27,7 +28,8 @@ public class ProductService {
     private final ReviewRepository reviewRepository;
     private final LikeRepository likeRepository;
 
-    public List<ProductSummaryResponse> searchProducts(String keyword, Long userId, int page, int size) {
+    @Transactional
+    public List<ProductSummaryResponse> searchProducts(String keyword, Long memberId, int page, int size) {
         int offset = page * size;
         List<Product> products;
 
@@ -49,8 +51,8 @@ public class ProductService {
                             .average()
                             .orElse(0.0);
 
-                    boolean isLiked = userId != null &&
-                            likeRepository.existsByProductIdAndBuyerId(product.getId(), userId);
+                    boolean isLiked = memberId != null &&
+                            likeRepository.existsByProductIdAndMemberId(product.getId(), memberId);
 
                     return ProductSummaryResponse.from(product, avgStar, isLiked);
                 })
@@ -58,7 +60,8 @@ public class ProductService {
     }
 
 
-    public ProductDetailResponse getProductDetail(Long productId, Long userId, int page, int size) {
+    @Transactional
+    public ProductDetailResponse getProductDetail(Long productId, Long memberId, int page, int size) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
 
@@ -79,7 +82,7 @@ public class ProductService {
 
         List<ReviewResponse> pagedReviews = PaginationUtil.paginate(reviewResponses, page, size);
 
-        boolean isLiked = userId != null && likeRepository.existsByProductIdAndBuyerId(productId, userId);
+        boolean isLiked = memberId != null && likeRepository.existsByProductIdAndMemberId(productId, memberId);
 
         return ProductDetailResponse.from(product, avgStar, pagedReviews, isLiked);
     }

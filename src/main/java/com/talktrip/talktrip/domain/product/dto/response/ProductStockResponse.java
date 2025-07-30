@@ -7,14 +7,12 @@ import java.time.LocalDate;
 public record ProductStockResponse(
         String option,
         LocalDate startDate,
-        LocalDate endDate,
         int stock
 ) {
     public static ProductStockResponse from(ProductStock stock) {
         return new ProductStockResponse(
                 stock.getOption(),
                 stock.getStartDate(),
-                stock.getEndDate(),
                 stock.getStock()
         );
     }
