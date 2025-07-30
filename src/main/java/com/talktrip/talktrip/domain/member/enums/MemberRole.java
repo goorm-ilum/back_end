@@ -3,15 +3,14 @@ package com.talktrip.talktrip.domain.member.enums;
 import lombok.Getter;
 
 @Getter
-public enum UserState {
-    A("활성 회원"),
-    I("비활성 회원"),
-    D("탈퇴 회원"),
-    B("정지 회원");
+public enum MemberRole {
+    U("일반 사용자"),
+    A("관리자"),
+    S("슈퍼 관리자");
 
     private final String description;
 
-    UserState(String description) {
+    MemberRole(String description) {
         this.description = description;
     }
 

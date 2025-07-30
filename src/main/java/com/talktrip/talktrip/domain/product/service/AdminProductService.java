@@ -26,6 +26,7 @@ public class AdminProductService {
     private final CountryRepository countryRepository;
     private final MemberRepository memberRepository;
 
+    @Transactional
     public void createProduct(AdminProductCreateRequest request, Long memberId) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new AdminException(ErrorCode.ADMIN_NOT_FOUND));
@@ -40,6 +41,7 @@ public class AdminProductService {
         productRepository.save(product);
     }
 
+    @Transactional
     public List<AdminProductSummaryResponse> getMyProducts(Long memberId) {
         List<Product> products = productRepository.findByMemberId(memberId);
         return products.stream()
@@ -47,6 +49,7 @@ public class AdminProductService {
                 .toList();
     }
 
+    @Transactional
     public AdminProductEditResponse getMyProductEditForm(Long productId, Long memberId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));

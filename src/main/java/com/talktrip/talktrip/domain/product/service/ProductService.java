@@ -15,6 +15,7 @@ import com.talktrip.talktrip.global.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
@@ -27,6 +28,7 @@ public class ProductService {
     private final ReviewRepository reviewRepository;
     private final LikeRepository likeRepository;
 
+    @Transactional
     public List<ProductSummaryResponse> searchProducts(String keyword, Long memberId, int page, int size) {
         int offset = page * size;
         List<Product> products;
@@ -58,6 +60,7 @@ public class ProductService {
     }
 
 
+    @Transactional
     public ProductDetailResponse getProductDetail(Long productId, Long memberId, int page, int size) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));

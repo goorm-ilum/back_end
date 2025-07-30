@@ -25,10 +25,16 @@ public class Review extends BaseEntity {
     private Product product;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "buyer_id", nullable = false)
-    private Member reviewer;
+    @JoinColumn(name = "member_id", nullable = false)
+    private Member member;
 
     private String comment;
 
     private float reviewStar;
+
+    public void update(String comment, float reviewStar) {
+        this.comment = comment;
+        this.reviewStar = reviewStar;
+    }
+
 }

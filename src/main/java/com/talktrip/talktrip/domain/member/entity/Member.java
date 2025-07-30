@@ -1,9 +1,8 @@
 package com.talktrip.talktrip.domain.member.entity;
 
 import com.talktrip.talktrip.domain.member.enums.Gender;
-import com.talktrip.talktrip.domain.member.enums.UserRole;
-import com.talktrip.talktrip.domain.member.enums.UserState;
-import com.talktrip.talktrip.domain.product.entity.HashTag;
+import com.talktrip.talktrip.domain.member.enums.MemberRole;
+import com.talktrip.talktrip.domain.member.enums.MemberState;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.global.entity.BaseEntity;
 import jakarta.persistence.*;
@@ -25,7 +24,7 @@ public class Member extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_id")
+    @Column(name = "member_id")
     private Long Id;
 
     @Column(name = "account_email", nullable = false, unique = true)
@@ -51,12 +50,12 @@ public class Member extends BaseEntity {
     private String profileImage;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "user_role", nullable = false)
-    private UserRole userRole;
+    @Column(name = "member_role", nullable = false)
+    private MemberRole memberRole;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "user_state", nullable = false)
-    private UserState userState;
+    @Column(name = "member_state", nullable = false)
+    private MemberState memberState;
 
     @Builder.Default
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
