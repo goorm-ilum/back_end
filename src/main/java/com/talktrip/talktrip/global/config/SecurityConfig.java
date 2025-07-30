@@ -30,6 +30,7 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()
                         //.requestMatchers("/api/me/likes").authenticated()
+                        .requestMatchers("/api/admin/products", "/api/admin/products/**").permitAll()
                         .requestMatchers("/api/products", "/api/products/**", "/api/me/likes").permitAll()
                         .requestMatchers("/api/user/login").permitAll()
                         .anyRequest().authenticated()

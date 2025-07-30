@@ -7,9 +7,11 @@ import com.talktrip.talktrip.domain.product.service.AdminProductService;
 import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -21,12 +23,14 @@ public class AdminProductController {
     private final AdminProductService adminProductService;
 
     @Operation(summary = "판매자 상품 등록")
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Void> createProduct(
-            @RequestBody AdminProductCreateRequest request,
+            @RequestPart("request") AdminProductCreateRequest request,
+            @RequestPart("thumbnailImage") MultipartFile thumbnailImage,
+            @RequestPart("detailImages") List<MultipartFile> detailImages,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
-        adminProductService.createProduct(request, memberDetails.getId());
+        adminProductService.createProduct(request, 1L, thumbnailImage, detailImages);
         return ResponseEntity.status(201).build();
     }
 
@@ -48,13 +52,25 @@ public class AdminProductController {
     }
 
     @Operation(summary = "판매자 상품 수정")
-    @PutMapping("/{productId}")
+    @PutMapping(value = "/{productId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Void> updateProduct(
             @PathVariable Long productId,
-            @RequestBody AdminProductCreateRequest request,
+            @RequestPart("request") AdminProductCreateRequest request,
+            @RequestPart("thumbnailImage") MultipartFile thumbnailImage,
+            @RequestPart("detailImages") List<MultipartFile> detailImages,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
-        adminProductService.updateProduct(productId, request, memberDetails.getId());
+        adminProductService.updateProduct(productId, request, 1L, thumbnailImage, detailImages);
         return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "판매자 상품 삭제")
+    @DeleteMapping("/{productId}")
+    public ResponseEntity<Void> deleteProduct(
+            @PathVariable Long productId,
+            @AuthenticationPrincipal CustomMemberDetails memberDetails
+    ) {
+        adminProductService.deleteProduct(productId, 1L);
+        return ResponseEntity.noContent().build();
     }
 }
