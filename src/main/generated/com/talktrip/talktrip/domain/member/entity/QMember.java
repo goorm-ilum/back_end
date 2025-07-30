@@ -20,11 +20,22 @@ public class QMember extends EntityPathBase<Member> {
 
     public static final QMember member = new QMember("member1");
 
+    public final com.talktrip.talktrip.global.entity.QBaseEntity _super = new com.talktrip.talktrip.global.entity.QBaseEntity(this);
+
     public final StringPath accountEmail = createString("accountEmail");
 
     public final DatePath<java.time.LocalDate> birthday = createDate("birthday", java.time.LocalDate.class);
 
+    //inherited
+    public final DateTimePath<java.time.LocalDateTime> createdAt = _super.createdAt;
+
     public final EnumPath<com.talktrip.talktrip.domain.member.enums.Gender> gender = createEnum("gender", com.talktrip.talktrip.domain.member.enums.Gender.class);
+
+    public final NumberPath<Long> Id = createNumber("Id", Long.class);
+
+    public final EnumPath<com.talktrip.talktrip.domain.member.enums.MemberRole> memberRole = createEnum("memberRole", com.talktrip.talktrip.domain.member.enums.MemberRole.class);
+
+    public final EnumPath<com.talktrip.talktrip.domain.member.enums.MemberState> memberState = createEnum("memberState", com.talktrip.talktrip.domain.member.enums.MemberState.class);
 
     public final StringPath name = createString("name");
 
@@ -32,13 +43,12 @@ public class QMember extends EntityPathBase<Member> {
 
     public final StringPath phoneNum = createString("phoneNum");
 
+    public final ListPath<com.talktrip.talktrip.domain.product.entity.Product, com.talktrip.talktrip.domain.product.entity.QProduct> products = this.<com.talktrip.talktrip.domain.product.entity.Product, com.talktrip.talktrip.domain.product.entity.QProduct>createList("products", com.talktrip.talktrip.domain.product.entity.Product.class, com.talktrip.talktrip.domain.product.entity.QProduct.class, PathInits.DIRECT2);
+
     public final StringPath profileImage = createString("profileImage");
 
-    public final NumberPath<Long> userId = createNumber("userId", Long.class);
-
-    public final EnumPath<com.talktrip.talktrip.domain.member.enums.UserRole> userRole = createEnum("userRole", com.talktrip.talktrip.domain.member.enums.UserRole.class);
-
-    public final EnumPath<com.talktrip.talktrip.domain.member.enums.UserState> userState = createEnum("userState", com.talktrip.talktrip.domain.member.enums.UserState.class);
+    //inherited
+    public final DateTimePath<java.time.LocalDateTime> updatedAt = _super.updatedAt;
 
     public QMember(String variable) {
         super(Member.class, forVariable(variable));

@@ -24,7 +24,7 @@ public class MemberResponseDTO {
     private final MemberState memberState;
 
     public MemberResponseDTO(Member member) {
-        this.id = member.getMemberId();
+        this.id = member.getId();
         this.accountEmail = member.getAccountEmail();
         this.name = member.getName();
         this.nickname = member.getNickname();

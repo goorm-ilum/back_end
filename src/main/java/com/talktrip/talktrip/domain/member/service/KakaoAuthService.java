@@ -1,8 +1,8 @@
 package com.talktrip.talktrip.domain.member.service;
 
 import com.talktrip.talktrip.domain.member.enums.Gender;
-import com.talktrip.talktrip.domain.member.enums.UserRole;
-import com.talktrip.talktrip.domain.member.enums.UserState;
+import com.talktrip.talktrip.domain.member.enums.MemberRole;
+import com.talktrip.talktrip.domain.member.enums.MemberState;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.dto.response.MemberResponseDTO;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
@@ -108,8 +108,8 @@ public class KakaoAuthService {
                                 .accountEmail(email)
                                 .nickname(nickname)
                                 .name(name)
-                                .userRole(UserRole.U)
-                                .userState(UserState.A)
+                                .memberRole(MemberRole.U)
+                                .memberState(MemberState.A)
                                 .gender(isFemale != null && isFemale ? Gender.F : Gender.M)
                                 .birthday(LocalDate.of(
                                         birthYear,
