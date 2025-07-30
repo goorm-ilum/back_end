@@ -5,7 +5,6 @@ import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductImage;
 import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 

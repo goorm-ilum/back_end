@@ -1,14 +1,14 @@
 package com.talktrip.talktrip.domain.like.service;
 
-import com.talktrip.talktrip.domain.buyer.entity.Buyer;
-import com.talktrip.talktrip.domain.buyer.repository.BuyerRepository;
+import com.talktrip.talktrip.domain.member.entity.Member;
+import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.like.entity.Like;
 import com.talktrip.talktrip.domain.like.repository.LikeRepository;
 import com.talktrip.talktrip.domain.product.dto.response.ProductSummaryResponse;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.review.entity.Review;
-import com.talktrip.talktrip.global.exception.BuyerException;
+import com.talktrip.talktrip.global.exception.AdminException;
 import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.ProductException;
 import lombok.RequiredArgsConstructor;
@@ -22,29 +22,23 @@ import java.util.List;
 public class LikeService {
     private final LikeRepository likeRepository;
     private final ProductRepository productRepository;
-    private final BuyerRepository buyerRepository;
+    private final MemberRepository memberRepository;
 
     @Transactional
-    public void toggleLike(Long productId, Object principal) {
-        //Long buyerId = extractUserId(principal);
-        Long buyerId = 1L;
-
-        if (likeRepository.existsByProductIdAndBuyerId(productId, buyerId)) {
-            likeRepository.deleteByProductIdAndBuyerId(productId, buyerId);
+    public void toggleLike(Long productId, Long memberId) {
+        if (likeRepository.existsByProductIdAndMemberId(productId, memberId)) {
+            likeRepository.deleteByProductIdAndMemberId(productId, memberId);
         } else {
             Product product = productRepository.findById(productId)
                     .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
-            Buyer buyer = buyerRepository.findById(buyerId)
-                    .orElseThrow(() -> new BuyerException(ErrorCode.USER_NOT_FOUND));
-            likeRepository.save(Like.builder().product(product).buyer(buyer).build());
+            Member member = memberRepository.findById(memberId)
+                    .orElseThrow(() -> new AdminException(ErrorCode.USER_NOT_FOUND));
+            likeRepository.save(Like.builder().product(product).member(member).build());
         }
     }
 
-    public List<ProductSummaryResponse> getLikedProducts(Object principal) {
-        //Long buyerId = extractUserId(principal);
-        Long buyerId = 1L;
-
-        List<Like> likes = likeRepository.findByBuyerId(buyerId);
+    public List<ProductSummaryResponse> getLikedProducts(Long memberId) {
+        List<Like> likes = likeRepository.findByMemberId(memberId);
         return likes.stream().map(like -> {
             Product product = like.getProduct();
             float avgStar = (float) product.getReviews().stream()

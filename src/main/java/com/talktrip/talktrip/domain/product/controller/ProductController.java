@@ -3,6 +3,7 @@ package com.talktrip.talktrip.domain.product.controller;
 import com.talktrip.talktrip.domain.product.dto.response.ProductDetailResponse;
 import com.talktrip.talktrip.domain.product.dto.response.ProductSummaryResponse;
 import com.talktrip.talktrip.domain.product.service.ProductService;
+import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,19 +26,19 @@ public class ProductController {
     public ResponseEntity<List<ProductSummaryResponse>> getProducts(
             @RequestParam(required = false, defaultValue = "") String keyword,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "9") int size
-            //@AuthenticationPrincipal Object userDetails
+            @RequestParam(defaultValue = "9") int size,
+            @AuthenticationPrincipal CustomMemberDetails memberDetails
             ) {
-        return ResponseEntity.ok(productService.searchProducts(keyword, null, page, size));
+        return ResponseEntity.ok(productService.searchProducts(keyword, memberDetails.getId(), page, size));
     }
 
     @Operation(summary = "상품 상세 조회")
     @GetMapping("/{productId}")
     public ResponseEntity<ProductDetailResponse> getProductDetail(
             @PathVariable Long productId,
-            //@AuthenticationPrincipal Object userDetails,
+            @AuthenticationPrincipal CustomMemberDetails memberDetails,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "3") int size) {
-        return ResponseEntity.ok(productService.getProductDetail(productId, null, page, size));
+        return ResponseEntity.ok(productService.getProductDetail(productId, memberDetails.getId(), page, size));
     }
 }

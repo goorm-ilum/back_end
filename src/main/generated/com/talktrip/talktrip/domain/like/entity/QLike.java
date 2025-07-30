@@ -22,9 +22,9 @@ public class QLike extends EntityPathBase<Like> {
 
     public static final QLike like = new QLike("like1");
 
-    public final com.talktrip.talktrip.domain.buyer.entity.QBuyer buyer;
-
     public final NumberPath<Long> id = createNumber("id", Long.class);
+
+    public final com.talktrip.talktrip.domain.member.entity.QMember member;
 
     public final com.talktrip.talktrip.domain.product.entity.QProduct product;
 
@@ -46,7 +46,7 @@ public class QLike extends EntityPathBase<Like> {
 
     public QLike(Class<? extends Like> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
-        this.buyer = inits.isInitialized("buyer") ? new com.talktrip.talktrip.domain.buyer.entity.QBuyer(forProperty("buyer")) : null;
+        this.member = inits.isInitialized("member") ? new com.talktrip.talktrip.domain.member.entity.QMember(forProperty("member")) : null;
         this.product = inits.isInitialized("product") ? new com.talktrip.talktrip.domain.product.entity.QProduct(forProperty("product"), inits.get("product")) : null;
     }
 
