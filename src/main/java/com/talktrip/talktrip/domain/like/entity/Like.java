@@ -1,6 +1,6 @@
 package com.talktrip.talktrip.domain.like.entity;
 
-import com.talktrip.talktrip.domain.buyer.entity.Buyer;
+import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -25,6 +25,6 @@ public class Like {
     private Product product;
 
     @ManyToOne
-    @JoinColumn(name = "buyer_id")
-    private Buyer buyer;
+    @JoinColumn(name = "member_id")
+    private Member member;
 }

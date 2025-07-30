@@ -199,3 +199,4 @@ gradle-app.setting
 application.properties
 application.yml
 application.yaml
+application-secret.yaml

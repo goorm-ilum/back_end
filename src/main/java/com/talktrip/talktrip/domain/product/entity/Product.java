@@ -1,8 +1,8 @@
 package com.talktrip.talktrip.domain.product.entity;
 
 import com.talktrip.talktrip.domain.like.entity.Like;
+import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.review.entity.Review;
-import com.talktrip.talktrip.domain.seller.entity.Seller;
 import com.talktrip.talktrip.global.entity.BaseEntity;
 import com.talktrip.talktrip.global.entity.Country;
 import jakarta.persistence.*;
@@ -39,7 +39,7 @@ public class Product extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "seller_id", nullable = false)
-    private Seller seller;
+    private Member member;
 
     @ManyToOne
     @JoinColumn(name = "country_id")
@@ -64,5 +64,13 @@ public class Product extends BaseEntity {
     @Builder.Default
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductStock> productStocks = new ArrayList<>();
-}
 
+    public void updateBasicInfo(String productName, String description, int price, int discountPrice, String thumbnailImageUrl, Country country) {
+        this.productName = productName;
+        this.description = description;
+        this.price = price;
+        this.discountPrice = discountPrice;
+        this.thumbnailImageUrl = thumbnailImageUrl;
+        this.country = country;
+    }
+}

@@ -1,7 +1,7 @@
 package com.talktrip.talktrip.domain.review.entity;
 
 import com.talktrip.talktrip.domain.product.entity.Product;
-import com.talktrip.talktrip.domain.buyer.entity.Buyer;
+import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -25,8 +25,8 @@ public class Review extends BaseEntity {
     private Product product;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "buyer_id", nullable = false)
-    private Buyer reviewer;
+    @JoinColumn(name = "user_id", nullable = false)
+    private Member member;
 
     private String comment;
 
