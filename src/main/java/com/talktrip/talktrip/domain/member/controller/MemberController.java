@@ -29,18 +29,19 @@ public class MemberController {
     }
 
     @Operation(summary = "카카오 로그인 콜백", description = "인가 코드를 통해 로그인 처리를 수행합니다.")
-    @GetMapping("/kakao/callback")
-    public ResponseEntity<?> kakaoCallback(@RequestParam String code) {
-        MemberResponseDTO member = kakaoAuthService.loginWithKakao(code);
+    @PostMapping("/kakao")
+    public Map<String, Object> kakaoLogin(String code) {
 
-        Map<String, Object> claims = member.getClaims();
-        String accessToken = JWTUtil.generateToken(claims, 60 * 24); // 1일
-        String refreshToken = JWTUtil.generateToken(claims, 60 * 24 * 30); // 30일
+        MemberResponseDTO memberDTO = kakaoAuthService.loginWithKakao(code);
 
-        return ResponseEntity.ok(Map.of(
-                "accessToken", accessToken,
-                "refreshToken", refreshToken,
-                "memberInfo", claims
-        ));
+        Map<String, Object> claims = memberDTO.getClaims();
+
+        String accessToken = JWTUtil.generateToken(claims, 60 * 24);
+        String refreshToken = JWTUtil.generateToken(claims, 60 * 24 * 30);
+
+        claims.put("accessToken", accessToken);
+        claims.put("refreshToken", refreshToken);
+
+        return claims;
     }
 }
