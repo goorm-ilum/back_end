@@ -15,12 +15,10 @@ public record AdminProductCreateRequest(
         String description,
         int price,
         int discountPrice,
-        String thumbnailImageUrl,
         String countryName,
         List<LocalDate> startDates,
         List<OptionStockRequest> optionStocks,
-        List<String> hashtags,
-        List<String> imageUrls
+        List<String> hashtags
 ) {
     public record OptionStockRequest(String option, int stock) {}
 
@@ -30,7 +28,6 @@ public record AdminProductCreateRequest(
                 .description(description)
                 .price(price)
                 .discountPrice(discountPrice)
-                .thumbnailImageUrl(thumbnailImageUrl)
                 .member(member)
                 .country(country)
                 .build();
@@ -54,17 +51,6 @@ public record AdminProductCreateRequest(
                                 .option(os.option())
                                 .stock(os.stock())
                                 .build()))
-                .toList();
-    }
-
-    public List<ProductImage> toProductImages(Product product) {
-        if (imageUrls == null) return List.of();
-
-        return imageUrls.stream()
-                .map(url -> ProductImage.builder()
-                        .product(product)
-                        .imageUrl(url)
-                        .build())
                 .toList();
     }
 }
