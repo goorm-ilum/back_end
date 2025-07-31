@@ -61,4 +61,16 @@ public class Member extends BaseEntity {
     @Builder.Default
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Product> products = new ArrayList<>();
+
+    public void updateInfo(String phoneNum, Gender gender, LocalDate birthday, String nickname) {
+        this.phoneNum = phoneNum;
+        this.gender = gender;
+        this.birthday = birthday;
+        this.nickname = nickname;
+    }
+
+    public void updateProfileImage(String imageUrl) {
+        this.profileImage = imageUrl;
+    }
+
 }

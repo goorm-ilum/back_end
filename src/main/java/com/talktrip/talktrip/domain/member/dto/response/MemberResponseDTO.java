@@ -35,6 +35,10 @@ public class MemberResponseDTO {
         this.memberState = member.getMemberState();
     }
 
+    public static MemberResponseDTO from(Member member) {
+        return new MemberResponseDTO(member);
+    }
+
     // JWT 토큰 생성 시 claim에 넣을 정보 정리
     public Map<String, Object> getClaims() {
         Map<String, Object> claims = new HashMap<>();

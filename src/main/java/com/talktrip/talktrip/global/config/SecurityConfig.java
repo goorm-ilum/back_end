@@ -1,5 +1,9 @@
 package com.talktrip.talktrip.global.config;
 
+import com.talktrip.talktrip.global.util.JWTUtil;
+import com.talktrip.talktrip.global.security.filter.JWTCheckFilter;
+import com.talktrip.talktrip.domain.member.repository.MemberRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -8,21 +12,23 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final JWTUtil jwtUtil;
+    private final MemberRepository memberRepository;
+
     private static final String[] SWAGGER_WHITELIST = {
-            "/swagger-ui.html",
-            "/swagger-ui/**",
-            "/v3/api-docs/**",
-            "/swagger-resources/**",
-            "/webjars/**",
-            "/api-docs/**"
+            "/swagger-ui.html", "/swagger-ui/**",
+            "/v3/api-docs/**", "/swagger-resources/**",
+            "/webjars/**", "/api-docs/**"
     };
 
     @Bean
@@ -38,11 +44,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/products", "/api/products/**").permitAll()
                         .requestMatchers("/api/member/kakao-login-url").permitAll()
                         .requestMatchers("/api/member/kakao").permitAll()
-                        //.requestMatchers("/api/me/likes").authenticated()
                         .requestMatchers("/api/products", "/api/products/**", "/api/me/likes").permitAll()
                         .requestMatchers("/api/user/login").permitAll()
                         .anyRequest().authenticated()
-                );
+                )
+                .addFilterBefore(
+                        new JWTCheckFilter(jwtUtil, memberRepository), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -50,13 +57,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.addAllowedOrigin("http://localhost:5173");  // 프론트 주소
-        configuration.addAllowedMethod("*");    // 모든 HTTP 메서드 허용
-        configuration.addAllowedHeader("*");    // 모든 헤더 허용
-        configuration.setAllowCredentials(true);  // 쿠키 등 인증 정보 허용
+        configuration.addAllowedOrigin("http://localhost:5173");
+        configuration.addAllowedMethod("*");
+        configuration.addAllowedHeader("*");
+        configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);  // 모든 경로에 대해 적용
+        source.registerCorsConfiguration("/**", configuration);
         return source;
     }
 
