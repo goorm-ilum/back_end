@@ -10,9 +10,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 
+@Slf4j
 @Tag(name = "Product", description = "상품 관련 API")
 @RestController
 @RequiredArgsConstructor
@@ -39,6 +41,12 @@ public class ProductController {
             @AuthenticationPrincipal CustomMemberDetails memberDetails,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "3") int size) {
-        return ResponseEntity.ok(productService.getProductDetail(productId, memberDetails.getId(), page, size));
+
+        Long memberId = (memberDetails != null) ? memberDetails.getId() : null;
+
+        log.info("[ProductController] 상품 상세 조회 요청 productId={}, memberId={}", productId, memberId);
+
+        return ResponseEntity.ok(productService.getProductDetail(productId, memberId, page, size));
     }
+
 }

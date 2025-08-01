@@ -114,6 +114,12 @@ public class JWTCheckFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String uri = request.getRequestURI();
         return uri.equals("/api/member/kakao") ||
-                uri.equals("/api/member/kakao-login-url");
+                uri.equals("/api/member/kakao-login-url") ||
+                uri.startsWith("/swagger") ||
+                uri.startsWith("/swagger-ui") ||
+                uri.startsWith("/v3/api-docs") ||
+                uri.startsWith("/swagger-resources") ||
+                uri.startsWith("/webjars") ||
+                uri.startsWith("/api/products");
     }
 }
