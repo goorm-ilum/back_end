@@ -199,5 +199,4 @@ gradle-app.setting
 application.properties
 application.yml
 application.yaml
-application-local.yaml
-application-prod.yaml
+application-secret.yaml

@@ -119,6 +119,7 @@ public class JWTCheckFilter extends OncePerRequestFilter {
                 uri.startsWith("/swagger-ui") ||
                 uri.startsWith("/v3/api-docs") ||
                 uri.startsWith("/swagger-resources") ||
-                uri.startsWith("/webjars");
+                uri.startsWith("/webjars") ||
+                uri.startsWith("/api/products");
     }
 }
