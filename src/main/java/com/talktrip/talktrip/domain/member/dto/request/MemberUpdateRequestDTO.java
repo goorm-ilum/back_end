@@ -8,8 +8,8 @@ import java.time.LocalDate;
 @Getter
 public class MemberUpdateRequestDTO {
 
-    private String phoneNum;
+    private String name;
     private Gender gender;
     private LocalDate birthday;
-    private String nickname;
+    private String phoneNum;
 }

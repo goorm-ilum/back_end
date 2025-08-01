@@ -62,11 +62,11 @@ public class Member extends BaseEntity {
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Product> products = new ArrayList<>();
 
-    public void updateInfo(String phoneNum, Gender gender, LocalDate birthday, String nickname) {
-        this.phoneNum = phoneNum;
+    public void updateInfo(String name, Gender gender, LocalDate birthday, String phoneNum) {
+        this.name = name;
         this.gender = gender;
         this.birthday = birthday;
-        this.nickname = nickname;
+        this.phoneNum = phoneNum;
     }
 
     public void updateProfileImage(String imageUrl) {

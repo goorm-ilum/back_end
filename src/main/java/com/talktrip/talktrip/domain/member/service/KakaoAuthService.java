@@ -6,6 +6,7 @@ import com.talktrip.talktrip.domain.member.enums.MemberState;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.dto.response.MemberResponseDTO;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
+import com.talktrip.talktrip.global.util.RandomNicknameGenerator;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -92,7 +93,7 @@ public class KakaoAuthService {
         log.info("profile: {}", profile);
 
         String email = (String) kakaoAccount.get("email");
-        String nickname = (String) profile.get("nickname");
+        String nickname = RandomNicknameGenerator.generate();
         String name = (String) kakaoAccount.get("name");
         String gender = (String) kakaoAccount.get("gender");
         String birthDay = (String) kakaoAccount.get("birthday");
