@@ -5,6 +5,7 @@ import com.talktrip.talktrip.domain.member.enums.Gender;
 import com.talktrip.talktrip.domain.member.enums.MemberRole;
 import com.talktrip.talktrip.domain.member.enums.MemberState;
 import lombok.Getter;
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -19,6 +20,7 @@ public class MemberResponseDTO {
     private final String nickname;
     private final MemberRole memberRole;
     private final Gender gender;
+    @JsonFormat(pattern = "yyyy-MM-dd")
     private final LocalDate birthday;
     private final String phoneNum;
     private final String profileImage;
