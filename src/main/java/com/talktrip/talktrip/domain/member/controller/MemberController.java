@@ -19,6 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Tag(name = "Member", description = "회원 관련 API")
 @RestController
@@ -63,6 +64,7 @@ public class MemberController {
 
         Long memberId = memberDetails.getId();
         MemberResponseDTO myInfo = memberService.getMemberInfo(memberId);
+
         return ResponseEntity.ok(myInfo);
     }
 

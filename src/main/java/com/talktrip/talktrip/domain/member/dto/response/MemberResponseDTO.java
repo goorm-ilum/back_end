@@ -20,6 +20,7 @@ public class MemberResponseDTO {
     private final MemberRole memberRole;
     private final Gender gender;
     private final LocalDate birthday;
+    private final String phoneNum;
     private final String profileImage;
     private final MemberState memberState;
 
@@ -31,6 +32,7 @@ public class MemberResponseDTO {
         this.memberRole = member.getMemberRole();
         this.gender = member.getGender();
         this.birthday = member.getBirthday();
+        this.phoneNum = member.getPhoneNum();
         this.profileImage = member.getProfileImage();
         this.memberState = member.getMemberState();
     }
@@ -49,6 +51,7 @@ public class MemberResponseDTO {
         claims.put("role", memberRole.name());
         claims.put("gender", gender.name());
         claims.put("birthday", birthday.toString());
+        claims.put("phoneNum", phoneNum);
         claims.put("profileImage", profileImage);
         claims.put("state", memberState.name());
         return claims;

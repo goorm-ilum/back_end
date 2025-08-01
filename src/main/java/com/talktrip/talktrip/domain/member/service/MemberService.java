@@ -24,7 +24,7 @@ public class MemberService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("회원 정보를 찾을 수 없습니다."));
 
-        member.updateInfo(dto.getPhoneNum(), dto.getGender(), dto.getBirthday(), dto.getNickname());
+        member.updateInfo(dto.getName(), dto.getGender(), dto.getBirthday(), dto.getPhoneNum());
 
         if (profileImage != null && !profileImage.isEmpty()) {
             String imageUrl = s3Uploader.upload(profileImage, "profile");
