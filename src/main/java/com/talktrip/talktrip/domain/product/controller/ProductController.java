@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Tag(name = "Product", description = "상품 관련 API")
@@ -49,4 +50,10 @@ public class ProductController {
         return ResponseEntity.ok(productService.getProductDetail(productId, memberId, page, size));
     }
 
+    @Operation(summary = "AI 상품 검색")
+    @GetMapping("/aisearch")
+    public ResponseEntity<List<ProductSummaryResponse>> aiSearchProducts(
+            @RequestParam String question) {
+        return ResponseEntity.ok(productService.aiSearchProducts(question));
+    }
 }

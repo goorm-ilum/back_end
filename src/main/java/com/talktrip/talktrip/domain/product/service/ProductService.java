@@ -13,12 +13,15 @@ import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.ProductException;
 import com.talktrip.talktrip.global.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +30,11 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ReviewRepository reviewRepository;
     private final LikeRepository likeRepository;
+
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    @Value("${fastapi.base-url}")
+    private String fastApiBaseUrl;
 
     @Transactional
     public List<ProductSummaryResponse> searchProducts(String keyword, Long memberId, int page, int size) {
@@ -85,5 +93,21 @@ public class ProductService {
         boolean isLiked = memberId != null && likeRepository.existsByProductIdAndMemberId(productId, memberId);
 
         return ProductDetailResponse.from(product, avgStar, pagedReviews, isLiked);
+    }
+
+    public List<ProductSummaryResponse> aiSearchProducts(String query) {
+        String fastApiUrl = fastApiBaseUrl + "/query";
+
+        Map<String, String> requestBody = Map.of("query", query);
+
+        ProductSummaryResponse[] result = restTemplate.postForObject(
+                fastApiUrl,
+                requestBody,
+                ProductSummaryResponse[].class
+        );
+
+        if (result == null) return List.of();
+
+        return List.of(result);
     }
 }
