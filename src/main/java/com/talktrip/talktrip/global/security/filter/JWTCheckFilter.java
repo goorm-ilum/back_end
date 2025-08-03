@@ -113,6 +113,7 @@ public class JWTCheckFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String uri = request.getRequestURI();
+        log.info("[JWTCheckFilter] 요청 URI: {}", uri);
         return uri.equals("/api/member/kakao") ||
                 uri.equals("/api/member/kakao-login-url") ||
                 uri.startsWith("/swagger") ||
@@ -120,6 +121,7 @@ public class JWTCheckFilter extends OncePerRequestFilter {
                 uri.startsWith("/v3/api-docs") ||
                 uri.startsWith("/swagger-resources") ||
                 uri.startsWith("/webjars") ||
-                uri.startsWith("/api/products");
+                uri.startsWith("/api/products") ||
+                uri.startsWith("/api/orders");
     }
 }

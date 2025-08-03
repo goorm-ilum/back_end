@@ -65,6 +65,9 @@ dependencies {
 
     //web socket
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+    // toss payment
+    implementation 'com.googlecode.json-simple:json-simple:1.1'
 }
 
 // Querydsl 설정부
@@ -88,3 +91,4 @@ clean {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
