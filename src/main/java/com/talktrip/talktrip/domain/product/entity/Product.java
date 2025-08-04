@@ -59,7 +59,7 @@ public class Product extends BaseEntity {
 
     @Builder.Default
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ProductStock> productStocks = new ArrayList<>();
+    private List<ProductOption> productOptions = new ArrayList<>();
 
     public void updateBasicInfo(String productName, String description, String thumbnailImageUrl, Country country) {
         this.productName = productName;
@@ -68,8 +68,8 @@ public class Product extends BaseEntity {
         this.country = country;
     }
 
-    public ProductStock getMinPriceStock() {
-        return productStocks.stream()
+    public ProductOption getMinPriceOption() {
+        return productOptions.stream()
                 .min((s1, s2) -> Integer.compare(s1.getPrice(), s2.getPrice()))
                 .orElse(null);
     }

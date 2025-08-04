@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.talktrip.talktrip.domain.product.entity.HashTag;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductImage;
-import com.talktrip.talktrip.domain.product.entity.ProductStock;
+import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import lombok.Builder;
 
 import java.time.LocalDate;
@@ -27,16 +27,16 @@ public record AdminProductEditResponse(
     public record OptionStock(String optionName, int stock, int price, int discountPrice) {}
 
     public static AdminProductEditResponse from(Product product) {
-        List<ProductStock> stocks = product.getProductStocks();
+        List<ProductOption> stocks = product.getProductOptions();
         List<ProductImage> productImages = product.getImages();
 
         LocalDate earliest = stocks.stream()
-                .map(ProductStock::getStartDate)
+                .map(ProductOption::getStartDate)
                 .min(LocalDate::compareTo)
                 .orElse(null);
 
         LocalDate latest = stocks.stream()
-                .map(ProductStock::getStartDate)
+                .map(ProductOption::getStartDate)
                 .max(LocalDate::compareTo)
                 .orElse(null);
 

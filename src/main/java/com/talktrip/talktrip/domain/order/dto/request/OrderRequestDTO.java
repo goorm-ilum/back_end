@@ -9,8 +9,6 @@ import java.util.List;
 @Setter
 public class OrderRequestDTO {
 
-    private Long memberId;   // 회원 ID
-    private Long productId;  // 상품 ID
     private String date;     // 선택한 날짜 (예: "2025-08-02")
     private List<Option> options;  // 선택 옵션과 수량 리스트
     private int totalPrice; // 총 결제 금액

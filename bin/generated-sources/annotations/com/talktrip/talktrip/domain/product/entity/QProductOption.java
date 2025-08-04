@@ -11,16 +11,16 @@ import com.querydsl.core.types.dsl.PathInits;
 
 
 /**
- * QProductStock is a Querydsl query type for ProductStock
+ * QProductOption is a Querydsl query type for ProductOption
  */
 @Generated("com.querydsl.codegen.DefaultEntitySerializer")
-public class QProductStock extends EntityPathBase<ProductStock> {
+public class QProductOption extends EntityPathBase<ProductOption> {
 
-    private static final long serialVersionUID = 1453957366L;
+    private static final long serialVersionUID = 2004949653L;
 
     private static final PathInits INITS = PathInits.DIRECT2;
 
-    public static final QProductStock productStock = new QProductStock("productStock");
+    public static final QProductOption productOption = new QProductOption("productOption");
 
     public final NumberPath<Integer> discountPrice = createNumber("discountPrice", Integer.class);
 
@@ -36,23 +36,23 @@ public class QProductStock extends EntityPathBase<ProductStock> {
 
     public final NumberPath<Integer> stock = createNumber("stock", Integer.class);
 
-    public QProductStock(String variable) {
-        this(ProductStock.class, forVariable(variable), INITS);
+    public QProductOption(String variable) {
+        this(ProductOption.class, forVariable(variable), INITS);
     }
 
-    public QProductStock(Path<? extends ProductStock> path) {
+    public QProductOption(Path<? extends ProductOption> path) {
         this(path.getType(), path.getMetadata(), PathInits.getFor(path.getMetadata(), INITS));
     }
 
-    public QProductStock(PathMetadata metadata) {
+    public QProductOption(PathMetadata metadata) {
         this(metadata, PathInits.getFor(metadata, INITS));
     }
 
-    public QProductStock(PathMetadata metadata, PathInits inits) {
-        this(ProductStock.class, metadata, inits);
+    public QProductOption(PathMetadata metadata, PathInits inits) {
+        this(ProductOption.class, metadata, inits);
     }
 
-    public QProductStock(Class<? extends ProductStock> type, PathMetadata metadata, PathInits inits) {
+    public QProductOption(Class<? extends ProductOption> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
         this.product = inits.isInitialized("product") ? new QProduct(forProperty("product"), inits.get("product")) : null;
     }

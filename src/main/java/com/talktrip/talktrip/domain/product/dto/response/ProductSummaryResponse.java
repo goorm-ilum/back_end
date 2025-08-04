@@ -1,7 +1,7 @@
 package com.talktrip.talktrip.domain.product.dto.response;
 
 import com.talktrip.talktrip.domain.product.entity.Product;
-import com.talktrip.talktrip.domain.product.entity.ProductStock;
+import com.talktrip.talktrip.domain.product.entity.ProductOption;
 
 public record ProductSummaryResponse(
         Long productId,
@@ -14,7 +14,7 @@ public record ProductSummaryResponse(
         boolean isLiked
 ) {
     public static ProductSummaryResponse from(Product product, float avgStar, boolean isLiked) {
-        ProductStock minPriceStock = product.getMinPriceStock();
+        ProductOption minPriceStock = product.getMinPriceOption();
 
         int price = minPriceStock != null ? minPriceStock.getPrice() : 0;
         int discountPrice = minPriceStock != null ? minPriceStock.getDiscountPrice() : 0;

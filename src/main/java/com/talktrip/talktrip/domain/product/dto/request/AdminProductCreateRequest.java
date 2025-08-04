@@ -3,7 +3,7 @@ package com.talktrip.talktrip.domain.product.dto.request;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.product.entity.HashTag;
 import com.talktrip.talktrip.domain.product.entity.Product;
-import com.talktrip.talktrip.domain.product.entity.ProductStock;
+import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.global.entity.Country;
 
 import java.time.LocalDate;
@@ -39,10 +39,10 @@ public record AdminProductCreateRequest(
                 .toList();
     }
 
-    public List<ProductStock> toProductStocks(Product product) {
+    public List<ProductOption> toProductOptions(Product product) {
         return startDates.stream()
                 .flatMap(date -> optionStocks.stream()
-                        .map(os -> ProductStock.builder()
+                        .map(os -> ProductOption.builder()
                                 .product(product)
                                 .startDate(date)
                                 .optionName(os.optionName)

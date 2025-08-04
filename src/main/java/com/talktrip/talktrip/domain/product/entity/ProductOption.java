@@ -6,8 +6,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
+
 @Entity
-@Table(name = "product_option")
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -18,13 +19,18 @@ public class ProductOption {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
-    private Product product;
+    private LocalDate startDate;
 
     private String optionName;
 
-    private int extraPrice;
-
     private int stock;
+
+    private int price;
+
+    private int discountPrice;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
 }
+

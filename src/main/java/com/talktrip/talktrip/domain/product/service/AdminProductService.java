@@ -10,7 +10,7 @@ import com.talktrip.talktrip.domain.product.entity.ProductImage;
 import com.talktrip.talktrip.domain.product.repository.ProductHashTagRepository;
 import com.talktrip.talktrip.domain.product.repository.ProductImageRepository;
 import com.talktrip.talktrip.domain.product.repository.ProductRepository;
-import com.talktrip.talktrip.domain.product.repository.ProductStockRepository;
+import com.talktrip.talktrip.domain.product.repository.ProductOptionRepository;
 import com.talktrip.talktrip.global.entity.Country;
 import com.talktrip.talktrip.global.exception.MemberException;
 import com.talktrip.talktrip.global.exception.ErrorCode;
@@ -33,7 +33,7 @@ public class AdminProductService {
     private final MemberRepository memberRepository;
     private final ProductImageRepository productImageRepository;
     private final ProductHashTagRepository productHashTagRepository;
-    private final ProductStockRepository productStockRepository;
+    private final ProductOptionRepository productOptionRepository;
     private final S3Uploader s3Uploader;
 
     @Transactional
@@ -64,7 +64,7 @@ public class AdminProductService {
         product.getImages().addAll(productImages);
 
         product.getHashtags().addAll(request.toHashTags(product));
-        product.getProductStocks().addAll(request.toProductStocks(product));
+        product.getProductOptions().addAll(request.toProductOptions(product));
 
         productRepository.save(product);
     }
@@ -139,7 +139,7 @@ public class AdminProductService {
 
         productImageRepository.deleteAllByProduct(product);
         productHashTagRepository.deleteAllByProduct(product);
-        productStockRepository.deleteAllByProduct(product);
+        productOptionRepository.deleteAllByProduct(product);
 
         productRepository.delete(product);
     }
