@@ -10,4 +10,7 @@ import org.springframework.context.annotation.Configuration;
 @Data
 public class MessageRequestDto {
     private String content;
+    private String createdAt;
+    private String roomId;
+    private String userId;
 }

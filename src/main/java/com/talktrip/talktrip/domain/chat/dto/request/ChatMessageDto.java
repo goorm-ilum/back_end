@@ -12,12 +12,5 @@ public class ChatMessageDto {
     private String roomId;
     private String senderId;
     private String message;
-
-    public static ChatMessageDto fromEntity(ChatMessage entity) {
-        return new ChatMessageDto(
-                entity.getRoomId(),
-                entity.getSenderId(),
-                entity.getMessage()
-        );
-    }
+    private String messageId;
 }
