@@ -4,17 +4,19 @@ import com.talktrip.talktrip.domain.review.entity.Review;
 
 public record ReviewResponse(
         Long reviewId,
+        String productName,
+        String thumbnailImageUrl,
         String comment,
         float reviewStar,
-        String reviewerNickname,
         String updatedAt
 ) {
     public static ReviewResponse from(Review review) {
         return new ReviewResponse(
                 review.getId(),
+                review.getProduct().getProductName(),
+                review.getProduct().getThumbnailImageUrl(),
                 review.getComment(),
                 review.getReviewStar(),
-                review.getMember().getNickname(),
                 review.getUpdatedAt().toString()
         );
     }

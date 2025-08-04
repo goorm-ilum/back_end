@@ -5,6 +5,7 @@ import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.review.dto.request.ReviewRequest;
+import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
 import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.domain.review.repository.ReviewRepository;
 import com.talktrip.talktrip.global.exception.ErrorCode;
@@ -12,6 +13,8 @@ import com.talktrip.talktrip.global.exception.ReviewException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -61,5 +64,15 @@ public class ReviewService {
         }
 
         reviewRepository.delete(review);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReviewResponse> getMyReviews(Long memberId) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ReviewException(ErrorCode.USER_NOT_FOUND));
+
+        return reviewRepository.findByMemberOrderByCreatedAtDesc(member).stream()
+                .map(ReviewResponse::from)
+                .toList();
     }
 }

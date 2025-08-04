@@ -24,7 +24,7 @@ public class LikeController {
     @PostMapping("/products/{productId}/like")
     public ResponseEntity<Void> toggleLike(@PathVariable Long productId,
                                            @AuthenticationPrincipal CustomMemberDetails memberDetails) {
-        likeService.toggleLike(productId, memberDetails.getId());
+        likeService.toggleLike(productId, memberDetails);
         return ResponseEntity.ok().build();
     }
 
@@ -32,7 +32,7 @@ public class LikeController {
     @GetMapping("/me/likes")
     public ResponseEntity<List<ProductSummaryResponse>> getMyLikes(
             @AuthenticationPrincipal CustomMemberDetails memberDetails) {
-        return ResponseEntity.ok(likeService.getLikedProducts(memberDetails.getId()));
+        return ResponseEntity.ok(likeService.getLikedProducts(memberDetails));
     }
 }
 
