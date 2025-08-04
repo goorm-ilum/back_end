@@ -28,9 +28,8 @@ public class OrderController {
             @RequestBody OrderRequestDTO orderRequest,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
-        Long memberId = memberDetails.getId(); // JWT에서 파싱된 사용자 ID
+        Long memberId = memberDetails.getId();
 
-        // 주문 생성 요청을 서비스로 위임
         OrderResponseDTO orderResponse = orderService.createOrder(productId, orderRequest, memberId);
 
         return ResponseEntity.ok(orderResponse);

@@ -46,6 +46,12 @@ public class Order {
     @Column(name = "total_price")
     private int totalPrice;
 
+    @Column(name = "order_code", unique = true, nullable = false)
+    private String orderCode;
+
+    public void setOrderCode(String orderCode) {
+        this.orderCode = orderCode;
+    }
 
     public void addOrderItem(OrderItem orderItem) {
         orderItems.add(orderItem);
@@ -63,7 +69,8 @@ public class Order {
         return order;
     }
 
-    public void updateOrderStatus(OrderStatus status) {
+    public void updatePaymentInfo(PaymentMethod method, OrderStatus status) {
+        this.paymentMethod = method;
         this.orderStatus = status;
     }
 }

@@ -48,7 +48,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/user/login").permitAll()
                         .requestMatchers("/api/orders/**").permitAll()
                         .requestMatchers("/api/tosspay/**").permitAll()
-                        .requestMatchers("/api/orders").permitAll()  // 테스트용 임시 허용
 
                         .anyRequest().authenticated()
                 )
