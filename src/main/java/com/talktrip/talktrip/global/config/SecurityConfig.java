@@ -44,8 +44,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/products", "/api/products/**").permitAll()
                         .requestMatchers("/api/member/kakao-login-url").permitAll()
                         .requestMatchers("/api/member/kakao").permitAll()
-                        .requestMatchers("/api/products", "/api/products/**", "/api/me/likes").permitAll()
-                        .requestMatchers("/api/user/login").permitAll()
                         .requestMatchers("/api/orders").permitAll()  // 테스트용 임시 허용
                         .anyRequest().authenticated()
                 )

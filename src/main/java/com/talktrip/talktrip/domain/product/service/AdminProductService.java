@@ -12,7 +12,7 @@ import com.talktrip.talktrip.domain.product.repository.ProductImageRepository;
 import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.product.repository.ProductStockRepository;
 import com.talktrip.talktrip.global.entity.Country;
-import com.talktrip.talktrip.global.exception.AdminException;
+import com.talktrip.talktrip.global.exception.MemberException;
 import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.ProductException;
 import com.talktrip.talktrip.global.repository.CountryRepository;
@@ -40,7 +40,7 @@ public class AdminProductService {
     public void createProduct(AdminProductCreateRequest request, Long memberId,
                               MultipartFile thumbnailImage, List<MultipartFile> detailImages) {
         Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new AdminException(ErrorCode.ADMIN_NOT_FOUND));
+                .orElseThrow(() -> new MemberException(ErrorCode.ADMIN_NOT_FOUND));
 
         Country country = countryRepository.findByName(request.countryName())
                 .orElseThrow(() -> new ProductException(ErrorCode.COUNTRY_NOT_FOUND));
