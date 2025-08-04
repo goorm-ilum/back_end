@@ -30,7 +30,7 @@ public class AdminProductController {
             @RequestPart("detailImages") List<MultipartFile> detailImages,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
-        adminProductService.createProduct(request, 1L, thumbnailImage, detailImages);
+        adminProductService.createProduct(request, memberDetails.getId(), thumbnailImage, detailImages);
         return ResponseEntity.status(201).build();
     }
 
@@ -60,7 +60,7 @@ public class AdminProductController {
             @RequestPart("detailImages") List<MultipartFile> detailImages,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
-        adminProductService.updateProduct(productId, request, 1L, thumbnailImage, detailImages);
+        adminProductService.updateProduct(productId, request, memberDetails.getId(), thumbnailImage, detailImages);
         return ResponseEntity.ok().build();
     }
 
@@ -70,7 +70,7 @@ public class AdminProductController {
             @PathVariable Long productId,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
-        adminProductService.deleteProduct(productId, 1L);
+        adminProductService.deleteProduct(productId, memberDetails.getId());
         return ResponseEntity.noContent().build();
     }
 }

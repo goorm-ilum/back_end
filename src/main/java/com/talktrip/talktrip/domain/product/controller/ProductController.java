@@ -32,7 +32,7 @@ public class ProductController {
             @RequestParam(defaultValue = "9") int size,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
             ) {
-        return ResponseEntity.ok(productService.searchProducts(keyword, memberDetails.getId(), page, size));
+        return ResponseEntity.ok(productService.searchProducts(keyword, memberDetails, page, size));
     }
 
     @Operation(summary = "상품 상세 조회")
@@ -43,11 +43,7 @@ public class ProductController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "3") int size) {
 
-        Long memberId = (memberDetails != null) ? memberDetails.getId() : null;
-
-        log.info("[ProductController] 상품 상세 조회 요청 productId={}, memberId={}", productId, memberId);
-
-        return ResponseEntity.ok(productService.getProductDetail(productId, memberId, page, size));
+        return ResponseEntity.ok(productService.getProductDetail(productId, memberDetails, page, size));
     }
 
     @Operation(summary = "AI 상품 검색")

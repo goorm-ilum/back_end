@@ -1,5 +1,6 @@
 package com.talktrip.talktrip.domain.product.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.talktrip.talktrip.domain.product.entity.HashTag;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductImage;
@@ -15,6 +16,7 @@ public record ProductDetailResponse(
         String shortDescription,
         int price,
         int discountPrice,
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
         LocalDateTime regDate,
         String thumbnailImageUrl,
         String countryName,

@@ -11,6 +11,7 @@ import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.domain.review.repository.ReviewRepository;
 import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.ProductException;
+import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import com.talktrip.talktrip.global.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,7 +38,7 @@ public class ProductService {
     private String fastApiBaseUrl;
 
     @Transactional
-    public List<ProductSummaryResponse> searchProducts(String keyword, Long memberId, int page, int size) {
+    public List<ProductSummaryResponse> searchProducts(String keyword, CustomMemberDetails memberDetails, int page, int size) {
         int offset = page * size;
         List<Product> products;
 
@@ -59,17 +60,18 @@ public class ProductService {
                             .average()
                             .orElse(0.0);
 
-                    boolean isLiked = memberId != null &&
-                            likeRepository.existsByProductIdAndMemberId(product.getId(), memberId);
+                    boolean isLiked = false;
+                    if (memberDetails != null) {
+                        isLiked = likeRepository.existsByProductIdAndMemberId(product.getId(), memberDetails.getId());
+                    }
 
                     return ProductSummaryResponse.from(product, avgStar, isLiked);
                 })
                 .toList();
     }
 
-
     @Transactional
-    public ProductDetailResponse getProductDetail(Long productId, Long memberId, int page, int size) {
+    public ProductDetailResponse getProductDetail(Long productId, CustomMemberDetails memberDetails, int page, int size) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
 
@@ -82,7 +84,9 @@ public class ProductService {
 
         List<Review> reviews = reviewRepository.findByProductId(productId);
         float avgStar = (float) reviews.stream()
-                .mapToDouble(Review::getReviewStar).average().orElse(0.0);
+                .mapToDouble(Review::getReviewStar)
+                .average()
+                .orElse(0.0);
 
         List<ReviewResponse> reviewResponses = reviews.stream()
                 .map(ReviewResponse::from)
@@ -90,7 +94,10 @@ public class ProductService {
 
         List<ReviewResponse> pagedReviews = PaginationUtil.paginate(reviewResponses, page, size);
 
-        boolean isLiked = memberId != null && likeRepository.existsByProductIdAndMemberId(productId, memberId);
+        boolean isLiked = false;
+        if (memberDetails != null) {
+            isLiked = likeRepository.existsByProductIdAndMemberId(productId, memberDetails.getId());
+        }
 
         return ProductDetailResponse.from(product, avgStar, pagedReviews, isLiked);
     }

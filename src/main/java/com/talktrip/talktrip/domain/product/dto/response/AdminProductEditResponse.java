@@ -1,5 +1,6 @@
 package com.talktrip.talktrip.domain.product.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.talktrip.talktrip.domain.product.entity.HashTag;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductImage;
@@ -15,7 +16,9 @@ public record AdminProductEditResponse(
         String continent,
         String country,
         String thumbnailImageUrl,
+        @JsonFormat(pattern = "yyyy-MM-dd")
         LocalDate earliestDate,
+        @JsonFormat(pattern = "yyyy-MM-dd")
         LocalDate latestDate,
         List<OptionStock> optionStocks,
         List<String> images,

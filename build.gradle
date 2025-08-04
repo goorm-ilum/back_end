@@ -68,6 +68,8 @@ dependencies {
 
     // toss payment
     implementation 'com.googlecode.json-simple:json-simple:1.1'
+
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 }
 
 // Querydsl 설정부

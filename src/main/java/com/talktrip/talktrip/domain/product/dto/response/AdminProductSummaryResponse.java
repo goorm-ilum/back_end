@@ -1,5 +1,6 @@
 package com.talktrip.talktrip.domain.product.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductStock;
 import lombok.Builder;
@@ -14,6 +15,7 @@ public record AdminProductSummaryResponse(
         int price,
         int discountPrice,
         int totalStock,
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
         LocalDateTime updatedAt
 ) {
     public static AdminProductSummaryResponse from(Product product) {
