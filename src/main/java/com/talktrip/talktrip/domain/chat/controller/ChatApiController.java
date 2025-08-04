@@ -1,17 +1,23 @@
 package com.talktrip.talktrip.domain.chat.controller;
 
+import com.talktrip.talktrip.domain.chat.entity.ChatMessageHistory;
+import com.talktrip.talktrip.domain.chat.entity.ChatRoom;
+import com.talktrip.talktrip.domain.chat.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
 
 @Tag(name = "Chat", description = "채팅 관련 API")
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/chat")
 public class ChatApiController {
+
+    private final ChatService chatService;
 
     @Operation(summary = "채팅방 접속")
     @PostMapping
@@ -22,14 +28,29 @@ public class ChatApiController {
     public void sendMessage() {}
 
     @Operation(summary = "내 채팅 목록")
-    @GetMapping("/me/chats")
-    public void getMyChats() {}
+    @GetMapping("/me/chatRooms")
+    public List<ChatRoom> getMyChats() {
+        // 실제 데이터베이스 조회는 나중에 활성화
+         List<ChatRoom> rooms = chatService.getRooms("dhrdbs");
+         return rooms;
+    }
+    @Operation(summary = "채팅방 상세 조회")
+    @GetMapping("/me/chatRooms/{roomId}")
+    public List<ChatMessageHistory> getChatRoom(@PathVariable String roomId) {
+        return chatService.getRoomChattingHistory(roomId);
+    }
 
-    @Operation(summary = "내 채팅 생성")
-    @PostMapping("room")
-    public void getChatRooms() {}
+    @Operation(summary = "안읽은 채팅방 갯수")
+    @GetMapping("/countALLUnreadMessagesRooms")
+    public int getCountALLUnreadMessagesRooms(String userId) {
+        return chatService.getCountALLUnreadMessagesRooms(userId);
+    }
 
 
-
-
+    @Operation(summary = "안읽은 모든 채팅갯수")
+    @GetMapping("/countALLUnreadMessages")
+    public Map<String, Integer> getCountAllUnreadMessages(@RequestParam String userId) {
+        int count = chatService.getCountAllUnreadMessages(userId);
+        return Map.of("count", count);
+    }
 }
