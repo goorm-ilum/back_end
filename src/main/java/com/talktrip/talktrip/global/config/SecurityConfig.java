@@ -44,14 +44,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/products", "/api/products/**").permitAll()
                         .requestMatchers("/api/member/kakao-login-url").permitAll()
                         .requestMatchers("/api/member/kakao").permitAll()
-<<<<<<< HEAD
                         .requestMatchers("/api/products", "/api/products/**", "/api/me/likes").permitAll()
                         .requestMatchers("/api/user/login").permitAll()
                         .requestMatchers("/api/orders/**").permitAll()
                         .requestMatchers("/api/tosspay/**").permitAll()
-=======
                         .requestMatchers("/api/orders").permitAll()  // 테스트용 임시 허용
->>>>>>> 6b52dfe642a0f027ebb29877b3af0263f2c99f4f
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
