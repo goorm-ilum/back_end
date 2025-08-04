@@ -4,7 +4,7 @@ import com.talktrip.talktrip.domain.like.repository.LikeRepository;
 import com.talktrip.talktrip.domain.product.dto.response.ProductDetailResponse;
 import com.talktrip.talktrip.domain.product.dto.response.ProductSummaryResponse;
 import com.talktrip.talktrip.domain.product.entity.Product;
-import com.talktrip.talktrip.domain.product.entity.ProductStock;
+import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
 import com.talktrip.talktrip.domain.review.entity.Review;
@@ -50,8 +50,8 @@ public class ProductService {
         }
 
         return products.stream()
-                .filter(product -> product.getProductStocks().stream()
-                        .mapToInt(ProductStock::getStock)
+                .filter(product -> product.getProductOptions().stream()
+                        .mapToInt(ProductOption::getStock)
                         .sum() > 0)
                 .map(product -> {
                     List<Review> allReviews = reviewRepository.findByProductId(product.getId());
@@ -75,8 +75,8 @@ public class ProductService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
 
-        int totalStock = product.getProductStocks().stream()
-                .mapToInt(ProductStock::getStock)
+        int totalStock = product.getProductOptions().stream()
+                .mapToInt(ProductOption::getStock)
                 .sum();
         if (totalStock == 0) {
             throw new ProductException(ErrorCode.PRODUCT_NOT_FOUND);

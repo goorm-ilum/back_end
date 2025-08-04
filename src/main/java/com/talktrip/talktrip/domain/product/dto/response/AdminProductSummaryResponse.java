@@ -2,7 +2,7 @@ package com.talktrip.talktrip.domain.product.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.talktrip.talktrip.domain.product.entity.Product;
-import com.talktrip.talktrip.domain.product.entity.ProductStock;
+import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import lombok.Builder;
 
 import java.time.LocalDateTime;
@@ -19,11 +19,11 @@ public record AdminProductSummaryResponse(
         LocalDateTime updatedAt
 ) {
     public static AdminProductSummaryResponse from(Product product) {
-        int stockSum = product.getProductStocks().stream()
-                .mapToInt(ProductStock::getStock)
+        int stockSum = product.getProductOptions().stream()
+                .mapToInt(ProductOption::getStock)
                 .sum();
 
-        ProductStock minPriceStock = product.getMinPriceStock();
+        ProductOption minPriceStock = product.getMinPriceOption();
 
         int price = minPriceStock != null ? minPriceStock.getPrice() : 0;
         int discountPrice = minPriceStock != null ? minPriceStock.getDiscountPrice() : 0;

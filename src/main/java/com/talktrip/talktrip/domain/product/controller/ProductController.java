@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.*;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Tag(name = "Product", description = "상품 관련 API")

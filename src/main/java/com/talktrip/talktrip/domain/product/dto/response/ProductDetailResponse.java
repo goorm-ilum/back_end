@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.talktrip.talktrip.domain.product.entity.HashTag;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductImage;
-import com.talktrip.talktrip.domain.product.entity.ProductStock;
+import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
 
 import java.time.LocalDateTime;
@@ -22,13 +22,13 @@ public record ProductDetailResponse(
         String countryName,
         List<String> hashtags,
         List<String> images,
-        List<ProductStockResponse> stocks,
+        List<ProductOptionResponse> stocks,
         float averageReviewStar,
         List<ReviewResponse> reviews,
         boolean isLiked
 ) {
     public static ProductDetailResponse from(Product product, float avgStar, List<ReviewResponse> reviews, boolean isLiked) {
-        ProductStock minPriceStock = product.getMinPriceStock();
+        ProductOption minPriceStock = product.getMinPriceOption();
 
         int price = minPriceStock != null ? minPriceStock.getPrice() : 0;
         int discountPrice = minPriceStock != null ? minPriceStock.getDiscountPrice() : 0;
@@ -44,7 +44,7 @@ public record ProductDetailResponse(
                 product.getCountry().getName(),
                 product.getHashtags().stream().map(HashTag::getHashtag).toList(),
                 product.getImages().stream().map(ProductImage::getImageUrl).toList(),
-                product.getProductStocks().stream().map(ProductStockResponse::from).toList(),
+                product.getProductOptions().stream().map(ProductOptionResponse::from).toList(),
                 avgStar,
                 reviews,
                 isLiked
