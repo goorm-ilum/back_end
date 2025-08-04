@@ -28,6 +28,8 @@ public class QOrder extends EntityPathBase<Order> {
 
     public final com.talktrip.talktrip.domain.member.entity.QMember member;
 
+    public final StringPath orderCode = createString("orderCode");
+
     public final DatePath<java.time.LocalDate> orderDate = createDate("orderDate", java.time.LocalDate.class);
 
     public final ListPath<OrderItem, QOrderItem> orderItems = this.<OrderItem, QOrderItem>createList("orderItems", OrderItem.class, QOrderItem.class, PathInits.DIRECT2);

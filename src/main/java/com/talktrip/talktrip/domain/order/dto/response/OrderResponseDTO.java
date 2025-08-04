@@ -6,7 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class OrderResponseDTO {
-
+    
     private String orderId;       // 주문 고유 ID (예: UUID)
     private String orderName;     // 주문명 (예: "상품명 외 2건")
     private int totalPrice;           // 총 결제 금액
