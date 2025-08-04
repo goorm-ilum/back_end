@@ -3,7 +3,6 @@ package com.talktrip.talktrip.domain.product.dto.request;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.product.entity.HashTag;
 import com.talktrip.talktrip.domain.product.entity.Product;
-import com.talktrip.talktrip.domain.product.entity.ProductImage;
 import com.talktrip.talktrip.domain.product.entity.ProductStock;
 import com.talktrip.talktrip.global.entity.Country;
 
@@ -20,14 +19,12 @@ public record AdminProductCreateRequest(
         List<OptionStockRequest> optionStocks,
         List<String> hashtags
 ) {
-    public record OptionStockRequest(String option, int stock) {}
+    public record OptionStockRequest(String optionName, int stock, int price, int discountPrice) {}
 
     public Product to(Member member, Country country) {
         return Product.builder()
                 .productName(productName)
                 .description(description)
-                .price(price)
-                .discountPrice(discountPrice)
                 .member(member)
                 .country(country)
                 .build();
@@ -48,7 +45,9 @@ public record AdminProductCreateRequest(
                         .map(os -> ProductStock.builder()
                                 .product(product)
                                 .startDate(date)
-                                .option(os.option())
+                                .optionName(os.optionName)
+                                .price(os.price)
+                                .discountPrice(os.discountPrice)
                                 .stock(os.stock())
                                 .build()))
                 .toList();

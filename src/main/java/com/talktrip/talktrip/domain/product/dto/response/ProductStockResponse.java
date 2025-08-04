@@ -5,15 +5,19 @@ import com.talktrip.talktrip.domain.product.entity.ProductStock;
 import java.time.LocalDate;
 
 public record ProductStockResponse(
-        String option,
+        String optionName,
         LocalDate startDate,
-        int stock
+        int stock,
+        int price,
+        int discountPrice
 ) {
     public static ProductStockResponse from(ProductStock stock) {
         return new ProductStockResponse(
-                stock.getOption(),
+                stock.getOptionName(),
                 stock.getStartDate(),
-                stock.getStock()
+                stock.getStock(),
+                stock.getPrice(),
+                stock.getDiscountPrice()
         );
     }
 }

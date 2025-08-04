@@ -51,8 +51,6 @@ public class AdminProductService {
         product.updateBasicInfo(
                 request.productName(),
                 request.description(),
-                request.price(),
-                request.discountPrice(),
                 thumbnailUrl,
                 country
         );
@@ -111,8 +109,6 @@ public class AdminProductService {
         product.updateBasicInfo(
                 request.productName(),
                 request.description(),
-                request.price(),
-                request.discountPrice(),
                 newThumbnailUrl,
                 country
         );

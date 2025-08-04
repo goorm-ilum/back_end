@@ -21,12 +21,17 @@ public record AdminProductSummaryResponse(
                 .mapToInt(ProductStock::getStock)
                 .sum();
 
+        ProductStock minPriceStock = product.getMinPriceStock();
+
+        int price = minPriceStock != null ? minPriceStock.getPrice() : 0;
+        int discountPrice = minPriceStock != null ? minPriceStock.getDiscountPrice() : 0;
+
         return AdminProductSummaryResponse.builder()
                 .id(product.getId())
                 .productName(product.getProductName())
                 .thumbnailImageUrl(product.getThumbnailImageUrl())
-                .price(product.getPrice())
-                .discountPrice(product.getDiscountPrice())
+                .price(price)
+                .discountPrice(discountPrice)
                 .totalStock(stockSum)
                 .updatedAt(product.getCreatedAt())
                 .build();

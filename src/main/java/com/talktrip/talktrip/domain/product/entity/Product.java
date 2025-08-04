@@ -31,10 +31,6 @@ public class Product extends BaseEntity {
     @Column(length = 50, nullable = false)
     private String description;
 
-    private int price;
-
-    private int discountPrice;
-
     private String thumbnailImageUrl;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -65,12 +61,16 @@ public class Product extends BaseEntity {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductStock> productStocks = new ArrayList<>();
 
-    public void updateBasicInfo(String productName, String description, int price, int discountPrice, String thumbnailImageUrl, Country country) {
+    public void updateBasicInfo(String productName, String description, String thumbnailImageUrl, Country country) {
         this.productName = productName;
         this.description = description;
-        this.price = price;
-        this.discountPrice = discountPrice;
         this.thumbnailImageUrl = thumbnailImageUrl;
         this.country = country;
+    }
+
+    public ProductStock getMinPriceStock() {
+        return productStocks.stream()
+                .min((s1, s2) -> Integer.compare(s1.getPrice(), s2.getPrice()))
+                .orElse(null);
     }
 }

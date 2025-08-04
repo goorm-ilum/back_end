@@ -31,8 +31,6 @@ public class QProduct extends EntityPathBase<Product> {
 
     public final StringPath description = createString("description");
 
-    public final NumberPath<Integer> discountPrice = createNumber("discountPrice", Integer.class);
-
     public final ListPath<HashTag, QHashTag> hashtags = this.<HashTag, QHashTag>createList("hashtags", HashTag.class, QHashTag.class, PathInits.DIRECT2);
 
     public final NumberPath<Long> id = createNumber("id", Long.class);
@@ -42,8 +40,6 @@ public class QProduct extends EntityPathBase<Product> {
     public final ListPath<com.talktrip.talktrip.domain.like.entity.Like, com.talktrip.talktrip.domain.like.entity.QLike> likes = this.<com.talktrip.talktrip.domain.like.entity.Like, com.talktrip.talktrip.domain.like.entity.QLike>createList("likes", com.talktrip.talktrip.domain.like.entity.Like.class, com.talktrip.talktrip.domain.like.entity.QLike.class, PathInits.DIRECT2);
 
     public final com.talktrip.talktrip.domain.member.entity.QMember member;
-
-    public final NumberPath<Integer> price = createNumber("price", Integer.class);
 
     public final StringPath productName = createString("productName");
 

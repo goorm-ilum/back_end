@@ -3,6 +3,7 @@ package com.talktrip.talktrip.domain.product.dto.response;
 import com.talktrip.talktrip.domain.product.entity.HashTag;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductImage;
+import com.talktrip.talktrip.domain.product.entity.ProductStock;
 import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
 
 import java.time.LocalDateTime;
@@ -25,12 +26,17 @@ public record ProductDetailResponse(
         boolean isLiked
 ) {
     public static ProductDetailResponse from(Product product, float avgStar, List<ReviewResponse> reviews, boolean isLiked) {
+        ProductStock minPriceStock = product.getMinPriceStock();
+
+        int price = minPriceStock != null ? minPriceStock.getPrice() : 0;
+        int discountPrice = minPriceStock != null ? minPriceStock.getDiscountPrice() : 0;
+
         return new ProductDetailResponse(
                 product.getId(),
                 product.getProductName(),
                 product.getDescription(),
-                product.getPrice(),
-                product.getDiscountPrice(),
+                price,
+                discountPrice,
                 product.getUpdatedAt(),
                 product.getThumbnailImageUrl(),
                 product.getCountry().getName(),

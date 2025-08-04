@@ -15,15 +15,13 @@ public record AdminProductEditResponse(
         String continent,
         String country,
         String thumbnailImageUrl,
-        int price,
-        int discountPrice,
         LocalDate earliestDate,
         LocalDate latestDate,
         List<OptionStock> optionStocks,
         List<String> images,
         List<String> hashtags
 ) {
-    public record OptionStock(String option, int stock) {}
+    public record OptionStock(String optionName, int stock, int price, int discountPrice) {}
 
     public static AdminProductEditResponse from(Product product) {
         List<ProductStock> stocks = product.getProductStocks();
@@ -40,7 +38,7 @@ public record AdminProductEditResponse(
                 .orElse(null);
 
         List<OptionStock> options = stocks.stream()
-                .map(s -> new OptionStock(s.getOption(), s.getStock()))
+                .map(s -> new OptionStock(s.getOptionName(), s.getStock(), s.getPrice(), s.getDiscountPrice()))
                 .distinct()
                 .toList();
 
@@ -49,8 +47,6 @@ public record AdminProductEditResponse(
                 .continent(product.getCountry().getContinent())
                 .country(product.getCountry().getName())
                 .thumbnailImageUrl(product.getThumbnailImageUrl())
-                .price(product.getPrice())
-                .discountPrice(product.getDiscountPrice())
                 .earliestDate(earliest)
                 .latestDate(latest)
                 .optionStocks(options)

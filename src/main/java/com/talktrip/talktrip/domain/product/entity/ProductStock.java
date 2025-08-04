@@ -21,10 +21,13 @@ public class ProductStock {
 
     private LocalDate startDate;
 
-    @Column(name = "stock_option")
-    private String option;
+    private String optionName;
 
     private int stock;
+
+    private int price;
+
+    private int discountPrice;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)

@@ -22,9 +22,13 @@ public class QProductStock extends EntityPathBase<ProductStock> {
 
     public static final QProductStock productStock = new QProductStock("productStock");
 
+    public final NumberPath<Integer> discountPrice = createNumber("discountPrice", Integer.class);
+
     public final NumberPath<Long> id = createNumber("id", Long.class);
 
-    public final StringPath option = createString("option");
+    public final StringPath optionName = createString("optionName");
+
+    public final NumberPath<Integer> price = createNumber("price", Integer.class);
 
     public final QProduct product;
 
