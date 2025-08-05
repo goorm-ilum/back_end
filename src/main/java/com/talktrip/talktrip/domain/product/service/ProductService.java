@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -75,10 +76,12 @@ public class ProductService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
 
-        int totalStock = product.getProductOptions().stream()
+        int futureStock = product.getProductOptions().stream()
+                .filter(option -> !option.getStartDate().isBefore(LocalDate.now()))
                 .mapToInt(ProductOption::getStock)
                 .sum();
-        if (totalStock == 0) {
+
+        if (futureStock == 0) {
             throw new ProductException(ErrorCode.PRODUCT_NOT_FOUND);
         }
 
@@ -101,6 +104,7 @@ public class ProductService {
 
         return ProductDetailResponse.from(product, avgStar, pagedReviews, isLiked);
     }
+
 
     public List<ProductSummaryResponse> aiSearchProducts(String query) {
         String fastApiUrl = fastApiBaseUrl + "/query";

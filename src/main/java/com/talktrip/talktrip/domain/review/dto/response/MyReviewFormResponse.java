@@ -4,6 +4,7 @@ import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.review.entity.Review;
 
 public record MyReviewFormResponse(
+        Long reviewId,
         String productName,
         String thumbnailUrl,
         Float myStar,
@@ -11,10 +12,12 @@ public record MyReviewFormResponse(
 ) {
     public static MyReviewFormResponse from(Product product, Review review) {
         return new MyReviewFormResponse(
+                review != null ? review.getId() : null,
                 product.getProductName(),
                 product.getThumbnailImageUrl(),
-                review.getReviewStar(),
-                review.getComment()
+                review != null ? review.getReviewStar() : null,
+                review != null ? review.getComment() : null
         );
     }
+
 }

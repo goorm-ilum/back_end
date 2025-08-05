@@ -15,7 +15,8 @@ public enum ErrorCode {
     REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "리뷰를 찾을 수 없습니다."),
     IMAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "S3 이미지 업로드에 실패했습니다."),
     IMAGE_DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "S3 이미지 삭제에 실패했습니다."),
-    UNAUTHORIZED_MEMBER(HttpStatus.UNAUTHORIZED, "로그인이 필요한 요청입니다.");
+    UNAUTHORIZED_MEMBER(HttpStatus.UNAUTHORIZED, "로그인이 필요한 요청입니다."),
+    ALREADY_REVIEWED(HttpStatus.CONFLICT, "이미 리뷰를 작성하셨습니다.");
 
     private final HttpStatus httpStatus;
     private final String message;

@@ -7,7 +7,9 @@ import com.talktrip.talktrip.domain.product.entity.ProductImage;
 import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 
 public record ProductDetailResponse(
@@ -28,7 +30,13 @@ public record ProductDetailResponse(
         boolean isLiked
 ) {
     public static ProductDetailResponse from(Product product, float avgStar, List<ReviewResponse> reviews, boolean isLiked) {
-        ProductOption minPriceStock = product.getMinPriceOption();
+        List<ProductOption> futureOptions = product.getProductOptions().stream()
+                .filter(option -> !option.getStartDate().isBefore(LocalDate.now()))
+                .toList();
+
+        ProductOption minPriceStock = futureOptions.stream()
+                .min(Comparator.comparingInt(ProductOption::getDiscountPrice))
+                .orElse(null);
 
         int price = minPriceStock != null ? minPriceStock.getPrice() : 0;
         int discountPrice = minPriceStock != null ? minPriceStock.getDiscountPrice() : 0;
@@ -44,7 +52,7 @@ public record ProductDetailResponse(
                 product.getCountry().getName(),
                 product.getHashtags().stream().map(HashTag::getHashtag).toList(),
                 product.getImages().stream().map(ProductImage::getImageUrl).toList(),
-                product.getProductOptions().stream().map(ProductOptionResponse::from).toList(),
+                futureOptions.stream().map(ProductOptionResponse::from).toList(),
                 avgStar,
                 reviews,
                 isLiked
