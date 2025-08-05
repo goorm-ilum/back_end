@@ -58,11 +58,14 @@ public class ReviewController {
     @Operation(summary = "내 리뷰 목록 조회")
     @GetMapping("/me/reviews")
     public ResponseEntity<List<ReviewResponse>> getMyReviews(
-            @AuthenticationPrincipal CustomMemberDetails memberDetails) {
+            @AuthenticationPrincipal CustomMemberDetails memberDetails,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "9") int size) {
 
-        List<ReviewResponse> reviews = reviewService.getMyReviews(memberDetails.getId());
+        List<ReviewResponse> reviews = reviewService.getMyReviews(memberDetails.getId(), page, size);
         return ResponseEntity.ok(reviews);
     }
+
 
     @Operation(summary = "리뷰 작성 폼 조회 (리뷰가 없을 때만)")
     @GetMapping("/products/{productId}/reviews/form")

@@ -34,9 +34,7 @@ public record ProductDetailResponse(
                 .filter(option -> !option.getStartDate().isBefore(LocalDate.now()))
                 .toList();
 
-        ProductOption minPriceStock = futureOptions.stream()
-                .min(Comparator.comparingInt(ProductOption::getDiscountPrice))
-                .orElse(null);
+        ProductOption minPriceStock = product.getMinPriceOption();
 
         int price = minPriceStock != null ? minPriceStock.getPrice() : 0;
         int discountPrice = minPriceStock != null ? minPriceStock.getDiscountPrice() : 0;

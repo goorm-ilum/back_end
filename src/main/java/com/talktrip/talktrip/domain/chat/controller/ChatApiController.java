@@ -1,6 +1,6 @@
 package com.talktrip.talktrip.domain.chat.controller;
 
-import com.talktrip.talktrip.domain.chat.entity.ChatMessageHistory;
+import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
 import com.talktrip.talktrip.domain.chat.entity.ChatRoom;
 import com.talktrip.talktrip.domain.chat.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,26 +31,26 @@ public class ChatApiController {
     @GetMapping("/me/chatRooms")
     public List<ChatRoom> getMyChats() {
         // 실제 데이터베이스 조회는 나중에 활성화
-         List<ChatRoom> rooms = chatService.getRooms("dhrdbs");
+         List<ChatRoom> rooms = chatService.getRooms("okyun");
          return rooms;
     }
     @Operation(summary = "채팅방 상세 조회")
     @GetMapping("/me/chatRooms/{roomId}")
-    public List<ChatMessageHistory> getChatRoom(@PathVariable String roomId) {
-        return chatService.getRoomChattingHistory(roomId);
+    public List<ChatMessage> getChatRoom(@PathVariable String roomId) {
+        return chatService.getRoomChattingHistoryAndMarkAsRead(roomId,"okyun");
     }
 
     @Operation(summary = "안읽은 채팅방 갯수")
     @GetMapping("/countALLUnreadMessagesRooms")
     public int getCountALLUnreadMessagesRooms(String userId) {
-        return chatService.getCountALLUnreadMessagesRooms(userId);
+        return chatService.getCountALLUnreadMessagesRooms("okyun");
     }
 
 
     @Operation(summary = "안읽은 모든 채팅갯수")
     @GetMapping("/countALLUnreadMessages")
     public Map<String, Integer> getCountAllUnreadMessages(@RequestParam String userId) {
-        int count = chatService.getCountAllUnreadMessages(userId);
+        int count = chatService.getCountAllUnreadMessages("okyun");
         return Map.of("count", count);
     }
 }

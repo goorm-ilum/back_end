@@ -48,6 +48,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/user/login").permitAll()
                         .requestMatchers("/api/orders/**").permitAll()
                         .requestMatchers("/api/tosspay/**").permitAll()
+                        .requestMatchers("/api/chat/**").permitAll()  // 채팅 API 허용
+                        .requestMatchers("/ws/**", "/ws").permitAll()
+                        .requestMatchers("/ws-info/**", "/ws-info").permitAll()
+                        .requestMatchers("/topic/**").permitAll()
+                        .requestMatchers("/app/**").permitAll()
+
 
                         .anyRequest().authenticated()
                 )
@@ -60,10 +66,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.addAllowedOrigin("http://localhost:5173");
+        configuration.addAllowedOrigin("http://localhost:5173"); // ✅ 정확히 너가 쓰는 origin
+        configuration.setAllowCredentials(true);                 // ✅ WebSocket은 반드시 true
         configuration.addAllowedMethod("*");
         configuration.addAllowedHeader("*");
-        configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

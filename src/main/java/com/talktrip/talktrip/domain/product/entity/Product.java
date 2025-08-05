@@ -11,6 +11,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -70,7 +71,8 @@ public class Product extends BaseEntity {
 
     public ProductOption getMinPriceOption() {
         return productOptions.stream()
-                .min((s1, s2) -> Integer.compare(s1.getPrice(), s2.getPrice()))
+                .filter(option -> !option.getStartDate().isBefore(LocalDate.now())) // 오늘 이후만
+                .min((o1, o2) -> Integer.compare(o1.getDiscountPrice(), o2.getDiscountPrice()))
                 .orElse(null);
     }
 }

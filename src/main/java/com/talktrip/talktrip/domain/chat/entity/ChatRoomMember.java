@@ -4,10 +4,13 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "chating_room_users_tab")
-public class ChatRoomUser {
+@Table(name = "chating_room_member_tab")
+public class ChatRoomMember {
 
     @Id
     private String roomMemberId;
@@ -21,5 +24,8 @@ public class ChatRoomUser {
     @Column(name = "last_read_message_id")
     private String lastReadMessageId;
 
-    // 연관관계, getter/setter 생략
+    @CreationTimestamp
+    @Column(name = "last_member_read_time")
+    private LocalDateTime lastMemberReadTime;
+
 }
