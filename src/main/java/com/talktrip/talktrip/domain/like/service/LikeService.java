@@ -51,7 +51,7 @@ public class LikeService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProductSummaryResponse> getLikedProducts(CustomMemberDetails memberDetails) {
+    public List<ProductSummaryResponse> getLikedProducts(CustomMemberDetails memberDetails, int page, int size) {
         if (memberDetails == null) {
             throw new MemberException(ErrorCode.UNAUTHORIZED_MEMBER);
         }
@@ -59,7 +59,14 @@ public class LikeService {
         Long memberId = memberDetails.getId();
         List<Like> likes = likeRepository.findByMemberId(memberId);
 
-        return likes.stream().map(like -> {
+        int fromIndex = page * size;
+        int toIndex = Math.min(fromIndex + size, likes.size());
+
+        if (fromIndex >= likes.size()) {
+            return List.of();
+        }
+
+        return likes.subList(fromIndex, toIndex).stream().map(like -> {
             Product product = like.getProduct();
             float avgStar = (float) product.getReviews().stream()
                     .mapToDouble(Review::getReviewStar)
@@ -69,4 +76,5 @@ public class LikeService {
             return ProductSummaryResponse.from(product, avgStar, true);
         }).toList();
     }
+
 }

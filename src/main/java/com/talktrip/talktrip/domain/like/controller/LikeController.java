@@ -31,8 +31,12 @@ public class LikeController {
     @Operation(summary = "내 좋아요 상품 목록")
     @GetMapping("/me/likes")
     public ResponseEntity<List<ProductSummaryResponse>> getMyLikes(
-            @AuthenticationPrincipal CustomMemberDetails memberDetails) {
-        return ResponseEntity.ok(likeService.getLikedProducts(memberDetails));
+            @AuthenticationPrincipal CustomMemberDetails memberDetails,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "9") int size) {
+
+        return ResponseEntity.ok(likeService.getLikedProducts(memberDetails, page, size));
     }
+
 }
 

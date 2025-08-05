@@ -34,6 +34,11 @@ public class ReviewService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new ReviewException(ErrorCode.USER_NOT_FOUND));
 
+        Optional<Review> reviewOpt = reviewRepository.findByProductIdAndMemberId(productId, memberId);
+        if (reviewOpt.isPresent()) {
+            throw new ReviewException(ErrorCode.ALREADY_REVIEWED);
+        }
+
         Review review = Review.builder()
                 .product(product)
                 .member(member)
@@ -69,14 +74,24 @@ public class ReviewService {
     }
 
     @Transactional(readOnly = true)
-    public List<ReviewResponse> getMyReviews(Long memberId) {
+    public List<ReviewResponse> getMyReviews(Long memberId, int page, int size) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new ReviewException(ErrorCode.USER_NOT_FOUND));
 
-        return reviewRepository.findByMemberOrderByCreatedAtDesc(member).stream()
+        List<Review> reviews = reviewRepository.findByMemberOrderByCreatedAtDesc(member);
+
+        int fromIndex = page * size;
+        int toIndex = Math.min(fromIndex + size, reviews.size());
+
+        if (fromIndex >= reviews.size()) {
+            return List.of();
+        }
+
+        return reviews.subList(fromIndex, toIndex).stream()
                 .map(ReviewResponse::from)
                 .toList();
     }
+
 
     @Transactional(readOnly = true)
     public MyReviewFormResponse getReviewCreateForm(Long productId, Long memberId) {
@@ -88,7 +103,7 @@ public class ReviewService {
             throw new ReviewException(ErrorCode.ALREADY_REVIEWED);
         }
 
-        return MyReviewFormResponse.from(product, null); // 👍 리뷰가 없으므로 null 전달
+        return MyReviewFormResponse.from(product, null);
     }
 
     @Transactional(readOnly = true)
