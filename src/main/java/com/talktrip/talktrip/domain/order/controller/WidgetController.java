@@ -82,14 +82,25 @@ public class WidgetController {
         JSONObject responseJson = (JSONObject) parser.parse(reader);
         responseStream.close();
 
-        // ✅ 결제 성공 시 Order 업데이트
         if (isSuccess) {
+            logger.info("결제 응답 전체 JSON: {}", responseJson.toJSONString());
+
             Optional<Order> optionalOrder = orderRepository.findByOrderCode(orderId);
             if (optionalOrder.isPresent()) {
                 Order order = optionalOrder.get();
 
-                String methodStr = (String) responseJson.get("method");  // 예: "CARD", "ACCOUNT_TRANSFER", "MOBILE_PHONE"
-                PaymentMethod paymentMethod = mapToPaymentMethod(methodStr);
+                String methodStr = (String) responseJson.get("method"); // "간편결제" 등
+                String provider = null;
+
+                if ("간편결제".equals(methodStr) && responseJson.containsKey("easyPay")) {
+                    JSONObject easyPayJson = (JSONObject) responseJson.get("easyPay");
+                    provider = (String) easyPayJson.get("provider"); // "토스페이", "카카오페이" 등
+                }
+
+                logger.info("결제 응답에서 받은 결제 수단(method): {}", methodStr);
+                logger.info("간편결제 provider: {}", provider);
+
+                PaymentMethod paymentMethod = mapToPaymentMethod(methodStr, provider);
 
                 order.updatePaymentInfo(paymentMethod, OrderStatus.SUCCESS);
                 orderRepository.save(order);
@@ -98,29 +109,44 @@ public class WidgetController {
             }
         }
 
+
         return ResponseEntity.status(code).body(responseJson);
     }
 
-    private PaymentMethod mapToPaymentMethod(String methodStr) {
-        switch (methodStr) {
-            case "CARD":
+    private PaymentMethod mapToPaymentMethod(String methodStr, String provider) {
+        if (methodStr == null) {
+            return PaymentMethod.UNKNOWN;
+        }
+        String method = methodStr.toUpperCase();
+
+        switch (method) {
+            case "카드":
                 return PaymentMethod.CARD;
-            case "ACCOUNT_TRANSFER":
+            case "계좌이체":
                 return PaymentMethod.ACCOUNT;
-            case "TOSSPAY":
-                return PaymentMethod.TOSSPAY;
-            case "PAYCO":
-                return PaymentMethod.PAYCO;
-            case "KAKAO_PAY":
-                return PaymentMethod.KAKAO;
-            case "NAVER_PAY":
-                return PaymentMethod.NAVER;
-            case "MOBILE_PHONE":
+            case "휴대폰결제":
                 return PaymentMethod.MOBILE;
+            case "간편결제":
+                if (provider != null) {
+                    switch (provider) {
+                        case "토스페이":
+                            return PaymentMethod.TOSSPAY;
+                        case "카카오페이":
+                            return PaymentMethod.KAKAO;
+                        case "페이코":
+                            return PaymentMethod.PAYCO;
+                        case "네이버페이":
+                            return PaymentMethod.NAVER;
+                        default:
+                            return PaymentMethod.UNKNOWN;
+                    }
+                }
+                return PaymentMethod.UNKNOWN;
             default:
-                return PaymentMethod.CARD; // 기본값 또는 예외 처리 가능
+                return PaymentMethod.UNKNOWN;
         }
     }
+
 
     @RequestMapping(value = "/success", method = RequestMethod.GET)
     public String paymentRequest(HttpServletRequest request, Model model) throws Exception {
