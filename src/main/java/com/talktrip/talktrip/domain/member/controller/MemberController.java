@@ -7,7 +7,6 @@ import com.talktrip.talktrip.global.util.JWTUtil;
 import com.talktrip.talktrip.domain.member.dto.response.MemberResponseDTO;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.member.service.KakaoAuthService;
-import com.talktrip.talktrip.domain.member.service.MemberService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -17,9 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @Tag(name = "Member", description = "회원 관련 API")
 @RestController
