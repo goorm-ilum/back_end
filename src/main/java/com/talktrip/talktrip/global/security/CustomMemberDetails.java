@@ -20,7 +20,7 @@ public record CustomMemberDetails(Member member) implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority(member.getMemberRole().name()));
+        return List.of(new SimpleGrantedAuthority("ROLE_" + member.getMemberRole().name()));
     }
 
     @Override
