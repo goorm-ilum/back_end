@@ -13,26 +13,30 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
     @Query(value = """
         SELECT
-          crmt.room_id,
-          crmt.room_member_id  ,
-          crt.created_at,
-          crt.updated_at,
-          crt.last_message_id,
-          CONCAT('채팅방 ', crt.room_id) AS title,
-          cmht.message as last_message,
-          (
-            SELECT COUNT(*)
-            FROM chating_message_history_tab msg
-            WHERE msg.room_id = crt.room_id
-              AND msg.created_at > (
-                SELECT sub.created_at
-                FROM chating_message_history_tab sub
-                WHERE sub.message_id = crmt.last_read_message_id
-              )
-          ) AS not_read_message_count
+            crmt.room_id,
+            crmt.room_member_id,
+            crt.created_at,
+            crt.updated_at,
+            CONCAT('채팅방 ', crt.room_id) AS title,
+            (
+                SELECT cmht.message
+                FROM chating_message_history_tab cmht
+                WHERE cmht.room_id = crt.room_id
+                ORDER BY cmht.created_at DESC
+                LIMIT 1
+            ) AS last_message,
+            (
+                SELECT COUNT(*)
+                FROM chating_message_history_tab msg
+                WHERE msg.room_id = crt.room_id
+                  AND (
+                      crmt.last_member_read_time IS NULL
+                      OR msg.created_at > crmt.last_member_read_time
+                  )
+                  AND msg.member_id != :memberId -- ✅ 나 자신이 보낸 메시지는 제외
+            ) AS not_read_message_count
         FROM chating_room_member_tab crmt
         JOIN chating_room_tab crt ON crt.room_id = crmt.room_id
-        JOIN chating_message_history_tab cmht ON cmht.message_id = crt.last_message_id
         WHERE crmt.member_id  = :memberId;
     """, nativeQuery = true)
     List<ChatRoom> findRoomsWithLastMessageByMemberId(@Param("memberId") String memberId);
