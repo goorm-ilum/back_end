@@ -120,6 +120,7 @@ public class JWTCheckFilter extends OncePerRequestFilter {
     private boolean isPublicPath(String uri) {
         return uri.equals("/api/member/kakao") ||
                 uri.equals("/api/member/kakao-login-url") ||
+
                 uri.startsWith("/swagger") ||
                 uri.startsWith("/swagger-ui") ||
                 uri.startsWith("/v3/api-docs") ||
@@ -129,7 +130,16 @@ public class JWTCheckFilter extends OncePerRequestFilter {
                 // 상품 조회 및 AI 검색, 리뷰 목록은 비로그인 허용
                 (uri.startsWith("/api/products") && !uri.contains("/like")) ||
                 uri.startsWith("/api/ai-search") ||
-                uri.startsWith("/api/reviews");
+                uri.startsWith("/api/reviews")||
+                uri.startsWith("/api/products") ||
+                uri.startsWith("/api/orders")||
+                uri.startsWith("/api/chat/") ||  // 채팅 API 제외
+                uri.startsWith("/ws/") ||        // WebSocket 제외
+                uri.equals("/ws") ||             // WebSocket 루트 제외
+                uri.startsWith("/topic/") ||     // STOMP 토픽 제외
+                uri.startsWith("/app/");         // STOMP 앱 제외
+
+
     }
 
     private void respondWithUnauthorized(HttpServletResponse response, String message) throws IOException {

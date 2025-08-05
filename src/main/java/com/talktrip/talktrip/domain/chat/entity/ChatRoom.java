@@ -19,7 +19,7 @@ public class ChatRoom extends BaseEntity {
     @Id
     @Column(name = "room_id", length = 10)
     private String roomId;
-    private String lastMessageId;
+//    private String lastMessageId;
     private String lastMessage;
     private String title;
     private int notReadMessageCount;

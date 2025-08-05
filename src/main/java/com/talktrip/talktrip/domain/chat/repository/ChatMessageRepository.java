@@ -1,13 +1,15 @@
 package com.talktrip.talktrip.domain.chat.repository;
 
-import com.talktrip.talktrip.domain.chat.entity.ChatMessageHistory;
+import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
-public interface ChatMessageRepository extends JpaRepository<ChatMessageHistory, String> {
+public interface ChatMessageRepository extends JpaRepository<ChatMessage, String> {
 
     @Query(value = """
       SELECT COUNT(*)
@@ -48,21 +50,23 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessageHistory,
     );
 
     @Query(value = """
-     SELECT SUM(unread_count) AS total_unread_message_count
+     SELECT IFNULL(SUM(not_read_message_count), 0) AS total_unread_message_count
      FROM (
-         SELECT COUNT(*) AS unread_count
+         SELECT COUNT(*) AS not_read_message_count
          FROM chating_room_member_tab crmt
+         JOIN chating_room_tab crt ON crt.room_id = crmt.room_id
          JOIN chating_message_history_tab msg ON msg.room_id = crmt.room_id
          WHERE crmt.member_id = :userId
-           AND msg.created_at > (
-               SELECT sub.created_at
-               FROM chating_message_history_tab sub
-               WHERE sub.message_id = crmt.last_read_message_id
+           AND (
+               crmt.last_member_read_time IS NULL
+               OR msg.created_at > crmt.last_member_read_time
            )
+           AND msg.member_id != :userId -- ✅ 나 자신이 보낸 메시지는 제외
          GROUP BY crmt.room_id
      ) AS unread_counts;
    """, nativeQuery = true)
     int countUnreadMessages(
             @Param("userId") String userId
     );
+    List<ChatMessage> findByRoomIdOrderByCreatedAt(String userId);
 }
