@@ -7,6 +7,7 @@ import com.talktrip.talktrip.domain.product.dto.response.AdminProductEditRespons
 import com.talktrip.talktrip.domain.product.dto.response.AdminProductSummaryResponse;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductImage;
+import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.domain.product.repository.ProductHashTagRepository;
 import com.talktrip.talktrip.domain.product.repository.ProductImageRepository;
 import com.talktrip.talktrip.domain.product.repository.ProductRepository;
@@ -18,11 +19,13 @@ import com.talktrip.talktrip.global.exception.ProductException;
 import com.talktrip.talktrip.global.repository.CountryRepository;
 import com.talktrip.talktrip.global.s3.S3Uploader;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -69,13 +72,16 @@ public class AdminProductService {
         productRepository.save(product);
     }
 
-    @Transactional
-    public List<AdminProductSummaryResponse> getMyProducts(Long memberId) {
-        List<Product> products = productRepository.findByMemberId(memberId);
+    @Transactional(readOnly = true)
+    public List<AdminProductSummaryResponse> getMyProducts(Long memberId, int page, int size) {
+        int offset = page * size;
+        List<Product> products = productRepository.findByMemberId(memberId, offset, size);
+
         return products.stream()
                 .map(AdminProductSummaryResponse::from)
                 .toList();
     }
+
 
     @Transactional
     public AdminProductEditResponse getMyProductEditForm(Long productId, Long memberId) {
@@ -142,5 +148,72 @@ public class AdminProductService {
         productOptionRepository.deleteAllByProduct(product);
 
         productRepository.delete(product);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminProductSummaryResponse> searchMyProducts(Long memberId, String keyword, int page, int size, String sortBy, boolean ascending) {
+        List<Product> products;
+
+        if (keyword == null || keyword.trim().isEmpty()) {
+            products = productRepository.findByMemberId(memberId);
+        } else {
+            List<String> keywords = Arrays.stream(keyword.trim().split("\\s+")).toList();
+            List<Product> candidates = productRepository.searchByKeywordsAndMemberId(keywords, memberId);
+
+            products = candidates.stream()
+                    .filter(product -> {
+                        String combined = (product.getProductName() + " " + product.getDescription()).toLowerCase();
+                        List<String> combinedWords = Arrays.asList(combined.split("\\s+"));
+
+                        for (String k : keywords) {
+                            long count = combinedWords.stream().filter(word -> word.equals(k.toLowerCase())).count();
+                            long required = keywords.stream().filter(s -> s.equalsIgnoreCase(k)).count();
+                            if (count < required) return false;
+                        }
+                        return true;
+                    })
+                    .sorted(getComparator(sortBy, ascending))
+                    .toList();
+        }
+
+        int offset = page * size;
+        int toIndex = Math.min(offset + size, products.size());
+
+        List<Product> pagedProducts = (offset > products.size()) ? List.of() : products.subList(offset, toIndex);
+
+        return pagedProducts.stream()
+                .map(AdminProductSummaryResponse::from)
+                .toList();
+    }
+
+
+    @Transactional(readOnly = true)
+    public List<AdminProductSummaryResponse> sortMyProducts(Long memberId, int page, int size, String sortBy, boolean ascending) {
+        List<Product> products = productRepository.findByMemberId(memberId);
+
+        products.sort(getComparator(sortBy, ascending));
+
+        int offset = page * size;
+        int toIndex = Math.min(offset + size, products.size());
+
+        List<Product> pagedProducts = (offset > products.size()) ? List.of() : products.subList(offset, toIndex);
+
+        return pagedProducts.stream()
+                .map(AdminProductSummaryResponse::from)
+                .toList();
+    }
+
+
+    private Comparator<Product> getComparator(String sortBy, boolean ascending) {
+        Comparator<Product> comparator;
+        switch (sortBy) {
+            case "productName" -> comparator = Comparator.comparing(Product::getProductName, String.CASE_INSENSITIVE_ORDER);
+            case "price" -> comparator = Comparator.comparing(p -> Optional.ofNullable(p.getMinPriceOption()).map(ProductOption::getPrice).orElse(0));
+            case "discountPrice" -> comparator = Comparator.comparing(p -> Optional.ofNullable(p.getMinPriceOption()).map(ProductOption::getDiscountPrice).orElse(0));
+            case "totalStock" -> comparator = Comparator.comparing(Product::getTotalStock);
+            case "updatedAt" -> comparator = Comparator.comparing(Product::getUpdatedAt);
+            default -> throw new IllegalArgumentException("Invalid sortBy value: " + sortBy);
+        }
+        return ascending ? comparator : comparator.reversed();
     }
 }

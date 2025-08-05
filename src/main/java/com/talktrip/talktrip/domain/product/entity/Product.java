@@ -75,4 +75,10 @@ public class Product extends BaseEntity {
                 .min((o1, o2) -> Integer.compare(o1.getDiscountPrice(), o2.getDiscountPrice()))
                 .orElse(null);
     }
+
+    public int getTotalStock() {
+        return productOptions.stream()
+                .mapToInt(ProductOption::getStock)
+                .sum();
+    }
 }

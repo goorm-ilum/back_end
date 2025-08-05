@@ -22,6 +22,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -40,17 +41,36 @@ public class ProductService {
 
     @Transactional
     public List<ProductSummaryResponse> searchProducts(String keyword, CustomMemberDetails memberDetails, int page, int size) {
-        int offset = page * size;
         List<Product> products;
 
         if (keyword == null || keyword.trim().isEmpty()) {
-            products = productRepository.findAll(PageRequest.of(page, size)).getContent();
+            products = productRepository.findAll();
         } else {
             List<String> keywords = Arrays.stream(keyword.trim().split("\\s+")).toList();
-            products = productRepository.searchByKeywords(keywords, offset, size);
+            List<Product> candidates = productRepository.searchByKeywords(keywords, 0, Integer.MAX_VALUE);
+
+            products = candidates.stream()
+                    .filter(product -> {
+                        String combined = (product.getProductName() + " " + product.getDescription()).toLowerCase();
+                        List<String> combinedWords = Arrays.asList(combined.split("\\s+"));
+
+                        for (String k : keywords) {
+                            long count = combinedWords.stream().filter(word -> word.equals(k.toLowerCase())).count();
+                            long required = keywords.stream().filter(s -> s.equalsIgnoreCase(k)).count();
+                            if (count < required) return false;
+                        }
+                        return true;
+                    })
+                    .sorted(Comparator.comparing(Product::getUpdatedAt).reversed()) // 정렬 (예: 최신순)
+                    .toList();
         }
 
-        return products.stream()
+        int offset = page * size;
+        int toIndex = Math.min(offset + size, products.size());
+
+        List<Product> pagedProducts = (offset > products.size()) ? List.of() : products.subList(offset, toIndex);
+
+        return pagedProducts.stream()
                 .filter(product -> product.getProductOptions().stream()
                         .mapToInt(ProductOption::getStock)
                         .sum() > 0)

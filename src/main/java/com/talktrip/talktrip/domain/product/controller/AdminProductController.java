@@ -37,10 +37,13 @@ public class AdminProductController {
     @Operation(summary = "판매자 상품 목록 조회")
     @GetMapping
     public ResponseEntity<List<AdminProductSummaryResponse>> getMyProducts(
-            @AuthenticationPrincipal CustomMemberDetails memberDetails
+            @AuthenticationPrincipal CustomMemberDetails memberDetails,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
     ) {
-        return ResponseEntity.ok(adminProductService.getMyProducts(memberDetails.getId()));
+        return ResponseEntity.ok(adminProductService.getMyProducts(memberDetails.getId(), page, size));
     }
+
 
     @Operation(summary = "판매자 상품 상세 조회")
     @GetMapping("/{productId}")
@@ -72,5 +75,35 @@ public class AdminProductController {
     ) {
         adminProductService.deleteProduct(productId, memberDetails.getId());
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "판매자 상품 검색 + 정렬")
+    @GetMapping("/search")
+    public ResponseEntity<List<AdminProductSummaryResponse>> searchProducts(
+            @AuthenticationPrincipal CustomMemberDetails memberDetails,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "updatedAt") String sortBy,
+            @RequestParam(defaultValue = "false") boolean ascending,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return ResponseEntity.ok(
+                adminProductService.searchMyProducts(memberDetails.getId(), keyword, page, size, sortBy, ascending)
+        );
+    }
+
+
+    @Operation(summary = "판매자 상품 정렬")
+    @GetMapping("/sort")
+    public ResponseEntity<List<AdminProductSummaryResponse>> sortProducts(
+            @AuthenticationPrincipal CustomMemberDetails memberDetails,
+            @RequestParam(defaultValue = "updatedAt") String sortBy,
+            @RequestParam(defaultValue = "false") boolean ascending,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return ResponseEntity.ok(
+                adminProductService.sortMyProducts(memberDetails.getId(), page, size, sortBy, ascending)
+        );
     }
 }

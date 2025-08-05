@@ -22,7 +22,6 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
         QCountry country = QCountry.country;
 
         BooleanBuilder builder = new BooleanBuilder();
-
         for (String keyword : keywords) {
             String like = "%" + keyword + "%";
             BooleanBuilder perKeyword = new BooleanBuilder();
@@ -42,4 +41,30 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
                 .limit(limit)
                 .fetch();
     }
+
+    @Override
+    public List<Product> searchByKeywordsAndMemberId(List<String> keywords, Long memberId) {
+        QProduct product = QProduct.product;
+        QHashTag hashtag = QHashTag.hashTag;
+        QCountry country = QCountry.country;
+
+        BooleanBuilder builder = new BooleanBuilder();
+        for (String keyword : keywords) {
+            String like = "%" + keyword + "%";
+            BooleanBuilder perKeyword = new BooleanBuilder();
+            perKeyword.or(product.productName.likeIgnoreCase(like))
+                    .or(product.description.likeIgnoreCase(like))
+                    .or(hashtag.hashtag.likeIgnoreCase(like))
+                    .or(country.name.likeIgnoreCase(like));
+            builder.and(perKeyword);
+        }
+
+        return queryFactory.selectDistinct(product)
+                .from(product)
+                .leftJoin(product.hashtags, hashtag).fetchJoin()
+                .leftJoin(product.country, country).fetchJoin()
+                .where(builder.and(product.member.Id.eq(memberId)))
+                .fetch();
+    }
 }
+
