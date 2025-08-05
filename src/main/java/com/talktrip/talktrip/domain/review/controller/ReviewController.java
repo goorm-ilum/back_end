@@ -1,6 +1,7 @@
 package com.talktrip.talktrip.domain.review.controller;
 
 import com.talktrip.talktrip.domain.review.dto.request.ReviewRequest;
+import com.talktrip.talktrip.domain.review.dto.response.MyReviewFormResponse;
 import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
 import com.talktrip.talktrip.domain.review.service.ReviewService;
 import com.talktrip.talktrip.global.security.CustomMemberDetails;
@@ -61,6 +62,26 @@ public class ReviewController {
 
         List<ReviewResponse> reviews = reviewService.getMyReviews(memberDetails.getId());
         return ResponseEntity.ok(reviews);
+    }
+
+    @Operation(summary = "리뷰 작성 폼 조회 (리뷰가 없을 때만)")
+    @GetMapping("/products/{productId}/reviews/form")
+    public ResponseEntity<MyReviewFormResponse> getReviewCreateForm(
+            @PathVariable Long productId,
+            @AuthenticationPrincipal CustomMemberDetails memberDetails) {
+
+        MyReviewFormResponse response = reviewService.getReviewCreateForm(productId, memberDetails.getId());
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "리뷰 수정 폼 조회 (내 리뷰일 때만)")
+    @GetMapping("/reviews/{reviewId}/form")
+    public ResponseEntity<MyReviewFormResponse> getReviewUpdateForm(
+            @PathVariable Long reviewId,
+            @AuthenticationPrincipal CustomMemberDetails memberDetails) {
+
+        MyReviewFormResponse response = reviewService.getReviewUpdateForm(reviewId, memberDetails.getId());
+        return ResponseEntity.ok(response);
     }
 
 }
