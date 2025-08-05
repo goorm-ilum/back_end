@@ -4,14 +4,19 @@ import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.order.dto.request.OrderRequestDTO;
 import com.talktrip.talktrip.domain.order.dto.response.OrderResponseDTO;
+import com.talktrip.talktrip.domain.order.dto.response.OrderHistoryResponseDTO;
+import com.talktrip.talktrip.domain.order.dto.response.OrderDetailResponseDTO;
 import com.talktrip.talktrip.domain.order.entity.Order;
 import com.talktrip.talktrip.domain.order.entity.OrderItem;
+import com.talktrip.talktrip.domain.order.enums.OrderStatus;
 import com.talktrip.talktrip.domain.order.repository.OrderRepository;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.product.repository.ProductOptionRepository;
 import lombok.RequiredArgsConstructor;
+import jakarta.persistence.EntityNotFoundException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -94,4 +99,24 @@ public class OrderService {
     private String generateTossOrderId() {
         return UUID.randomUUID().toString().replace("-", "");
     }
+
+    public List<OrderHistoryResponseDTO> getOrdersByMemberId(Long memberId) {
+        List<Order> orders = orderRepository.findByMemberIdAndOrderStatus(memberId, OrderStatus.SUCCESS);
+
+        return orders.stream()
+                .map(OrderHistoryResponseDTO::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    public OrderDetailResponseDTO getOrderDetail(Long orderId, Long requesterId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("주문을 찾을 수 없습니다."));
+
+        if (!order.getMember().getId().equals(requesterId)) {
+            throw new AccessDeniedException("해당 주문에 접근할 수 없습니다.");
+        }
+
+        return OrderDetailResponseDTO.from(order);
+    }
+
 }
