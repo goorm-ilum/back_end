@@ -7,6 +7,7 @@ public enum PaymentMethod {
     PAYCO,
     KAKAO,
     NAVER,
-    MOBILE       // 휴대폰결제
+    MOBILE,       // 휴대폰결제
+    UNKNOWN
 }
 
