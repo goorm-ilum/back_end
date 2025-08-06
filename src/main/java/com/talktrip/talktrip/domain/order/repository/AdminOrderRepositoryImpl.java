@@ -1,17 +1,28 @@
 package com.talktrip.talktrip.domain.order.repository;
 
+import com.querydsl.core.BooleanBuilder;
+import com.querydsl.core.types.OrderSpecifier;
+import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.entity.QMember;
 import com.talktrip.talktrip.domain.order.dto.response.AdminOrderResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.QAdminOrderResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.AdminOrderDetailResponseDTO;
+import com.talktrip.talktrip.domain.order.entity.Order;
 import com.talktrip.talktrip.domain.order.entity.QOrder;
 import com.talktrip.talktrip.domain.order.entity.QOrderItem;
 import com.talktrip.talktrip.domain.order.entity.QPayment;
-import com.talktrip.talktrip.domain.order.entity.QCardPayment;
+import com.talktrip.talktrip.domain.order.enums.OrderStatus;
+import com.talktrip.talktrip.domain.order.enums.PaymentMethod;
 import com.talktrip.talktrip.domain.product.entity.QProduct;
 import com.talktrip.talktrip.domain.product.entity.QProductOption;
+import com.talktrip.talktrip.domain.order.entity.QCardPayment;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -49,6 +60,103 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
                 .where(product.member.Id.eq(sellerId))
                 .distinct()
                 .fetch();
+    }
+
+    @Override
+    public Page<AdminOrderResponseDTO> findOrdersBySellerIdWithPagination(
+            Long sellerId, 
+            Pageable pageable, 
+            String sort, 
+            String paymentMethod, 
+            String keyword, 
+            String orderStatus) {
+        
+        QOrder order = QOrder.order;
+        QOrderItem orderItem = QOrderItem.orderItem;
+        QProduct product = QProduct.product;
+        QMember member = QMember.member;
+        QPayment payment = QPayment.payment;
+
+        // 기본 조건: 판매자 ID
+        BooleanBuilder whereClause = new BooleanBuilder();
+        whereClause.and(product.member.Id.eq(sellerId));
+
+        // 결제수단 필터
+        if (paymentMethod != null && !paymentMethod.trim().isEmpty()) {
+            try {
+                PaymentMethod method = PaymentMethod.valueOf(paymentMethod.toUpperCase());
+                whereClause.and(payment.method.eq(method));
+            } catch (IllegalArgumentException e) {
+                // 잘못된 결제수단 값은 무시
+            }
+        }
+
+        // 검색어 필터 (상품명)
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            whereClause.and(product.productName.containsIgnoreCase(keyword.trim()));
+        }
+
+        // 주문상태 필터
+        if (orderStatus != null && !orderStatus.trim().isEmpty()) {
+            try {
+                OrderStatus status = OrderStatus.valueOf(orderStatus.toUpperCase());
+                whereClause.and(order.orderStatus.eq(status));
+            } catch (IllegalArgumentException e) {
+                // 잘못된 주문상태 값은 무시
+            }
+        }
+
+        // 정렬 조건
+        OrderSpecifier<?> orderSpecifier = getOrderSpecifier(order, sort);
+
+        // 전체 개수 조회
+        long total = queryFactory
+                .select(order.count())
+                .from(order)
+                .join(order.member, member)
+                .join(order.orderItems, orderItem)
+                .join(orderItem.product, product)
+                .leftJoin(payment).on(payment.order.eq(order))
+                .where(whereClause)
+                .distinct()
+                .fetchOne();
+
+        // 페이지 데이터 조회
+        List<AdminOrderResponseDTO> content = queryFactory
+                .select(new QAdminOrderResponseDTO(
+                        order.orderCode,
+                        member.name,
+                        product.productName,
+                        order.createdAt,
+                        order.totalPrice,
+                        payment.method,
+                        order.orderStatus
+                ))
+                .from(order)
+                .join(order.member, member)
+                .join(order.orderItems, orderItem)
+                .join(orderItem.product, product)
+                .leftJoin(payment).on(payment.order.eq(order))
+                .where(whereClause)
+                .orderBy(orderSpecifier)
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .distinct()
+                .fetch();
+
+        return new PageImpl<>(content, pageable, total);
+    }
+
+    private OrderSpecifier<?> getOrderSpecifier(QOrder order, String sort) {
+        switch (sort.toLowerCase()) {
+            case "amount":
+                return order.totalPrice.desc();
+            case "id":
+                return order.orderCode.asc();
+            case "date":
+            default:
+                return order.createdAt.desc();
+        }
     }
 
     @Override

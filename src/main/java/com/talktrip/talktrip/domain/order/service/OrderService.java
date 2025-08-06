@@ -36,6 +36,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
 import com.talktrip.talktrip.domain.order.dto.response.OrderDetailWithPaymentDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -131,6 +134,35 @@ public class OrderService {
                     return OrderHistoryResponseDTO.fromEntity(order);
                 })
                 .collect(Collectors.toList());
+    }
+
+    // 페이지네이션을 지원하는 새로운 메서드
+    public Page<OrderHistoryResponseDTO> getOrdersByMemberIdWithPagination(Long memberId, Pageable pageable) {
+        Page<Order> orderPage = orderRepository.findByMemberIdAndOrderStatus(memberId, OrderStatus.SUCCESS, pageable);
+
+        return orderPage.map(order -> {
+            // Payment 정보가 없는 경우 임시로 생성 (기존 주문 호환성을 위해)
+            if (order.getPayment() == null) {
+                Payment tempPayment = Payment.createPayment(
+                        order,
+                        "TEMP_" + order.getOrderCode(),
+                        PaymentMethod.CARD,
+                        PaymentProvider.TOSSPAY,
+                        order.getTotalPrice(),
+                        (int)(order.getTotalPrice() * 0.1), // VAT 10%
+                        (int)(order.getTotalPrice() * 0.9), // 공급가액 90%
+                        "DONE",
+                        order.getCreatedAt(),
+                        null,
+                        true,
+                        null, // easyPayProvider
+                        "신한카드", // cardCompany
+                        null  // accountBank
+                );
+                order.attachPayment(tempPayment);
+            }
+            return OrderHistoryResponseDTO.fromEntity(order);
+        });
     }
 
     public void processSuccessfulPayment(Order order, JSONObject responseJson) {
