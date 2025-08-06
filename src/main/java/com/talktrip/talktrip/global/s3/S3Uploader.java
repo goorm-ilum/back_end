@@ -12,6 +12,10 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 import java.util.UUID;
 
 @Component
@@ -23,6 +27,10 @@ public class S3Uploader {
     private String bucket;
 
     public String upload(MultipartFile file, String dirName) {
+        if (file == null || file.isEmpty()) {
+            return null;
+        }
+
         String fileName = dirName + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
         try {
             s3Client.putObject(
@@ -60,6 +68,31 @@ public class S3Uploader {
 
     private String extractKeyFromUrl(String fileUrl) {
         String[] parts = fileUrl.split(".amazonaws.com/");
-        return parts.length > 1 ? parts[1] : fileUrl; // key 부분만 추출
+        return parts.length > 1 ? parts[1] : fileUrl;
     }
+
+    public String calculateHash(MultipartFile file) {
+        if (file == null || file.isEmpty()) return null;
+
+        try (InputStream inputStream = file.getInputStream()) {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+            byte[] buffer = new byte[8192]; // 8KB 버퍼
+            int bytesRead;
+
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                digest.update(buffer, 0, bytesRead);
+            }
+
+            byte[] hash = digest.digest();
+            return Base64.getEncoder().encodeToString(hash);
+
+        } catch (IOException e) {
+            throw new S3Excepttion(ErrorCode.IMAGE_UPLOAD_FAILED);
+        } catch (NoSuchAlgorithmException e) {
+            throw new S3Excepttion(ErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+    }
+
+
 }

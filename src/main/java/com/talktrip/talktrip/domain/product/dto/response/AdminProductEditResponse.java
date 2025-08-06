@@ -9,51 +9,55 @@ import lombok.Builder;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Builder
 public record AdminProductEditResponse(
         String productName,
+        String description,
         String continent,
         String country,
         String thumbnailImageUrl,
+        String thumbnailImageHash,
         @JsonFormat(pattern = "yyyy-MM-dd")
-        LocalDate earliestDate,
-        @JsonFormat(pattern = "yyyy-MM-dd")
-        LocalDate latestDate,
+        List<LocalDate> startDates,
         List<OptionStock> optionStocks,
-        List<String> images,
+        List<ImageInfo> images,
         List<String> hashtags
 ) {
     public record OptionStock(String optionName, int stock, int price, int discountPrice) {}
+
+    public record ImageInfo(Long imageId, String imageUrl) {}
 
     public static AdminProductEditResponse from(Product product) {
         List<ProductOption> stocks = product.getProductOptions();
         List<ProductImage> productImages = product.getImages();
 
-        LocalDate earliest = stocks.stream()
+        List<LocalDate> startDates = stocks.stream()
                 .map(ProductOption::getStartDate)
-                .min(LocalDate::compareTo)
-                .orElse(null);
-
-        LocalDate latest = stocks.stream()
-                .map(ProductOption::getStartDate)
-                .max(LocalDate::compareTo)
-                .orElse(null);
+                .distinct()
+                .sorted()
+                .toList();
 
         List<OptionStock> options = stocks.stream()
                 .map(s -> new OptionStock(s.getOptionName(), s.getStock(), s.getPrice(), s.getDiscountPrice()))
                 .distinct()
                 .toList();
 
+        List<ImageInfo> imageInfos = productImages.stream()
+                .map(img -> new ImageInfo(img.getId(), img.getImageUrl()))
+                .toList();
+
         return AdminProductEditResponse.builder()
                 .productName(product.getProductName())
+                .description(product.getDescription())
                 .continent(product.getCountry().getContinent())
                 .country(product.getCountry().getName())
                 .thumbnailImageUrl(product.getThumbnailImageUrl())
-                .earliestDate(earliest)
-                .latestDate(latest)
+                .thumbnailImageHash(product.getThumbnailImageHash())
+                .startDates(startDates)
                 .optionStocks(options)
-                .images(productImages.stream().map(ProductImage::getImageUrl).toList())
+                .images(imageInfos)
                 .hashtags(product.getHashtags().stream().map(HashTag::getHashtag).toList())
                 .build();
     }
