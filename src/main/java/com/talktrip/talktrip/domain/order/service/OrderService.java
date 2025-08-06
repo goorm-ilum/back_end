@@ -1,6 +1,7 @@
 package com.talktrip.talktrip.domain.order.service;
 
 import com.talktrip.talktrip.domain.member.entity.Member;
+import com.talktrip.talktrip.domain.order.enums.PaymentMethod;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.order.dto.request.OrderRequestDTO;
 import com.talktrip.talktrip.domain.order.dto.response.OrderResponseDTO;
@@ -38,15 +39,12 @@ public class OrderService {
 
     public OrderResponseDTO createOrder(Long productId, OrderRequestDTO orderRequest, Long memberId) {
 
-        // 1. 상품 조회
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new IllegalArgumentException("상품이 존재하지 않습니다."));
 
-        // 2. 회원 조회
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("회원이 존재하지 않습니다."));
 
-        // 3. 주문 항목 생성
         List<OrderItem> orderItems = orderRequest.getOptions().stream()
                 .map(optReq -> {
                     ProductOption productOption = productOptionRepository.findByProductIdAndOptionName(
@@ -64,13 +62,11 @@ public class OrderService {
                 })
                 .collect(Collectors.toList());
 
-        // 4. 주문명 생성
         int totalQuantity = orderItems.stream().mapToInt(OrderItem::getQuantity).sum();
         String orderName = (totalQuantity == 1)
                 ? product.getProductName() + " - 단일 옵션"
                 : product.getProductName() + " 외 " + (totalQuantity - 1) + "건";
 
-        // 5. 주문 생성
         Order order = Order.createOrder(
                 member,
                 LocalDate.parse(orderRequest.getDate()),
@@ -78,25 +74,20 @@ public class OrderService {
                 orderRequest.getTotalPrice()
         );
 
-        // 6. 주문번호(UUID) 생성 후 설정
         order.setOrderCode(generateTossOrderId());
 
-        // 7. 주문 항목 연결
         orderItems.forEach(order::addOrderItem);
 
-        // 8. 저장
         orderRepository.save(order);
 
-        // 9. 응답 DTO 반환
         return new OrderResponseDTO(
-                order.getOrderCode(),      // UUID 기반 주문번호
+                order.getOrderCode(),
                 orderName,
                 order.getTotalPrice(),
                 member.getAccountEmail()
         );
     }
 
-    // UUID 기반 주문번호 생성
     private String generateTossOrderId() {
         return UUID.randomUUID().toString().replace("-", "");
     }
@@ -107,6 +98,40 @@ public class OrderService {
         return orders.stream()
                 .map(OrderHistoryResponseDTO::fromEntity)
                 .collect(Collectors.toList());
+    }
+
+    public void processSuccessfulPayment(Order order, PaymentMethod paymentMethod) {
+        order.updatePaymentInfo(paymentMethod, OrderStatus.SUCCESS);
+
+        for (OrderItem item : order.getOrderItems()) {
+            ProductOption option = item.getProductOption();
+            if (option != null) {
+                int currentStock = option.getStock();
+                int quantity = item.getQuantity();
+
+                if (currentStock >= quantity) {
+                    option.setStock(currentStock - quantity);
+                } else {
+                    throw new IllegalStateException("재고 부족: 옵션 ID=" + option.getId() +
+                            ", 요청 수량=" + quantity + ", 현재 재고=" + currentStock);
+                }
+            }
+        }
+
+        orderRepository.save(order);
+    }
+
+    // 주문 취소 메서드(미리 구현한 것뿐. 아직 사용 x)
+    public void cancelOrder(Long orderId, Long requesterId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("주문을 찾을 수 없습니다."));
+
+        if (!order.getMember().getId().equals(requesterId)) {
+            throw new AccessDeniedException("해당 주문에 접근할 수 없습니다.");
+        }
+
+        order.cancel();
+
     }
 
     public OrderDetailResponseDTO getOrderDetail(Long orderId, Long requesterId) {
