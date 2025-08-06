@@ -47,6 +47,8 @@ public class QProduct extends EntityPathBase<Product> {
 
     public final ListPath<com.talktrip.talktrip.domain.review.entity.Review, com.talktrip.talktrip.domain.review.entity.QReview> reviews = this.<com.talktrip.talktrip.domain.review.entity.Review, com.talktrip.talktrip.domain.review.entity.QReview>createList("reviews", com.talktrip.talktrip.domain.review.entity.Review.class, com.talktrip.talktrip.domain.review.entity.QReview.class, PathInits.DIRECT2);
 
+    public final StringPath thumbnailImageHash = createString("thumbnailImageHash");
+
     public final StringPath thumbnailImageUrl = createString("thumbnailImageUrl");
 
     //inherited

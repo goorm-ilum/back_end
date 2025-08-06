@@ -6,6 +6,8 @@ import com.talktrip.talktrip.domain.order.dto.response.AdminOrderResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.AdminOrderDetailResponseDTO;
 import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -19,6 +21,19 @@ public class AdminOrderService {
     public List<AdminOrderResponseDTO> getOrdersBySeller(CustomMemberDetails memberDetails) {
         Long sellerId = memberDetails.getId();
         return adminOrderRepository.findOrdersBySellerId(sellerId);
+    }
+
+    public Page<AdminOrderResponseDTO> getOrdersBySellerWithPagination(
+            CustomMemberDetails memberDetails,
+            Pageable pageable,
+            String sort,
+            String paymentMethod,
+            String keyword,
+            String orderStatus) {
+        
+        Long sellerId = memberDetails.getId();
+        return adminOrderRepository.findOrdersBySellerIdWithPagination(
+                sellerId, pageable, sort, paymentMethod, keyword, orderStatus);
     }
 
     public AdminOrderDetailResponseDTO getOrderDetail(String orderCode, CustomMemberDetails memberDetails) {
