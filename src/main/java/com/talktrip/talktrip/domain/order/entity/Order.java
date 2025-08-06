@@ -73,4 +73,16 @@ public class Order {
         this.paymentMethod = method;
         this.orderStatus = status;
     }
+
+    public void cancel() {
+        if (this.orderStatus == OrderStatus.CANCELLED) {
+            throw new IllegalStateException("이미 취소된 주문입니다.");
+        }
+
+        this.orderStatus = OrderStatus.CANCELLED;
+
+        for (OrderItem item : orderItems) {
+            item.restoreStock(); // 재고 복원
+        }
+    }
 }
