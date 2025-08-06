@@ -36,7 +36,7 @@ public class QOrder extends EntityPathBase<Order> {
 
     public final EnumPath<com.talktrip.talktrip.domain.order.enums.OrderStatus> orderStatus = createEnum("orderStatus", com.talktrip.talktrip.domain.order.enums.OrderStatus.class);
 
-    public final EnumPath<com.talktrip.talktrip.domain.order.enums.PaymentMethod> paymentMethod = createEnum("paymentMethod", com.talktrip.talktrip.domain.order.enums.PaymentMethod.class);
+    public final QPayment payment;
 
     public final NumberPath<Integer> totalPrice = createNumber("totalPrice", Integer.class);
 
@@ -59,6 +59,7 @@ public class QOrder extends EntityPathBase<Order> {
     public QOrder(Class<? extends Order> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
         this.member = inits.isInitialized("member") ? new com.talktrip.talktrip.domain.member.entity.QMember(forProperty("member")) : null;
+        this.payment = inits.isInitialized("payment") ? new QPayment(forProperty("payment"), inits.get("payment")) : null;
     }
 
 }
