@@ -31,11 +31,19 @@ public class OrderHistoryResponseDTO {
         String productName = firstItem.getProduct().getProductName();
         Long productId = firstItem.getProduct().getId();
 
+        // Payment 엔티티에서 결제 수단 가져오기
+        String paymentMethod;
+        if (order.getPayment() != null && order.getPayment().getMethod() != null) {
+            paymentMethod = order.getPayment().getMethod().name();
+        } else {
+            paymentMethod = "CARD"; // 기본값으로 카드 설정
+        }
+
         return new OrderHistoryResponseDTO(
                 order.getId(),
                 productId,
                 productName,
-                order.getPaymentMethod().name(),
+                paymentMethod,
                 order.getTotalPrice(),
                 order.getCreatedAt()
         );
