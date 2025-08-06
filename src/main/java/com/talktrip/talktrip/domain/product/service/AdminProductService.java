@@ -3,8 +3,10 @@ package com.talktrip.talktrip.domain.product.service;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.product.dto.request.AdminProductCreateRequest;
+import com.talktrip.talktrip.domain.product.dto.request.AdminProductUpdateRequest;
 import com.talktrip.talktrip.domain.product.dto.response.AdminProductEditResponse;
 import com.talktrip.talktrip.domain.product.dto.response.AdminProductSummaryResponse;
+import com.talktrip.talktrip.domain.product.entity.HashTag;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductImage;
 import com.talktrip.talktrip.domain.product.entity.ProductOption;
@@ -50,27 +52,36 @@ public class AdminProductService {
 
         Product product = request.to(member, country);
 
+        // 썸네일 이미지 업로드 및 해시 생성
         String thumbnailUrl = s3Uploader.upload(thumbnailImage, "products/thumbnail");
+        String thumbnailHash = s3Uploader.calculateHash(thumbnailImage);
+
+        // 기본 정보 업데이트 (썸네일 해시 포함)
         product.updateBasicInfo(
                 request.productName(),
                 request.description(),
-                thumbnailUrl,
                 country
         );
+        product.updateThumbnailImage(thumbnailUrl, thumbnailHash);
 
-        List<ProductImage> productImages = detailImages.stream()
-                .map(file -> ProductImage.builder()
-                        .product(product)
-                        .imageUrl(s3Uploader.upload(file, "products/detail"))
-                        .build())
-                .toList();
-        product.getImages().addAll(productImages);
+        // 상세 이미지 처리
+        if (detailImages != null && !detailImages.isEmpty()) {
+            List<ProductImage> productImages = detailImages.stream()
+                    .map(file -> ProductImage.builder()
+                            .product(product)
+                            .imageUrl(s3Uploader.upload(file, "products/detail"))
+                            .build())
+                    .toList();
+            product.getImages().addAll(productImages);
+        }
 
+        // 해시태그 & 옵션 등록
         product.getHashtags().addAll(request.toHashTags(product));
         product.getProductOptions().addAll(request.toProductOptions(product));
 
         productRepository.save(product);
     }
+
 
     @Transactional(readOnly = true)
     public List<AdminProductSummaryResponse> getMyProducts(Long memberId, int page, int size) {
@@ -96,10 +107,15 @@ public class AdminProductService {
     }
 
     @Transactional
-    public void updateProduct(Long productId, AdminProductCreateRequest request, Long memberId,
-                              MultipartFile thumbnailImage, List<MultipartFile> detailImages) {
+    public void updateProduct(Long productId,
+                              AdminProductUpdateRequest request,
+                              Long memberId,
+                              MultipartFile thumbnailImage,
+                              List<MultipartFile> detailImages) {
+
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
+
         if (!product.getMember().getId().equals(memberId)) {
             throw new ProductException(ErrorCode.ACCESS_DENIED);
         }
@@ -107,29 +123,59 @@ public class AdminProductService {
         Country country = countryRepository.findByName(request.countryName())
                 .orElseThrow(() -> new ProductException(ErrorCode.COUNTRY_NOT_FOUND));
 
-        if (product.getThumbnailImageUrl() != null) {
-            s3Uploader.delete(product.getThumbnailImageUrl());
+        boolean thumbnailDeleted = (thumbnailImage == null && request.existingThumbnailHash() == null);
+        if (thumbnailDeleted) {
+            if (product.getThumbnailImageUrl() != null) {
+                s3Uploader.deleteFile(product.getThumbnailImageUrl());
+            }
+            product.updateThumbnailImage(null, null);
+        } else if (thumbnailImage != null && !thumbnailImage.isEmpty()) {
+            String newThumbHash = s3Uploader.calculateHash(thumbnailImage);
+            if (!newThumbHash.equals(product.getThumbnailImageHash())) {
+                if (product.getThumbnailImageUrl() != null) {
+                    s3Uploader.deleteFile(product.getThumbnailImageUrl());
+                }
+                String uploadedUrl = s3Uploader.upload(thumbnailImage, "products/thumbnail");
+                product.updateThumbnailImage(uploadedUrl, newThumbHash);
+            }
         }
 
-        String newThumbnailUrl = s3Uploader.upload(thumbnailImage, "products/thumbnail");
-        product.updateBasicInfo(
-                request.productName(),
-                request.description(),
-                newThumbnailUrl,
-                country
-        );
+        List<ProductImage> currentImages = productImageRepository.findAllByProduct(product);
+        Set<Long> keepIds = new HashSet<>(Optional.ofNullable(request.existingDetailImageIds()).orElse(List.of()));
 
-        product.getImages().forEach(image -> s3Uploader.delete(image.getImageUrl()));
-        product.getImages().clear();
-
-        List<ProductImage> newImages = detailImages.stream()
-                .map(file -> ProductImage.builder()
-                        .product(product)
-                        .imageUrl(s3Uploader.upload(file, "products/detail"))
-                        .build())
+        List<ProductImage> imagesToDelete = currentImages.stream()
+                .filter(img -> !keepIds.contains(img.getId()))
                 .toList();
-        product.getImages().addAll(newImages);
+
+        for (ProductImage img : imagesToDelete) {
+            s3Uploader.deleteFile(img.getImageUrl());
+        }
+        productImageRepository.deleteAll(imagesToDelete);
+        product.getImages().removeAll(imagesToDelete);
+
+        if (detailImages != null) {
+            for (MultipartFile file : detailImages) {
+                String url = s3Uploader.upload(file, "products/detail");
+                product.getImages().add(
+                        ProductImage.builder()
+                                .product(product)
+                                .imageUrl(url)
+                                .build()
+                );
+            }
+        }
+
+        product.updateBasicInfo(request.productName(), request.description(), country);
+
+        productHashTagRepository.deleteAllByProduct(product);
+        product.getHashtags().clear();
+        product.getHashtags().addAll(request.toHashTags(product));
+
+        productOptionRepository.deleteAllByProduct(product);
+        product.getProductOptions().clear();
+        product.getProductOptions().addAll(request.toProductOptions(product));
     }
+
 
     @Transactional
     public void deleteProduct(Long productId, Long memberId) {

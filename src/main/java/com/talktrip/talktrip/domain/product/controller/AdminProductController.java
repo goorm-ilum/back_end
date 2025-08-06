@@ -1,6 +1,7 @@
 package com.talktrip.talktrip.domain.product.controller;
 
 import com.talktrip.talktrip.domain.product.dto.request.AdminProductCreateRequest;
+import com.talktrip.talktrip.domain.product.dto.request.AdminProductUpdateRequest;
 import com.talktrip.talktrip.domain.product.dto.response.AdminProductEditResponse;
 import com.talktrip.talktrip.domain.product.dto.response.AdminProductSummaryResponse;
 import com.talktrip.talktrip.domain.product.service.AdminProductService;
@@ -26,8 +27,8 @@ public class AdminProductController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Void> createProduct(
             @RequestPart("request") AdminProductCreateRequest request,
-            @RequestPart("thumbnailImage") MultipartFile thumbnailImage,
-            @RequestPart("detailImages") List<MultipartFile> detailImages,
+            @RequestPart(value = "thumbnailImage", required = false) MultipartFile thumbnailImage,
+            @RequestPart(value = "detailImages", required = false) List<MultipartFile> detailImages,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
         adminProductService.createProduct(request, memberDetails.getId(), thumbnailImage, detailImages);
@@ -58,11 +59,12 @@ public class AdminProductController {
     @PutMapping(value = "/{productId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Void> updateProduct(
             @PathVariable Long productId,
-            @RequestPart("request") AdminProductCreateRequest request,
-            @RequestPart("thumbnailImage") MultipartFile thumbnailImage,
-            @RequestPart("detailImages") List<MultipartFile> detailImages,
+            @RequestPart("request") AdminProductUpdateRequest request,
+            @RequestPart(value = "thumbnailImage", required = false) MultipartFile thumbnailImage,
+            @RequestPart(value = "detailImages", required = false) List<MultipartFile> detailImages,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
+
         adminProductService.updateProduct(productId, request, memberDetails.getId(), thumbnailImage, detailImages);
         return ResponseEntity.ok().build();
     }

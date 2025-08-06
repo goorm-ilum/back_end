@@ -34,6 +34,8 @@ public class Product extends BaseEntity {
 
     private String thumbnailImageUrl;
 
+    private String thumbnailImageHash;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "seller_id", nullable = false)
     private Member member;
@@ -62,10 +64,14 @@ public class Product extends BaseEntity {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductOption> productOptions = new ArrayList<>();
 
-    public void updateBasicInfo(String productName, String description, String thumbnailImageUrl, Country country) {
+    public void updateThumbnailImage(String url, String hash) {
+        this.thumbnailImageUrl = url;
+        this.thumbnailImageHash = hash;
+    }
+
+    public void updateBasicInfo(String productName, String description, Country country) {
         this.productName = productName;
         this.description = description;
-        this.thumbnailImageUrl = thumbnailImageUrl;
         this.country = country;
     }
 

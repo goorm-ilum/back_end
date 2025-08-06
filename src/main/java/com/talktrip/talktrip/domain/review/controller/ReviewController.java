@@ -35,7 +35,7 @@ public class ReviewController {
     }
 
     @Operation(summary = "리뷰 수정")
-    @PatchMapping("/reviews/{reviewId}")
+    @PutMapping("/reviews/{reviewId}")
     public ResponseEntity<Void> updateReview(
             @PathVariable Long reviewId,
             @RequestBody ReviewRequest request,

@@ -1,33 +1,23 @@
 package com.talktrip.talktrip.domain.product.dto.request;
 
-import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.product.entity.HashTag;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductOption;
-import com.talktrip.talktrip.global.entity.Country;
 
 import java.time.LocalDate;
 import java.util.List;
 
-public record AdminProductCreateRequest(
+public record AdminProductUpdateRequest(
         String productName,
         String description,
         String countryName,
         List<LocalDate> startDates,
-        List<OptionStockRequest> optionStocks,
-        List<String> hashtags
+        List<AdminProductCreateRequest.OptionStockRequest> optionStocks,
+        List<String> hashtags,
+
+        String existingThumbnailHash,
+        List<Long> existingDetailImageIds
 ) {
-    public record OptionStockRequest(String optionName, int stock, int price, int discountPrice) {}
-
-    public Product to(Member member, Country country) {
-        return Product.builder()
-                .productName(productName)
-                .description(description)
-                .member(member)
-                .country(country)
-                .build();
-    }
-
     public List<HashTag> toHashTags(Product product) {
         return hashtags.stream()
                 .map(tag -> HashTag.builder()
@@ -43,13 +33,12 @@ public record AdminProductCreateRequest(
                         .map(os -> ProductOption.builder()
                                 .product(product)
                                 .startDate(date)
-                                .optionName(os.optionName)
-                                .price(os.price)
-                                .discountPrice(os.discountPrice)
+                                .optionName(os.optionName())
+                                .price(os.price())
+                                .discountPrice(os.discountPrice())
                                 .stock(os.stock())
                                 .build()))
                 .toList();
     }
 }
-
 
