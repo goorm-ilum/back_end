@@ -23,6 +23,7 @@ import org.springframework.web.client.RestTemplate;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -127,18 +128,71 @@ public class ProductService {
 
 
     public List<ProductSummaryResponse> aiSearchProducts(String query) {
-        String fastApiUrl = fastApiBaseUrl + "/query";
+        try {
+            String fastApiUrl = fastApiBaseUrl + "/query";
+            
+            Map<String, String> requestBody = Map.of("query", query);
+            
+            // FastAPI에서 상품 ID 목록 받기
+            Map<String, Object> response = restTemplate.postForObject(
+                    fastApiUrl,
+                    requestBody,
+                    Map.class
+            );
+            
+            if (response == null || !response.containsKey("product_ids")) {
+                return List.of();
+            }
+            
+            // 안전한 타입 변환
+            Object productIdsObj = response.get("product_ids");
+            List<String> productIdStrings;
+            
+            if (productIdsObj instanceof List<?>) {
+                productIdStrings = ((List<?>) productIdsObj).stream()
+                        .map(Object::toString)
+                        .toList();
+            } else {
+                return List.of();
+            }
+            
 
-        Map<String, String> requestBody = Map.of("query", query);
-
-        ProductSummaryResponse[] result = restTemplate.postForObject(
-                fastApiUrl,
-                requestBody,
-                ProductSummaryResponse[].class
-        );
-
-        if (result == null) return List.of();
-
-        return List.of(result);
+            
+            if (productIdStrings.isEmpty()) {
+                return List.of();
+            }
+            
+            // 문자열 ID를 Long으로 변환하고 상품 정보 조회
+            List<Long> productIds = productIdStrings.stream()
+                    .map(Long::parseLong)
+                    .toList();
+            
+            List<Product> products = productRepository.findAllById(productIds);
+            
+            // 상품 ID 순서대로 정렬
+            Map<Long, Integer> idOrder = new HashMap<>();
+            for (int i = 0; i < productIds.size(); i++) {
+                idOrder.put(productIds.get(i), i);
+            }
+            
+            List<ProductSummaryResponse> result = products.stream()
+                    .sorted(Comparator.comparing(product -> idOrder.get(product.getId())))
+                    .map(product -> {
+                        List<Review> allReviews = reviewRepository.findByProductId(product.getId());
+                        float avgStar = (float) allReviews.stream()
+                                .mapToDouble(Review::getReviewStar)
+                                .average()
+                                .orElse(0.0);
+                        
+                        return ProductSummaryResponse.from(product, avgStar, false);
+                    })
+                    .toList();
+            
+            return result;
+                    
+        } catch (Exception e) {
+            // AI 검색 실패 시 일반 검색으로 fallback
+            return searchProducts(query, null, 0, 9);
+        }
     }
 }
