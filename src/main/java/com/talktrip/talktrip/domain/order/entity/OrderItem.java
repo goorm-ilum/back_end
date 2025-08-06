@@ -37,7 +37,6 @@ public class OrderItem {
         this.order = order;
     }
 
-    // 정적 팩토리 메서드
     public static OrderItem createOrderItem(Product product, ProductOption productOption, int quantity, int price) {
         OrderItem orderItem = new OrderItem();
         orderItem.product = product;
@@ -45,5 +44,9 @@ public class OrderItem {
         orderItem.quantity = quantity;
         orderItem.price = price;
         return orderItem;
+    }
+
+    public void restoreStock() {
+        productOption.addStock(quantity);
     }
 }

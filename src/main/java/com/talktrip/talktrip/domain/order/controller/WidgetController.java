@@ -1,8 +1,11 @@
 package com.talktrip.talktrip.domain.order.controller;
 
 import com.talktrip.talktrip.domain.order.entity.Order;
+import com.talktrip.talktrip.domain.order.entity.OrderItem;
+import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.domain.order.enums.OrderStatus;
 import com.talktrip.talktrip.domain.order.enums.PaymentMethod;
+import com.talktrip.talktrip.domain.order.service.OrderService;
 import com.talktrip.talktrip.domain.order.repository.OrderRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.json.simple.JSONObject;
@@ -31,10 +34,12 @@ public class WidgetController {
     private String widgetSecretKey;
 
     private final OrderRepository orderRepository;
+    private final OrderService orderService;
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    public WidgetController(OrderRepository orderRepository) {
+    public WidgetController(OrderRepository orderRepository, OrderService orderService) {
         this.orderRepository = orderRepository;
+        this.orderService = orderService;
     }
 
     @PostMapping(value = "/confirm")
@@ -83,27 +88,23 @@ public class WidgetController {
         responseStream.close();
 
         if (isSuccess) {
-            logger.info("결제 응답 전체 JSON: {}", responseJson.toJSONString());
 
             Optional<Order> optionalOrder = orderRepository.findByOrderCode(orderId);
             if (optionalOrder.isPresent()) {
                 Order order = optionalOrder.get();
 
-                String methodStr = (String) responseJson.get("method"); // "간편결제" 등
+                String methodStr = (String) responseJson.get("method");
                 String provider = null;
 
                 if ("간편결제".equals(methodStr) && responseJson.containsKey("easyPay")) {
                     JSONObject easyPayJson = (JSONObject) responseJson.get("easyPay");
-                    provider = (String) easyPayJson.get("provider"); // "토스페이", "카카오페이" 등
+                    provider = (String) easyPayJson.get("provider");
                 }
-
-                logger.info("결제 응답에서 받은 결제 수단(method): {}", methodStr);
-                logger.info("간편결제 provider: {}", provider);
 
                 PaymentMethod paymentMethod = mapToPaymentMethod(methodStr, provider);
 
-                order.updatePaymentInfo(paymentMethod, OrderStatus.SUCCESS);
-                orderRepository.save(order);
+                orderService.processSuccessfulPayment(order, paymentMethod);
+
             } else {
                 logger.warn("주문 ID를 찾을 수 없습니다: {}", orderId);
             }
@@ -146,7 +147,6 @@ public class WidgetController {
                 return PaymentMethod.UNKNOWN;
         }
     }
-
 
     @RequestMapping(value = "/success", method = RequestMethod.GET)
     public String paymentRequest(HttpServletRequest request, Model model) throws Exception {

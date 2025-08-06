@@ -32,5 +32,13 @@ public class ProductOption {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
+
+    public void setStock(int stock) {
+        this.stock = stock;
+    }
+
+    public void addStock(int quantity) {
+        this.stock += quantity;
+    }
 }
 
