@@ -8,6 +8,9 @@ import com.talktrip.talktrip.domain.order.service.OrderService;
 import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -39,16 +42,20 @@ public class OrderController {
         return ResponseEntity.ok(orderResponse);
     }
 
-    @Operation(summary = "주문 조회", description = "로그인한 사용자의 주문내역을 반환합니다.")
+    @Operation(summary = "주문 조회", description = "로그인한 사용자의 주문내역을 페이지네이션과 함께 반환합니다.")
     @GetMapping("/orders/me")
-    public ResponseEntity<?> getMyInfo(@AuthenticationPrincipal CustomMemberDetails memberDetails) {
+    public ResponseEntity<Page<OrderHistoryResponseDTO>> getMyOrders(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size,
+            @AuthenticationPrincipal CustomMemberDetails memberDetails
+    ) {
         if (memberDetails == null) {
-            return ResponseEntity.status(401).body("인증되지 않은 사용자입니다.");
+            return ResponseEntity.status(401).build();
         }
 
         Long memberId = memberDetails.getId();
-
-        List<OrderHistoryResponseDTO> myOrders = orderService.getOrdersByMemberId(memberId);
+        Pageable pageable = PageRequest.of(page, size);
+        Page<OrderHistoryResponseDTO> myOrders = orderService.getOrdersByMemberIdWithPagination(memberId, pageable);
 
         return ResponseEntity.ok(myOrders);
     }

@@ -1,15 +1,28 @@
 package com.talktrip.talktrip.domain.order.repository;
 
+import com.querydsl.core.BooleanBuilder;
+import com.querydsl.core.types.OrderSpecifier;
+import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.entity.QMember;
 import com.talktrip.talktrip.domain.order.dto.response.AdminOrderResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.QAdminOrderResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.AdminOrderDetailResponseDTO;
+import com.talktrip.talktrip.domain.order.entity.Order;
 import com.talktrip.talktrip.domain.order.entity.QOrder;
 import com.talktrip.talktrip.domain.order.entity.QOrderItem;
+import com.talktrip.talktrip.domain.order.entity.QPayment;
+import com.talktrip.talktrip.domain.order.enums.OrderStatus;
+import com.talktrip.talktrip.domain.order.enums.PaymentMethod;
 import com.talktrip.talktrip.domain.product.entity.QProduct;
 import com.talktrip.talktrip.domain.product.entity.QProductOption;
+import com.talktrip.talktrip.domain.order.entity.QCardPayment;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -27,6 +40,7 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
         QOrderItem orderItem = QOrderItem.orderItem;
         QProduct product = QProduct.product;
         QMember member = QMember.member;
+        QPayment payment = QPayment.payment;
 
         return queryFactory
                 .select(new QAdminOrderResponseDTO(
@@ -35,16 +49,114 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
                         product.productName,
                         order.createdAt,
                         order.totalPrice,
-                        order.paymentMethod,
+                        payment.method,  // Payment 엔티티에서 결제 수단 가져오기
                         order.orderStatus
                 ))
                 .from(order)
                 .join(order.member, member)
                 .join(order.orderItems, orderItem)
                 .join(orderItem.product, product)
+                .leftJoin(payment).on(payment.order.eq(order))  // Payment 조인 추가
                 .where(product.member.Id.eq(sellerId))
                 .distinct()
                 .fetch();
+    }
+
+    @Override
+    public Page<AdminOrderResponseDTO> findOrdersBySellerIdWithPagination(
+            Long sellerId, 
+            Pageable pageable, 
+            String sort, 
+            String paymentMethod, 
+            String keyword, 
+            String orderStatus) {
+        
+        QOrder order = QOrder.order;
+        QOrderItem orderItem = QOrderItem.orderItem;
+        QProduct product = QProduct.product;
+        QMember member = QMember.member;
+        QPayment payment = QPayment.payment;
+
+        // 기본 조건: 판매자 ID
+        BooleanBuilder whereClause = new BooleanBuilder();
+        whereClause.and(product.member.Id.eq(sellerId));
+
+        // 결제수단 필터
+        if (paymentMethod != null && !paymentMethod.trim().isEmpty()) {
+            try {
+                PaymentMethod method = PaymentMethod.valueOf(paymentMethod.toUpperCase());
+                whereClause.and(payment.method.eq(method));
+            } catch (IllegalArgumentException e) {
+                // 잘못된 결제수단 값은 무시
+            }
+        }
+
+        // 검색어 필터 (상품명)
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            whereClause.and(product.productName.containsIgnoreCase(keyword.trim()));
+        }
+
+        // 주문상태 필터
+        if (orderStatus != null && !orderStatus.trim().isEmpty()) {
+            try {
+                OrderStatus status = OrderStatus.valueOf(orderStatus.toUpperCase());
+                whereClause.and(order.orderStatus.eq(status));
+            } catch (IllegalArgumentException e) {
+                // 잘못된 주문상태 값은 무시
+            }
+        }
+
+        // 정렬 조건
+        OrderSpecifier<?> orderSpecifier = getOrderSpecifier(order, sort);
+
+        // 전체 개수 조회
+        long total = queryFactory
+                .select(order.count())
+                .from(order)
+                .join(order.member, member)
+                .join(order.orderItems, orderItem)
+                .join(orderItem.product, product)
+                .leftJoin(payment).on(payment.order.eq(order))
+                .where(whereClause)
+                .distinct()
+                .fetchOne();
+
+        // 페이지 데이터 조회
+        List<AdminOrderResponseDTO> content = queryFactory
+                .select(new QAdminOrderResponseDTO(
+                        order.orderCode,
+                        member.name,
+                        product.productName,
+                        order.createdAt,
+                        order.totalPrice,
+                        payment.method,
+                        order.orderStatus
+                ))
+                .from(order)
+                .join(order.member, member)
+                .join(order.orderItems, orderItem)
+                .join(orderItem.product, product)
+                .leftJoin(payment).on(payment.order.eq(order))
+                .where(whereClause)
+                .orderBy(orderSpecifier)
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .distinct()
+                .fetch();
+
+        return new PageImpl<>(content, pageable, total);
+    }
+
+    private OrderSpecifier<?> getOrderSpecifier(QOrder order, String sort) {
+        switch (sort.toLowerCase()) {
+            case "amount":
+                return order.totalPrice.desc();
+            case "id":
+                return order.orderCode.asc();
+            case "date":
+            default:
+                return order.createdAt.desc();
+        }
     }
 
     @Override
@@ -55,17 +167,27 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
         QMember buyer = QMember.member;
         QMember seller = new QMember("seller");
         QProductOption productOption = QProductOption.productOption;
+        QPayment payment = QPayment.payment;
+        QCardPayment cardPayment = QCardPayment.cardPayment;
 
-        // 주문 기본 정보 조회
+        // 주문 기본 정보 조회 (Payment 정보 포함)
         var orderInfo = queryFactory
                 .select(order.orderCode, order.createdAt, order.orderDate, 
                        buyer.name, buyer.accountEmail, buyer.phoneNum,
-                       order.orderStatus, order.paymentMethod, order.totalPrice)
+                       order.orderStatus, payment.method, order.totalPrice,
+                       payment.paymentKey, payment.approvedAt, payment.receiptUrl,
+                       payment.status, payment.totalAmount, payment.vat,
+                       payment.suppliedAmount, payment.isPartialCancelable,
+                       cardPayment.cardNumber, cardPayment.issuerCode, cardPayment.acquirerCode,
+                       cardPayment.approveNo, cardPayment.installmentMonths, cardPayment.isInterestFree,
+                       cardPayment.cardType, cardPayment.ownerType, cardPayment.acquireStatus, cardPayment.amount)
                 .from(order)
                 .join(order.member, buyer)
                 .join(order.orderItems, orderItem)
                 .join(orderItem.product, product)
                 .join(product.member, seller)
+                .leftJoin(payment).on(payment.order.eq(order))
+                .leftJoin(cardPayment).on(cardPayment.payment.eq(payment))
                 .where(order.orderCode.eq(orderCode)
                         .and(seller.Id.eq(sellerId)))
                 .fetchFirst();
@@ -102,6 +224,38 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
                 .sum();
         int discountAmount = originalTotalPrice - discountTotalPrice;
 
+        // PaymentDetailDTO 생성
+        AdminOrderDetailResponseDTO.PaymentDetailDTO paymentDetail = null;
+        if (orderInfo.get(payment.paymentKey) != null) {
+            AdminOrderDetailResponseDTO.CardDetailDTO cardDetail = null;
+            if (orderInfo.get(cardPayment.cardNumber) != null) {
+                cardDetail = AdminOrderDetailResponseDTO.CardDetailDTO.builder()
+                        .cardNumber(orderInfo.get(cardPayment.cardNumber))
+                        .issuerCode(orderInfo.get(cardPayment.issuerCode))
+                        .acquirerCode(orderInfo.get(cardPayment.acquirerCode))
+                        .approveNo(orderInfo.get(cardPayment.approveNo))
+                        .installmentMonths(orderInfo.get(cardPayment.installmentMonths) != null ? orderInfo.get(cardPayment.installmentMonths) : 0)
+                        .isInterestFree(orderInfo.get(cardPayment.isInterestFree) != null ? orderInfo.get(cardPayment.isInterestFree) : false)
+                        .cardType(orderInfo.get(cardPayment.cardType))
+                        .ownerType(orderInfo.get(cardPayment.ownerType))
+                        .acquireStatus(orderInfo.get(cardPayment.acquireStatus))
+                        .amount(orderInfo.get(cardPayment.amount) != null ? orderInfo.get(cardPayment.amount) : 0)
+                        .build();
+            }
+
+            paymentDetail = AdminOrderDetailResponseDTO.PaymentDetailDTO.builder()
+                    .paymentKey(orderInfo.get(payment.paymentKey))
+                    .approvedAt(orderInfo.get(payment.approvedAt))
+                    .receiptUrl(orderInfo.get(payment.receiptUrl))
+                    .status(orderInfo.get(payment.status))
+                    .totalAmount(orderInfo.get(payment.totalAmount) != null ? orderInfo.get(payment.totalAmount) : 0)
+                    .vat(orderInfo.get(payment.vat) != null ? orderInfo.get(payment.vat) : 0)
+                    .suppliedAmount(orderInfo.get(payment.suppliedAmount) != null ? orderInfo.get(payment.suppliedAmount) : 0)
+                    .isPartialCancelable(orderInfo.get(payment.isPartialCancelable) != null ? orderInfo.get(payment.isPartialCancelable) : false)
+                    .cardDetail(cardDetail)
+                    .build();
+        }
+
         // Builder를 사용하여 완전한 DTO 생성
         AdminOrderDetailResponseDTO completeOrderDetail = AdminOrderDetailResponseDTO.builder()
                 .orderCode(orderInfo.get(order.orderCode))
@@ -111,10 +265,11 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
                 .buyerEmail(orderInfo.get(buyer.accountEmail))
                 .buyerPhoneNum(orderInfo.get(buyer.phoneNum))
                 .orderStatus(orderInfo.get(order.orderStatus))
-                .paymentMethod(orderInfo.get(order.paymentMethod))
+                .paymentMethod(orderInfo.get(payment.method))
                 .originalPrice(originalTotalPrice)
                 .discountAmount(discountAmount)
                 .totalPrice(orderInfo.get(order.totalPrice))
+                .paymentDetail(paymentDetail)
                 .orderItems(orderItems)
                 .build();
 

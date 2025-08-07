@@ -88,64 +88,18 @@ public class WidgetController {
         responseStream.close();
 
         if (isSuccess) {
-
             Optional<Order> optionalOrder = orderRepository.findByOrderCode(orderId);
             if (optionalOrder.isPresent()) {
                 Order order = optionalOrder.get();
 
-                String methodStr = (String) responseJson.get("method");
-                String provider = null;
-
-                if ("간편결제".equals(methodStr) && responseJson.containsKey("easyPay")) {
-                    JSONObject easyPayJson = (JSONObject) responseJson.get("easyPay");
-                    provider = (String) easyPayJson.get("provider");
-                }
-
-                PaymentMethod paymentMethod = mapToPaymentMethod(methodStr, provider);
-
-                orderService.processSuccessfulPayment(order, paymentMethod);
+                orderService.processSuccessfulPayment(order, responseJson);
 
             } else {
                 logger.warn("주문 ID를 찾을 수 없습니다: {}", orderId);
             }
         }
 
-
         return ResponseEntity.status(code).body(responseJson);
-    }
-
-    private PaymentMethod mapToPaymentMethod(String methodStr, String provider) {
-        if (methodStr == null) {
-            return PaymentMethod.UNKNOWN;
-        }
-        String method = methodStr.toUpperCase();
-
-        switch (method) {
-            case "카드":
-                return PaymentMethod.CARD;
-            case "계좌이체":
-                return PaymentMethod.ACCOUNT;
-            case "휴대폰결제":
-                return PaymentMethod.MOBILE;
-            case "간편결제":
-                if (provider != null) {
-                    switch (provider) {
-                        case "토스페이":
-                            return PaymentMethod.TOSSPAY;
-                        case "카카오페이":
-                            return PaymentMethod.KAKAO;
-                        case "페이코":
-                            return PaymentMethod.PAYCO;
-                        case "네이버페이":
-                            return PaymentMethod.NAVER;
-                        default:
-                            return PaymentMethod.UNKNOWN;
-                    }
-                }
-                return PaymentMethod.UNKNOWN;
-            default:
-                return PaymentMethod.UNKNOWN;
-        }
     }
 
     @RequestMapping(value = "/success", method = RequestMethod.GET)
