@@ -113,16 +113,6 @@ public class OrderDetailResponseDTO {
             this.totalItemPrice = unitPrice * quantity;
         }
 
-        public OrderItemDTO(Long id, String productName, String productThumbnail, 
-                           String optionName, int quantity, int unitPrice, int totalItemPrice) {
-            this.id = id;
-            this.productName = productName;
-            this.productThumbnail = productThumbnail;
-            this.optionName = optionName;
-            this.quantity = quantity;
-            this.unitPrice = unitPrice;
-            this.totalItemPrice = totalItemPrice;
-        }
     }
 
     @Getter
@@ -159,25 +149,6 @@ public class OrderDetailResponseDTO {
             this.cardCompany = payment.getCardCompany();
             this.accountBank = payment.getAccountBank();
         }
-
-        public PaymentInfoDTO(String paymentMethod, String paymentKey, LocalDateTime approvedAt,
-                             String receiptUrl, String status, int totalAmount, int vat,
-                             int suppliedAmount, boolean isPartialCancelable, CardInfoDTO cardInfo,
-                             String easyPayProvider, String cardCompany, String accountBank) {
-            this.paymentMethod = paymentMethod;
-            this.paymentKey = paymentKey;
-            this.approvedAt = approvedAt;
-            this.receiptUrl = receiptUrl;
-            this.status = status;
-            this.totalAmount = totalAmount;
-            this.vat = vat;
-            this.suppliedAmount = suppliedAmount;
-            this.isPartialCancelable = isPartialCancelable;
-            this.cardInfo = cardInfo;
-            this.easyPayProvider = easyPayProvider;
-            this.cardCompany = cardCompany;
-            this.accountBank = accountBank;
-        }
     }
 
     @Getter
@@ -204,21 +175,6 @@ public class OrderDetailResponseDTO {
             this.ownerType = cardPayment.getOwnerType();
             this.acquireStatus = cardPayment.getAcquireStatus();
             this.amount = cardPayment.getAmount();
-        }
-
-        public CardInfoDTO(String cardNumber, String issuerCode, String acquirerCode,
-                          String approveNo, int installmentMonths, boolean isInterestFree,
-                          String cardType, String ownerType, String acquireStatus, int amount) {
-            this.cardNumber = cardNumber;
-            this.issuerCode = issuerCode;
-            this.acquirerCode = acquirerCode;
-            this.approveNo = approveNo;
-            this.installmentMonths = installmentMonths;
-            this.isInterestFree = isInterestFree;
-            this.cardType = cardType;
-            this.ownerType = ownerType;
-            this.acquireStatus = acquireStatus;
-            this.amount = amount;
         }
     }
 

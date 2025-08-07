@@ -2,15 +2,11 @@ package com.talktrip.talktrip.domain.order.repository;
 
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
-import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.entity.QMember;
 import com.talktrip.talktrip.domain.order.dto.response.AdminOrderResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.QAdminOrderResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.AdminOrderDetailResponseDTO;
-import com.talktrip.talktrip.domain.order.entity.Order;
 import com.talktrip.talktrip.domain.order.entity.QOrder;
 import com.talktrip.talktrip.domain.order.entity.QOrderItem;
 import com.talktrip.talktrip.domain.order.entity.QPayment;
