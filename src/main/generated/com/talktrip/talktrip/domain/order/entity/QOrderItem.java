@@ -24,15 +24,29 @@ public class QOrderItem extends EntityPathBase<OrderItem> {
 
     public final NumberPath<Long> id = createNumber("id", Long.class);
 
+    public final NumberPath<Integer> optionDiscountPrice = createNumber("optionDiscountPrice", Integer.class);
+
+    public final StringPath optionName = createString("optionName");
+
+    public final NumberPath<Integer> optionPrice = createNumber("optionPrice", Integer.class);
+
     public final QOrder order;
 
     public final NumberPath<Integer> price = createNumber("price", Integer.class);
 
-    public final com.talktrip.talktrip.domain.product.entity.QProduct product;
+    public final NumberPath<Long> productId = createNumber("productId", Long.class);
 
-    public final com.talktrip.talktrip.domain.product.entity.QProductOption productOption;
+    public final StringPath productName = createString("productName");
+
+    public final NumberPath<Long> productOptionId = createNumber("productOptionId", Long.class);
+
+    public final NumberPath<Integer> productPrice = createNumber("productPrice", Integer.class);
+
+    public final StringPath productThumbnailUrl = createString("productThumbnailUrl");
 
     public final NumberPath<Integer> quantity = createNumber("quantity", Integer.class);
+
+    public final DatePath<java.time.LocalDate> startDate = createDate("startDate", java.time.LocalDate.class);
 
     public QOrderItem(String variable) {
         this(OrderItem.class, forVariable(variable), INITS);
@@ -53,8 +67,6 @@ public class QOrderItem extends EntityPathBase<OrderItem> {
     public QOrderItem(Class<? extends OrderItem> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
         this.order = inits.isInitialized("order") ? new QOrder(forProperty("order"), inits.get("order")) : null;
-        this.product = inits.isInitialized("product") ? new com.talktrip.talktrip.domain.product.entity.QProduct(forProperty("product"), inits.get("product")) : null;
-        this.productOption = inits.isInitialized("productOption") ? new com.talktrip.talktrip.domain.product.entity.QProductOption(forProperty("productOption"), inits.get("productOption")) : null;
     }
 
 }

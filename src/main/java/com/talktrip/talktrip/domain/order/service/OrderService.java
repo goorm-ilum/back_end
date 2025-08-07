@@ -1,18 +1,17 @@
 package com.talktrip.talktrip.domain.order.service;
 
 import com.talktrip.talktrip.domain.member.entity.Member;
-import com.talktrip.talktrip.domain.order.entity.Payment;
-import com.talktrip.talktrip.domain.order.entity.CardPayment;
-import com.talktrip.talktrip.domain.order.enums.PaymentMethod;
-import com.talktrip.talktrip.domain.order.enums.PaymentProvider;
-import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.order.dto.request.OrderRequestDTO;
 import com.talktrip.talktrip.domain.order.dto.response.OrderResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.OrderHistoryResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.OrderDetailResponseDTO;
 import com.talktrip.talktrip.domain.order.entity.Order;
 import com.talktrip.talktrip.domain.order.entity.OrderItem;
+import com.talktrip.talktrip.domain.order.entity.Payment;
+import com.talktrip.talktrip.domain.order.entity.CardPayment;
 import com.talktrip.talktrip.domain.order.enums.OrderStatus;
+import com.talktrip.talktrip.domain.order.enums.PaymentMethod;
+import com.talktrip.talktrip.domain.order.enums.PaymentProvider;
 import com.talktrip.talktrip.domain.order.repository.OrderRepository;
 import com.talktrip.talktrip.domain.order.repository.PaymentRepository;
 import com.talktrip.talktrip.domain.order.repository.CardPaymentRepository;
@@ -20,21 +19,23 @@ import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.product.repository.ProductOptionRepository;
+import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import jakarta.persistence.EntityNotFoundException;
 import org.json.simple.JSONObject;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.UUID;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -58,17 +59,31 @@ public class OrderService {
 
         List<OrderItem> orderItems = orderRequest.getOptions().stream()
                 .map(optReq -> {
-                    ProductOption productOption = productOptionRepository.findByProductIdAndOptionName(
-                                    productId, optReq.getOptionName())
-                            .orElseThrow(() -> new IllegalArgumentException("옵션을 찾을 수 없습니다: " + optReq.getOptionName()));
+                    // 재고 확인 및 차감
+                    ProductOption productOption = productOptionRepository.findById(optReq.getProductOptionId())
+                            .orElseThrow(() -> new IllegalArgumentException("옵션을 찾을 수 없습니다: " + optReq.getProductOptionId()));
 
-                    int itemTotalPrice = productOption.getPrice() * optReq.getQuantity();
+                    // 재고 확인
+                    if (productOption.getStock() < optReq.getQuantity()) {
+                        throw new IllegalStateException("재고 부족: " + productOption.getOptionName());
+                    }
 
+                    // 재고 차감 (주문 생성 시점에 미리 차감)
+                    productOption.setStock(productOption.getStock() - optReq.getQuantity());
+
+                    // 스냅샷으로 OrderItem 생성
                     return OrderItem.createOrderItem(
-                            product,
-                            productOption,
+                            product.getId(),
+                            product.getProductName(),
+                            product.getThumbnailImageUrl(),
+                            product.getMinPriceOption() != null ? product.getMinPriceOption().getDiscountPrice() : product.getMinPriceOption().getPrice(),
+                            productOption.getId(),
+                            productOption.getOptionName(),
+                            productOption.getPrice(),
+                            productOption.getDiscountPrice(),
+                            productOption.getStartDate(),
                             optReq.getQuantity(),
-                            itemTotalPrice
+                            optReq.getPrice() // 프론트엔드에서 전달받은 실제 결제 가격
                     );
                 })
                 .collect(Collectors.toList());
@@ -107,25 +122,8 @@ public class OrderService {
 
         return orders.stream()
                 .map(order -> {
-                    // Payment 정보가 없는 경우 임시로 생성 (기존 주문 호환성을 위해)
                     if (order.getPayment() == null) {
-                        Payment tempPayment = Payment.createPayment(
-                                order,
-                                "TEMP_" + order.getOrderCode(),
-                                PaymentMethod.CARD,
-                                PaymentProvider.TOSSPAY,
-                                order.getTotalPrice(),
-                                (int)(order.getTotalPrice() * 0.1), // VAT 10%
-                                (int)(order.getTotalPrice() * 0.9), // 공급가액 90%
-                                "DONE",
-                                order.getCreatedAt(),
-                                null,
-                                true,
-                                null, // easyPayProvider
-                                "신한카드", // cardCompany
-                                null  // accountBank
-                        );
-                        order.attachPayment(tempPayment);
+                        throw new IllegalStateException("결제 정보가 없는 주문이 존재합니다. Order ID: " + order.getId() + ", Order Code: " + order.getOrderCode());
                     }
                     return OrderHistoryResponseDTO.fromEntity(order);
                 })
@@ -134,11 +132,12 @@ public class OrderService {
 
     // 페이지네이션을 지원하는 새로운 메서드
     public Page<OrderHistoryResponseDTO> getOrdersByMemberIdWithPagination(Long memberId, Pageable pageable) {
+        // SUCCESS 상태의 주문만 조회 (결제 완료된 주문만)
         Page<Order> orderPage = orderRepository.findByMemberIdAndOrderStatus(memberId, OrderStatus.SUCCESS, pageable);
 
         return orderPage.map(order -> {
             if (order.getPayment() == null) {
-                throw new IllegalStateException("결제 정보가 없는 주문이 존재합니다. 주문 ID: " + order.getId());
+                throw new IllegalStateException("결제 정보가 없는 주문이 존재합니다. Order ID: " + order.getId() + ", Order Code: " + order.getOrderCode());
             }
             return OrderHistoryResponseDTO.fromEntity(order);
         });
@@ -234,18 +233,8 @@ public class OrderService {
         order.attachPayment(payment);
         order.updatePaymentInfo(paymentMethod, OrderStatus.SUCCESS);
 
-        // 7. 재고 차감
-        for (OrderItem item : order.getOrderItems()) {
-            ProductOption option = item.getProductOption();
-            int currentStock = option.getStock();
-            int quantity = item.getQuantity();
-
-            if (currentStock >= quantity) {
-                option.setStock(currentStock - quantity);
-            } else {
-                throw new IllegalStateException("재고 부족: 옵션 ID=" + option.getId());
-            }
-        }
+        // 7. 재고 차감은 이미 주문 생성 시점에 처리되었으므로 여기서는 제거
+        // (스냅샷 패턴에서는 주문 생성 시점에 재고를 차감하고, 취소 시에만 복원)
 
         orderRepository.save(order);
     }
@@ -309,8 +298,12 @@ public class OrderService {
             throw new AccessDeniedException("해당 주문에 접근할 수 없습니다.");
         }
 
-        order.cancel();
+        // 재고 복원 (스냅샷 패턴에서는 취소 시에만 재고를 복원)
+        for (OrderItem item : order.getOrderItems()) {
+            item.restoreStock(productOptionRepository);
+        }
 
+        order.cancel();
     }
 
     public OrderDetailResponseDTO getOrderDetail(Long orderId, Long requesterId) {
