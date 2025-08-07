@@ -10,7 +10,6 @@ import com.talktrip.talktrip.domain.order.dto.request.OrderRequestDTO;
 import com.talktrip.talktrip.domain.order.dto.response.OrderResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.OrderHistoryResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.OrderDetailResponseDTO;
-import com.talktrip.talktrip.domain.order.dto.response.AdminOrderDetailResponseDTO;
 import com.talktrip.talktrip.domain.order.entity.Order;
 import com.talktrip.talktrip.domain.order.entity.OrderItem;
 import com.talktrip.talktrip.domain.order.enums.OrderStatus;
@@ -34,11 +33,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.ArrayList;
-import com.talktrip.talktrip.domain.order.dto.response.OrderDetailWithPaymentDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.PageRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -141,50 +137,14 @@ public class OrderService {
         Page<Order> orderPage = orderRepository.findByMemberIdAndOrderStatus(memberId, OrderStatus.SUCCESS, pageable);
 
         return orderPage.map(order -> {
-            // Payment 정보가 없는 경우 임시로 생성 (기존 주문 호환성을 위해)
             if (order.getPayment() == null) {
-                Payment tempPayment = Payment.createPayment(
-                        order,
-                        "TEMP_" + order.getOrderCode(),
-                        PaymentMethod.CARD,
-                        PaymentProvider.TOSSPAY,
-                        order.getTotalPrice(),
-                        (int)(order.getTotalPrice() * 0.1), // VAT 10%
-                        (int)(order.getTotalPrice() * 0.9), // 공급가액 90%
-                        "DONE",
-                        order.getCreatedAt(),
-                        null,
-                        true,
-                        null, // easyPayProvider
-                        "신한카드", // cardCompany
-                        null  // accountBank
-                );
-                order.attachPayment(tempPayment);
+                throw new IllegalStateException("결제 정보가 없는 주문이 존재합니다. 주문 ID: " + order.getId());
             }
             return OrderHistoryResponseDTO.fromEntity(order);
         });
     }
 
     public void processSuccessfulPayment(Order order, JSONObject responseJson) {
-        // 디버깅을 위한 로그 추가
-        System.out.println("=== 토스페이먼츠 응답 데이터 ===");
-        System.out.println("전체 응답: " + responseJson.toJSONString());
-        System.out.println("결제 수단: " + responseJson.get("method"));
-        System.out.println("카드 정보 존재: " + responseJson.containsKey("card"));
-        System.out.println("간편결제 정보 존재: " + responseJson.containsKey("easyPay"));
-        System.out.println("계좌이체 정보 존재: " + responseJson.containsKey("transfer"));
-        
-        // easyPay 정보 상세 로그
-        if (responseJson.containsKey("easyPay")) {
-            JSONObject easyPay = (JSONObject) responseJson.get("easyPay");
-            System.out.println("easyPay 객체: " + (easyPay != null ? easyPay.toJSONString() : "null"));
-        }
-        
-        // 카드 정보 상세 로그
-        if (responseJson.containsKey("card")) {
-            JSONObject card = (JSONObject) responseJson.get("card");
-            System.out.println("카드 객체: " + (card != null ? card.toJSONString() : "null"));
-        }
         
         // 1. 공통 결제 정보 추출
         String paymentKey = (String) responseJson.get("paymentKey");
@@ -361,25 +321,8 @@ public class OrderService {
             throw new AccessDeniedException("해당 주문에 접근할 수 없습니다.");
         }
 
-        // Payment 정보가 없는 경우 임시로 생성 (기존 주문 호환성을 위해)
         if (order.getPayment() == null) {
-            Payment tempPayment = Payment.createPayment(
-                    order,
-                    "TEMP_" + order.getOrderCode(),
-                    PaymentMethod.CARD,
-                    PaymentProvider.TOSSPAY,
-                    order.getTotalPrice(),
-                    (int)(order.getTotalPrice() * 0.1), // VAT 10%
-                    (int)(order.getTotalPrice() * 0.9), // 공급가액 90%
-                    "DONE",
-                    order.getCreatedAt(),
-                    null,
-                    true,
-                    null, // easyPayProvider
-                    "신한카드", // cardCompany
-                    null  // accountBank
-            );
-            order.attachPayment(tempPayment);
+            throw new IllegalStateException("결제 정보가 누락된 주문입니다.");
         }
 
         return OrderDetailResponseDTO.from(order);

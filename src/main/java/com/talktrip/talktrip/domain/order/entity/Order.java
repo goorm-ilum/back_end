@@ -1,7 +1,6 @@
 package com.talktrip.talktrip.domain.order.entity;
 
 import com.talktrip.talktrip.domain.member.entity.Member;
-import com.talktrip.talktrip.domain.order.entity.Payment;
 import com.talktrip.talktrip.domain.order.enums.OrderStatus;
 import com.talktrip.talktrip.domain.order.enums.PaymentMethod;
 import jakarta.persistence.*;
@@ -67,10 +66,6 @@ public class Order {
         order.totalPrice = totalPrice;
         order.orderStatus = OrderStatus.PENDING;
         return order;
-    }
-
-    public void updateOrderStatus(OrderStatus status) {
-        this.orderStatus = status;
     }
 
     public void cancel() {

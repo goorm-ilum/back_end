@@ -12,8 +12,6 @@ public class OrderResponseDTO {
     private int totalPrice;           // 총 결제 금액
     private String customerEmail; // 고객 이메일
 
-    public OrderResponseDTO() {}
-
     public OrderResponseDTO(String orderId, String orderName, int totalprice, String customerEmail) {
         this.orderId = orderId;
         this.orderName = orderName;
