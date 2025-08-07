@@ -1,10 +1,6 @@
 package com.talktrip.talktrip.domain.order.controller;
 
 import com.talktrip.talktrip.domain.order.entity.Order;
-import com.talktrip.talktrip.domain.order.entity.OrderItem;
-import com.talktrip.talktrip.domain.product.entity.ProductOption;
-import com.talktrip.talktrip.domain.order.enums.OrderStatus;
-import com.talktrip.talktrip.domain.order.enums.PaymentMethod;
 import com.talktrip.talktrip.domain.order.service.OrderService;
 import com.talktrip.talktrip.domain.order.repository.OrderRepository;
 import jakarta.servlet.http.HttpServletRequest;

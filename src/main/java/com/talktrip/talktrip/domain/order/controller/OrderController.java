@@ -11,11 +11,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-
-import java.util.List;
 
 @Tag(name = "Order", description = "주문 관련 API")
 @RestController
@@ -54,7 +53,7 @@ public class OrderController {
         }
 
         Long memberId = memberDetails.getId();
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<OrderHistoryResponseDTO> myOrders = orderService.getOrdersByMemberIdWithPagination(memberId, pageable);
 
         return ResponseEntity.ok(myOrders);
