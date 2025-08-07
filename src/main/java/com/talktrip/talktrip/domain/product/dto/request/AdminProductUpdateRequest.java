@@ -4,17 +4,14 @@ import com.talktrip.talktrip.domain.product.entity.HashTag;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductOption;
 
-import java.time.LocalDate;
 import java.util.List;
 
 public record AdminProductUpdateRequest(
         String productName,
         String description,
         String countryName,
-        List<LocalDate> startDates,
-        List<AdminProductCreateRequest.OptionStockRequest> optionStocks,
+        List<ProductOptionRequest> options,
         List<String> hashtags,
-
         String existingThumbnailHash,
         List<Long> existingDetailImageIds
 ) {
@@ -28,16 +25,15 @@ public record AdminProductUpdateRequest(
     }
 
     public List<ProductOption> toProductOptions(Product product) {
-        return startDates.stream()
-                .flatMap(date -> optionStocks.stream()
-                        .map(os -> ProductOption.builder()
-                                .product(product)
-                                .startDate(date)
-                                .optionName(os.optionName())
-                                .price(os.price())
-                                .discountPrice(os.discountPrice())
-                                .stock(os.stock())
-                                .build()))
+        return options.stream()
+                .map(opt -> ProductOption.builder()
+                        .product(product)
+                        .startDate(opt.startDate())
+                        .optionName(opt.optionName())
+                        .stock(opt.stock())
+                        .price(opt.price())
+                        .discountPrice(opt.discountPrice())
+                        .build())
                 .toList();
     }
 }

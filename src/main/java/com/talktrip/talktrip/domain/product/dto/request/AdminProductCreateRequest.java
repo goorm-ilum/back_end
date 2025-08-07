@@ -6,19 +6,15 @@ import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.global.entity.Country;
 
-import java.time.LocalDate;
 import java.util.List;
 
 public record AdminProductCreateRequest(
         String productName,
         String description,
         String countryName,
-        List<LocalDate> startDates,
-        List<OptionStockRequest> optionStocks,
+        List<ProductOptionRequest> options,
         List<String> hashtags
 ) {
-    public record OptionStockRequest(String optionName, int stock, int price, int discountPrice) {}
-
     public Product to(Member member, Country country) {
         return Product.builder()
                 .productName(productName)
@@ -38,18 +34,18 @@ public record AdminProductCreateRequest(
     }
 
     public List<ProductOption> toProductOptions(Product product) {
-        return startDates.stream()
-                .flatMap(date -> optionStocks.stream()
-                        .map(os -> ProductOption.builder()
-                                .product(product)
-                                .startDate(date)
-                                .optionName(os.optionName)
-                                .price(os.price)
-                                .discountPrice(os.discountPrice)
-                                .stock(os.stock())
-                                .build()))
+        return options.stream()
+                .map(opt -> ProductOption.builder()
+                        .product(product)
+                        .startDate(opt.startDate())
+                        .optionName(opt.optionName())
+                        .stock(opt.stock())
+                        .price(opt.price())
+                        .discountPrice(opt.discountPrice())
+                        .build())
                 .toList();
     }
 }
+
 
 

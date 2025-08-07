@@ -32,7 +32,7 @@ public class ProductController {
     @Operation(summary = "상품 목록 검색")
     @GetMapping
     public ResponseEntity<Page<ProductSummaryResponse>> getProducts(
-            @RequestParam(defaultValue = "") String keyword,
+            @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "updatedAt,desc") List<String> sort,
