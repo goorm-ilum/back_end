@@ -134,10 +134,12 @@ public class JWTCheckFilter extends OncePerRequestFilter {
                 uri.startsWith("/api/products") ||
                 uri.startsWith("/api/orders")||
                 uri.startsWith("/api/chat/") ||  // 채팅 API 제외
-                uri.startsWith("/ws/") ||        // WebSocket 제외
-                uri.equals("/ws") ||             // WebSocket 루트 제외
-                uri.startsWith("/topic/") ||     // STOMP 토픽 제외
-                uri.startsWith("/app/");         // STOMP 앱 제외
+                uri.startsWith("/api/alarm/") || // 알림 API 제외 (개발 단계)
+                
+                // WebSocket 관련 모든 경로 허용
+                uri.startsWith("/ws") ||         // WebSocket 모든 경로 (/ws, /ws/info, /ws/{server-id}/{session-id}/websocket 등)
+                uri.startsWith("/topic/") ||     // STOMP 토픽
+                uri.startsWith("/app/");         // STOMP 앱
 
 
     }

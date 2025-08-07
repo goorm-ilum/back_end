@@ -53,7 +53,7 @@ public class SecurityConfig {
                         .requestMatchers("/ws-info/**", "/ws-info").permitAll()
                         .requestMatchers("/topic/**").permitAll()
                         .requestMatchers("/app/**").permitAll()
-
+                        .requestMatchers("/ws/**", "/app/**", "/topic/**", "/websocket/**", "/sockjs-node/**").permitAll()
 
                         .anyRequest().authenticated()
                 )

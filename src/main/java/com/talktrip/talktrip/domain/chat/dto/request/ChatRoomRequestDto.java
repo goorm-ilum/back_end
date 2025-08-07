@@ -1,11 +1,7 @@
 package com.talktrip.talktrip.domain.chat.dto.request;
 
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-@Data
-@NoArgsConstructor
-public class CreateRoomRequest {
+@lombok.Data
+public class ChatRoomRequestDto {
     private String buyerId;
     private String sellerId;
 }

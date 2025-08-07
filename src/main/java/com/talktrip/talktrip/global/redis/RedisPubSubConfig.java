@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 
@@ -16,7 +17,11 @@ public class RedisPubSubConfig {
 
     @Bean
     public ChannelTopic topic() {
-        return new ChannelTopic("chat");
+        return new ChannelTopic("chat.message");
+    }
+    @Bean
+    public ChannelTopic roomUpdateTopic() {
+        return new ChannelTopic("chat.room.update");
     }
 
     @Bean
@@ -27,12 +32,14 @@ public class RedisPubSubConfig {
     @Bean
     public RedisMessageListenerContainer redisMessageListenerContainer(
             RedisConnectionFactory connectionFactory,
-            MessageListenerAdapter listenerAdapter,
-            ChannelTopic topic
+            MessageListenerAdapter listenerAdapter
     ) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(listenerAdapter, topic);
+
+        container.addMessageListener(listenerAdapter, new PatternTopic("chat.*")); // 패턴 기반
+
         return container;
     }
+
 }
