@@ -2,6 +2,7 @@ package com.talktrip.talktrip.domain.like.entity;
 
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.product.entity.Product;
+import com.talktrip.talktrip.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,7 +15,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "likes")
-public class Like {
+public class Like extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
