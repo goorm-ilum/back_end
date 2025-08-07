@@ -17,11 +17,10 @@ import java.time.LocalDateTime;
 @Table(name = "chating_room_tab")
 public class ChatRoom extends BaseEntity {
     @Id
-    @Column(name = "room_id", length = 10)
     private String roomId;
-//    private String lastMessageId;
-    private String lastMessage;
+    private String roomMemberId;
     private String title;
+    private String lastMessage;
     private int notReadMessageCount;
 
 }
