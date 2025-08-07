@@ -64,8 +64,11 @@ public class ProductService {
                     .toList();
         }
 
+        LocalDate today = LocalDate.now();
+
         List<Product> filtered = products.stream()
                 .filter(product -> product.getProductOptions().stream()
+                        .filter(option -> !option.getStartDate().isBefore(today)) // ⬅️ 오늘 이후 옵션만 포함
                         .mapToInt(ProductOption::getStock).sum() > 0)
                 .sorted(getComparator(pageable.getSort()))
                 .toList();
@@ -86,8 +89,9 @@ public class ProductService {
         return new PageImpl<>(responseList, pageable, filtered.size());
     }
 
+
     @Transactional
-    public ProductDetailResponse getProductDetail(Long productId, CustomMemberDetails memberDetails, int page, int size) {
+    public ProductDetailResponse getProductDetail(Long productId, CustomMemberDetails memberDetails, Pageable pageable) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
 
@@ -100,25 +104,25 @@ public class ProductService {
             throw new ProductException(ErrorCode.PRODUCT_NOT_FOUND);
         }
 
-        List<Review> reviews = reviewRepository.findByProductId(productId);
-        float avgStar = (float) reviews.stream()
+        Page<Review> reviewPage = reviewRepository.findByProductId(productId, pageable);
+
+        float avgStar = (float) reviewPage.getContent().stream()
                 .mapToDouble(Review::getReviewStar)
                 .average()
                 .orElse(0.0);
 
-        List<ReviewResponse> reviewResponses = reviews.stream()
+        List<ReviewResponse> reviewResponses = reviewPage.stream()
                 .map(ReviewResponse::from)
                 .toList();
-
-        List<ReviewResponse> pagedReviews = PaginationUtil.paginate(reviewResponses, page, size);
 
         boolean isLiked = false;
         if (memberDetails != null) {
             isLiked = likeRepository.existsByProductIdAndMemberId(productId, memberDetails.getId());
         }
 
-        return ProductDetailResponse.from(product, avgStar, pagedReviews, isLiked);
+        return ProductDetailResponse.from(product, avgStar, reviewResponses, isLiked);
     }
+
 
 
     public List<ProductSummaryResponse> aiSearchProducts(String query) {

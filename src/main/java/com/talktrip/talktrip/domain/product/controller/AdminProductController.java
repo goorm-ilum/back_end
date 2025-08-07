@@ -7,11 +7,11 @@ import com.talktrip.talktrip.domain.product.dto.response.AdminProductSummaryResp
 import com.talktrip.talktrip.domain.product.service.AdminProductService;
 import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,6 +20,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+import static com.talktrip.talktrip.global.util.SortUtil.buildSort;
+
+@Tag(name = "Admin Product", description = "판매자 상품 관련 API")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/admin/products")
@@ -44,8 +47,11 @@ public class AdminProductController {
     public ResponseEntity<Page<AdminProductSummaryResponse>> getMyProducts(
             @AuthenticationPrincipal CustomMemberDetails memberDetails,
             @RequestParam(required = false) String keyword,
-            @PageableDefault(size = 10, sort = "updatedAt", direction = Sort.Direction.DESC) Pageable pageable
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "updatedAt,desc") List<String> sort
     ) {
+        Pageable pageable = PageRequest.of(page, size, buildSort(sort));
         return ResponseEntity.ok(adminProductService.getMyProducts(memberDetails.getId(), keyword, pageable));
     }
 

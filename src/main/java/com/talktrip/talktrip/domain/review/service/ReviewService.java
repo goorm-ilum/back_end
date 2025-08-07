@@ -12,6 +12,8 @@ import com.talktrip.talktrip.domain.review.repository.ReviewRepository;
 import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.ReviewException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,22 +76,13 @@ public class ReviewService {
     }
 
     @Transactional(readOnly = true)
-    public List<ReviewResponse> getMyReviews(Long memberId, int page, int size) {
+    public Page<ReviewResponse> getMyReviews(Long memberId, Pageable pageable) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new ReviewException(ErrorCode.USER_NOT_FOUND));
 
-        List<Review> reviews = reviewRepository.findByMemberOrderByCreatedAtDesc(member);
+        Page<Review> reviewPage = reviewRepository.findByMember(member, pageable);
 
-        int fromIndex = page * size;
-        int toIndex = Math.min(fromIndex + size, reviews.size());
-
-        if (fromIndex >= reviews.size()) {
-            return List.of();
-        }
-
-        return reviews.subList(fromIndex, toIndex).stream()
-                .map(ReviewResponse::from)
-                .toList();
+        return reviewPage.map(ReviewResponse::from);
     }
 
 
