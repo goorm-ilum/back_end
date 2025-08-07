@@ -12,8 +12,6 @@ import com.talktrip.talktrip.domain.order.entity.QOrderItem;
 import com.talktrip.talktrip.domain.order.entity.QPayment;
 import com.talktrip.talktrip.domain.order.enums.OrderStatus;
 import com.talktrip.talktrip.domain.order.enums.PaymentMethod;
-import com.talktrip.talktrip.domain.product.entity.QProduct;
-import com.talktrip.talktrip.domain.product.entity.QProductOption;
 import com.talktrip.talktrip.domain.order.entity.QCardPayment;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -34,7 +32,6 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
     public List<AdminOrderResponseDTO> findOrdersBySellerId(Long sellerId) {
         QOrder order = QOrder.order;
         QOrderItem orderItem = QOrderItem.orderItem;
-        QProduct product = QProduct.product;
         QMember member = QMember.member;
         QPayment payment = QPayment.payment;
 
@@ -42,18 +39,17 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
                 .select(new QAdminOrderResponseDTO(
                         order.orderCode,
                         member.name,
-                        product.productName,
+                        orderItem.productName, // 스냅샷 필드 사용
                         order.createdAt,
                         order.totalPrice,
-                        payment.method,  // Payment 엔티티에서 결제 수단 가져오기
+                        payment.method,
                         order.orderStatus
                 ))
                 .from(order)
                 .join(order.member, member)
                 .join(order.orderItems, orderItem)
-                .join(orderItem.product, product)
-                .leftJoin(payment).on(payment.order.eq(order))  // Payment 조인 추가
-                .where(product.member.Id.eq(sellerId))
+                .leftJoin(payment).on(payment.order.eq(order))
+                .where(orderItem.productId.eq(sellerId)) // productId로 판매자 필터링
                 .distinct()
                 .fetch();
     }
@@ -69,13 +65,12 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
         
         QOrder order = QOrder.order;
         QOrderItem orderItem = QOrderItem.orderItem;
-        QProduct product = QProduct.product;
         QMember member = QMember.member;
         QPayment payment = QPayment.payment;
 
-        // 기본 조건: 판매자 ID
+        // 기본 조건: 판매자 ID (스냅샷 필드 사용)
         BooleanBuilder whereClause = new BooleanBuilder();
-        whereClause.and(product.member.Id.eq(sellerId));
+        whereClause.and(orderItem.productId.eq(sellerId));
 
         // 결제수단 필터
         if (paymentMethod != null && !paymentMethod.trim().isEmpty()) {
@@ -87,9 +82,9 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
             }
         }
 
-        // 검색어 필터 (상품명)
+        // 검색어 필터 (상품명 - 스냅샷 필드 사용)
         if (keyword != null && !keyword.trim().isEmpty()) {
-            whereClause.and(product.productName.containsIgnoreCase(keyword.trim()));
+            whereClause.and(orderItem.productName.containsIgnoreCase(keyword.trim()));
         }
 
         // 주문상태 필터
@@ -111,7 +106,6 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
                 .from(order)
                 .join(order.member, member)
                 .join(order.orderItems, orderItem)
-                .join(orderItem.product, product)
                 .leftJoin(payment).on(payment.order.eq(order))
                 .where(whereClause)
                 .distinct()
@@ -122,7 +116,7 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
                 .select(new QAdminOrderResponseDTO(
                         order.orderCode,
                         member.name,
-                        product.productName,
+                        orderItem.productName, // 스냅샷 필드 사용
                         order.createdAt,
                         order.totalPrice,
                         payment.method,
@@ -131,7 +125,6 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
                 .from(order)
                 .join(order.member, member)
                 .join(order.orderItems, orderItem)
-                .join(orderItem.product, product)
                 .leftJoin(payment).on(payment.order.eq(order))
                 .where(whereClause)
                 .orderBy(orderSpecifier)
@@ -159,10 +152,7 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
     public Optional<AdminOrderDetailResponseDTO> findOrderDetailByOrderCodeAndSellerId(String orderCode, Long sellerId) {
         QOrder order = QOrder.order;
         QOrderItem orderItem = QOrderItem.orderItem;
-        QProduct product = QProduct.product;
         QMember buyer = QMember.member;
-        QMember seller = new QMember("seller");
-        QProductOption productOption = QProductOption.productOption;
         QPayment payment = QPayment.payment;
         QCardPayment cardPayment = QCardPayment.cardPayment;
 
@@ -180,35 +170,30 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
                 .from(order)
                 .join(order.member, buyer)
                 .join(order.orderItems, orderItem)
-                .join(orderItem.product, product)
-                .join(product.member, seller)
                 .leftJoin(payment).on(payment.order.eq(order))
                 .leftJoin(cardPayment).on(cardPayment.payment.eq(payment))
                 .where(order.orderCode.eq(orderCode)
-                        .and(seller.Id.eq(sellerId)))
+                        .and(orderItem.productId.eq(sellerId))) // 스냅샷 필드로 판매자 필터링
                 .fetchFirst();
 
         if (orderInfo == null) {
             return Optional.empty();
         }
 
-        // 주문 상품 목록 조회 (옵션 정보 포함)
+        // 주문 상품 목록 조회 (스냅샷 데이터 사용)
         List<AdminOrderDetailResponseDTO.OrderItemDetailDTO> orderItems = queryFactory
                 .select(com.querydsl.core.types.Projections.constructor(AdminOrderDetailResponseDTO.OrderItemDetailDTO.class,
-                        product.productName,
-                        productOption.optionName,
+                        orderItem.productName, // 스냅샷 필드
+                        orderItem.optionName, // 스냅샷 필드
                         orderItem.quantity,
-                        productOption.price,
-                        productOption.discountPrice,
-                        productOption.discountPrice.multiply(orderItem.quantity),
-                        productOption.startDate
+                        orderItem.optionPrice, // 스냅샷 필드
+                        orderItem.optionDiscountPrice, // 스냅샷 필드
+                        orderItem.optionDiscountPrice.multiply(orderItem.quantity),
+                        orderItem.startDate // 스냅샷 필드
                 ))
                 .from(orderItem)
-                .join(orderItem.product, product)
-                .join(orderItem.productOption, productOption)
-                .join(product.member, seller)
                 .where(orderItem.order.orderCode.eq(orderCode)
-                        .and(seller.Id.eq(sellerId)))
+                        .and(orderItem.productId.eq(sellerId))) // 스냅샷 필드로 판매자 필터링
                 .fetch();
 
         // 할인 정보 계산

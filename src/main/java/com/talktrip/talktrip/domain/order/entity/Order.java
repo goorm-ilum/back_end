@@ -73,9 +73,7 @@ public class Order {
             throw new IllegalStateException("이미 취소된 주문입니다.");
         }
         this.orderStatus = OrderStatus.CANCELLED;
-        for (OrderItem item : orderItems) {
-            item.restoreStock();
-        }
+        // 재고 복원은 OrderService에서 처리하므로 여기서는 제거
     }
 
     public void attachPayment(Payment payment) {

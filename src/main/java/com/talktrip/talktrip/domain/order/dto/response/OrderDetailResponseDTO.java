@@ -99,20 +99,19 @@ public class OrderDetailResponseDTO {
         private final int quantity;
         private final int unitPrice;
         private final int totalItemPrice;
+        private final LocalDate startDate;
 
         public OrderItemDTO(OrderItem orderItem) {
-            Product product = orderItem.getProduct();
-            ProductOption option = orderItem.getProductOption();
-
+            // 스냅샷 데이터 사용
             this.id = orderItem.getId();
-            this.productName = product.getProductName();
-            this.productThumbnail = product.getThumbnailImageUrl();
-            this.optionName = option.getOptionName();
+            this.productName = orderItem.getProductName();
+            this.productThumbnail = orderItem.getProductThumbnailUrl();
+            this.optionName = orderItem.getOptionName();
             this.quantity = orderItem.getQuantity();
             this.unitPrice = orderItem.getPrice();
-            this.totalItemPrice = unitPrice * quantity;
+            this.totalItemPrice = orderItem.getPrice() * orderItem.getQuantity();
+            this.startDate = orderItem.getStartDate();
         }
-
     }
 
     @Getter

@@ -8,8 +8,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import java.util.Optional;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long>, OrderRepositoryCustom {
@@ -20,6 +20,9 @@ public interface OrderRepository extends JpaRepository<Order, Long>, OrderReposi
 
     // 페이지네이션을 지원하는 메서드 추가
     Page<Order> findByMemberIdAndOrderStatus(Long memberId, OrderStatus orderStatus, Pageable pageable);
+
+    // 여러 주문 상태를 조회하는 메서드 추가
+    Page<Order> findByMemberIdAndOrderStatusIn(Long memberId, List<OrderStatus> orderStatuses, Pageable pageable);
 
     // QueryDSL을 사용한 복합 조회 메서드
     Optional<OrderDetailWithPaymentDTO> findOrderDetailWithPayment(Long orderId);

@@ -28,8 +28,9 @@ public class OrderHistoryResponseDTO {
         OrderItem firstItem = order.getOrderItems().stream().findFirst()
                 .orElseThrow(() -> new IllegalStateException("주문에 상품이 없습니다."));
 
-        String productName = firstItem.getProduct().getProductName();
-        Long productId = firstItem.getProduct().getId();
+        // 스냅샷 데이터 사용
+        String productName = firstItem.getProductName();
+        Long productId = firstItem.getProductId();
 
         // Payment 엔티티에서 결제 수단 가져오기
         String paymentMethod;
