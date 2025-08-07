@@ -13,10 +13,10 @@ import com.talktrip.talktrip.global.exception.MemberException;
 import com.talktrip.talktrip.global.exception.ProductException;
 import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -51,30 +51,21 @@ public class LikeService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProductSummaryResponse> getLikedProducts(CustomMemberDetails memberDetails, int page, int size) {
+    public Page<ProductSummaryResponse> getLikedProducts(CustomMemberDetails memberDetails, Pageable pageable) {
         if (memberDetails == null) {
             throw new MemberException(ErrorCode.UNAUTHORIZED_MEMBER);
         }
 
         Long memberId = memberDetails.getId();
-        List<Like> likes = likeRepository.findByMemberId(memberId);
+        Page<Like> likes = likeRepository.findByMemberId(memberId, pageable);
 
-        int fromIndex = page * size;
-        int toIndex = Math.min(fromIndex + size, likes.size());
-
-        if (fromIndex >= likes.size()) {
-            return List.of();
-        }
-
-        return likes.subList(fromIndex, toIndex).stream().map(like -> {
+        return likes.map(like -> {
             Product product = like.getProduct();
             float avgStar = (float) product.getReviews().stream()
                     .mapToDouble(Review::getReviewStar)
                     .average()
                     .orElse(0.0);
-
             return ProductSummaryResponse.from(product, avgStar, true);
-        }).toList();
+        });
     }
-
 }

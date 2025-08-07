@@ -8,6 +8,10 @@ import com.talktrip.talktrip.domain.product.service.AdminProductService;
 import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -35,16 +39,15 @@ public class AdminProductController {
         return ResponseEntity.status(201).build();
     }
 
-    @Operation(summary = "판매자 상품 목록 조회")
+    @Operation(summary = "판매자 상품 목록 조회 + 검색 + 정렬")
     @GetMapping
-    public ResponseEntity<List<AdminProductSummaryResponse>> getMyProducts(
+    public ResponseEntity<Page<AdminProductSummaryResponse>> getMyProducts(
             @AuthenticationPrincipal CustomMemberDetails memberDetails,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
+            @RequestParam(required = false) String keyword,
+            @PageableDefault(size = 10, sort = "updatedAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        return ResponseEntity.ok(adminProductService.getMyProducts(memberDetails.getId(), page, size));
+        return ResponseEntity.ok(adminProductService.getMyProducts(memberDetails.getId(), keyword, pageable));
     }
-
 
     @Operation(summary = "판매자 상품 상세 조회")
     @GetMapping("/{productId}")
@@ -77,35 +80,5 @@ public class AdminProductController {
     ) {
         adminProductService.deleteProduct(productId, memberDetails.getId());
         return ResponseEntity.noContent().build();
-    }
-
-    @Operation(summary = "판매자 상품 검색 + 정렬")
-    @GetMapping("/search")
-    public ResponseEntity<List<AdminProductSummaryResponse>> searchProducts(
-            @AuthenticationPrincipal CustomMemberDetails memberDetails,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(defaultValue = "updatedAt") String sortBy,
-            @RequestParam(defaultValue = "false") boolean ascending,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
-    ) {
-        return ResponseEntity.ok(
-                adminProductService.searchMyProducts(memberDetails.getId(), keyword, page, size, sortBy, ascending)
-        );
-    }
-
-
-    @Operation(summary = "판매자 상품 정렬")
-    @GetMapping("/sort")
-    public ResponseEntity<List<AdminProductSummaryResponse>> sortProducts(
-            @AuthenticationPrincipal CustomMemberDetails memberDetails,
-            @RequestParam(defaultValue = "updatedAt") String sortBy,
-            @RequestParam(defaultValue = "false") boolean ascending,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
-    ) {
-        return ResponseEntity.ok(
-                adminProductService.sortMyProducts(memberDetails.getId(), page, size, sortBy, ascending)
-        );
     }
 }

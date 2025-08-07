@@ -6,11 +6,13 @@ import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -30,13 +32,11 @@ public class LikeController {
 
     @Operation(summary = "내 좋아요 상품 목록")
     @GetMapping("/me/likes")
-    public ResponseEntity<List<ProductSummaryResponse>> getMyLikes(
+    public ResponseEntity<Page<ProductSummaryResponse>> getMyLikes(
             @AuthenticationPrincipal CustomMemberDetails memberDetails,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "9") int size) {
+            @PageableDefault(size = 9, page = 0, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
 
-        return ResponseEntity.ok(likeService.getLikedProducts(memberDetails, page, size));
+        return ResponseEntity.ok(likeService.getLikedProducts(memberDetails, pageable));
     }
-
 }
 

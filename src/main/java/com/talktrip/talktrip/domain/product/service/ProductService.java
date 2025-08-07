@@ -15,17 +15,16 @@ import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import com.talktrip.talktrip.global.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -41,7 +40,7 @@ public class ProductService {
     private String fastApiBaseUrl;
 
     @Transactional
-    public List<ProductSummaryResponse> searchProducts(String keyword, CustomMemberDetails memberDetails, int page, int size) {
+    public Page<ProductSummaryResponse> searchProducts(String keyword, CustomMemberDetails memberDetails, Pageable pageable) {
         List<Product> products;
 
         if (keyword == null || keyword.trim().isEmpty()) {
@@ -62,34 +61,29 @@ public class ProductService {
                         }
                         return true;
                     })
-                    .sorted(Comparator.comparing(Product::getUpdatedAt).reversed()) // 정렬 (예: 최신순)
                     .toList();
         }
 
-        int offset = page * size;
-        int toIndex = Math.min(offset + size, products.size());
-
-        List<Product> pagedProducts = (offset > products.size()) ? List.of() : products.subList(offset, toIndex);
-
-        return pagedProducts.stream()
+        List<Product> filtered = products.stream()
                 .filter(product -> product.getProductOptions().stream()
-                        .mapToInt(ProductOption::getStock)
-                        .sum() > 0)
+                        .mapToInt(ProductOption::getStock).sum() > 0)
+                .sorted(getComparator(pageable.getSort()))
+                .toList();
+
+        int offset = (int) pageable.getOffset();
+        int toIndex = Math.min(offset + pageable.getPageSize(), filtered.size());
+        List<Product> paged = (offset > filtered.size()) ? List.of() : filtered.subList(offset, toIndex);
+
+        List<ProductSummaryResponse> responseList = paged.stream()
                 .map(product -> {
-                    List<Review> allReviews = reviewRepository.findByProductId(product.getId());
-                    float avgStar = (float) allReviews.stream()
-                            .mapToDouble(Review::getReviewStar)
-                            .average()
-                            .orElse(0.0);
-
-                    boolean isLiked = false;
-                    if (memberDetails != null) {
-                        isLiked = likeRepository.existsByProductIdAndMemberId(product.getId(), memberDetails.getId());
-                    }
-
-                    return ProductSummaryResponse.from(product, avgStar, isLiked);
+                    float avgStar = (float) reviewRepository.findByProductId(product.getId()).stream()
+                            .mapToDouble(Review::getReviewStar).average().orElse(0.0);
+                    boolean liked = memberDetails != null && likeRepository.existsByProductIdAndMemberId(product.getId(), memberDetails.getId());
+                    return ProductSummaryResponse.from(product, avgStar, liked);
                 })
                 .toList();
+
+        return new PageImpl<>(responseList, pageable, filtered.size());
     }
 
     @Transactional
@@ -191,8 +185,35 @@ public class ProductService {
             return result;
                     
         } catch (Exception e) {
-            // AI 검색 실패 시 일반 검색으로 fallback
-            return searchProducts(query, null, 0, 9);
+            throw new ProductException(ErrorCode.PRODUCT_NOT_FOUND);
         }
+    }
+
+    private Comparator<Product> getComparator(Sort sort) {
+        Comparator<Product> comparator = Comparator.comparing(Product::getUpdatedAt); // default
+
+        for (Sort.Order order : sort) {
+            switch (order.getProperty()) {
+                case "discountPrice" -> comparator = Comparator.comparing(
+                        p -> Optional.ofNullable(p.getMinPriceOption())
+                                .map(ProductOption::getDiscountPrice)
+                                .orElse(0)
+                );
+                case "updatedAt" -> comparator = Comparator.comparing(Product::getUpdatedAt);
+                case "averageStar" -> comparator = Comparator.comparing(
+                        p -> (float) p.getReviews().stream()
+                                .mapToDouble(Review::getReviewStar)
+                                .average()
+                                .orElse(0.0)
+                );
+                default -> throw new IllegalArgumentException("Invalid sort property: " + order.getProperty());
+            }
+
+            if (order.getDirection().isDescending()) {
+                comparator = comparator.reversed();
+            }
+        }
+
+        return comparator;
     }
 }

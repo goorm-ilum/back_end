@@ -6,28 +6,29 @@ import com.talktrip.talktrip.domain.product.dto.request.AdminProductCreateReques
 import com.talktrip.talktrip.domain.product.dto.request.AdminProductUpdateRequest;
 import com.talktrip.talktrip.domain.product.dto.response.AdminProductEditResponse;
 import com.talktrip.talktrip.domain.product.dto.response.AdminProductSummaryResponse;
-import com.talktrip.talktrip.domain.product.entity.HashTag;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductImage;
 import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.domain.product.repository.ProductHashTagRepository;
 import com.talktrip.talktrip.domain.product.repository.ProductImageRepository;
-import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.product.repository.ProductOptionRepository;
+import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.global.entity.Country;
-import com.talktrip.talktrip.global.exception.MemberException;
 import com.talktrip.talktrip.global.exception.ErrorCode;
+import com.talktrip.talktrip.global.exception.MemberException;
 import com.talktrip.talktrip.global.exception.ProductException;
 import com.talktrip.talktrip.global.repository.CountryRepository;
 import com.talktrip.talktrip.global.s3.S3Uploader;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -84,13 +85,52 @@ public class AdminProductService {
 
 
     @Transactional(readOnly = true)
-    public List<AdminProductSummaryResponse> getMyProducts(Long memberId, int page, int size) {
-        int offset = page * size;
-        List<Product> products = productRepository.findByMemberId(memberId, offset, size);
+    public Page<AdminProductSummaryResponse> getMyProducts(Long memberId, String keyword, Pageable pageable) {
+        if (keyword == null || keyword.isBlank()) {
+            // 정렬만 적용한 기본 목록 조회
+            List<Product> products = productRepository.findByMemberId(memberId);
+            List<Product> sorted = products.stream()
+                    .sorted(getComparator(pageable.getSort()))
+                    .toList();
 
-        return products.stream()
-                .map(AdminProductSummaryResponse::from)
+            int offset = (int) pageable.getOffset();
+            int toIndex = Math.min(offset + pageable.getPageSize(), sorted.size());
+            List<Product> paged = (offset > sorted.size()) ? List.of() : sorted.subList(offset, toIndex);
+
+            return new PageImpl<>(paged.stream()
+                    .map(AdminProductSummaryResponse::from)
+                    .toList(), pageable, sorted.size());
+        }
+
+        // 검색 + 정렬
+        List<String> keywords = Arrays.stream(keyword.trim().split("\\s+")).toList();
+        List<Product> candidates = productRepository.searchByKeywordsAndMemberId(keywords, memberId);
+
+        List<Product> filtered = candidates.stream()
+                .filter(product -> {
+                    String combined = (product.getProductName() + " " + product.getDescription()).toLowerCase();
+                    List<String> combinedWords = Arrays.asList(combined.split("\\s+"));
+
+                    for (String k : keywords) {
+                        long count = combinedWords.stream().filter(word -> word.equals(k.toLowerCase())).count();
+                        long required = keywords.stream().filter(s -> s.equalsIgnoreCase(k)).count();
+                        if (count < required) return false;
+                    }
+                    return true;
+                })
                 .toList();
+
+        List<Product> sorted = filtered.stream()
+                .sorted(getComparator(pageable.getSort()))
+                .toList();
+
+        int offset = (int) pageable.getOffset();
+        int toIndex = Math.min(offset + pageable.getPageSize(), sorted.size());
+        List<Product> paged = (offset > sorted.size()) ? List.of() : sorted.subList(offset, toIndex);
+
+        return new PageImpl<>(paged.stream()
+                .map(AdminProductSummaryResponse::from)
+                .toList(), pageable, sorted.size());
     }
 
 
@@ -196,70 +236,23 @@ public class AdminProductService {
         productRepository.delete(product);
     }
 
-    @Transactional(readOnly = true)
-    public List<AdminProductSummaryResponse> searchMyProducts(Long memberId, String keyword, int page, int size, String sortBy, boolean ascending) {
-        List<Product> products;
+    private Comparator<Product> getComparator(Sort sort) {
+        Comparator<Product> comparator = Comparator.comparing(Product::getUpdatedAt); // default
+        for (Sort.Order order : sort) {
+            switch (order.getProperty()) {
+                case "productName" -> comparator = Comparator.comparing(Product::getProductName, String.CASE_INSENSITIVE_ORDER);
+                case "price" -> comparator = Comparator.comparing(p -> Optional.ofNullable(p.getMinPriceOption()).map(ProductOption::getPrice).orElse(0));
+                case "discountPrice" -> comparator = Comparator.comparing(p -> Optional.ofNullable(p.getMinPriceOption()).map(ProductOption::getDiscountPrice).orElse(0));
+                case "totalStock" -> comparator = Comparator.comparing(Product::getTotalStock);
+                case "updatedAt" -> comparator = Comparator.comparing(Product::getUpdatedAt);
+                default -> throw new IllegalArgumentException("Invalid sort property: " + order.getProperty());
+            }
 
-        if (keyword == null || keyword.trim().isEmpty()) {
-            products = productRepository.findByMemberId(memberId);
-        } else {
-            List<String> keywords = Arrays.stream(keyword.trim().split("\\s+")).toList();
-            List<Product> candidates = productRepository.searchByKeywordsAndMemberId(keywords, memberId);
-
-            products = candidates.stream()
-                    .filter(product -> {
-                        String combined = (product.getProductName() + " " + product.getDescription()).toLowerCase();
-                        List<String> combinedWords = Arrays.asList(combined.split("\\s+"));
-
-                        for (String k : keywords) {
-                            long count = combinedWords.stream().filter(word -> word.equals(k.toLowerCase())).count();
-                            long required = keywords.stream().filter(s -> s.equalsIgnoreCase(k)).count();
-                            if (count < required) return false;
-                        }
-                        return true;
-                    })
-                    .sorted(getComparator(sortBy, ascending))
-                    .toList();
+            if (order.getDirection().isDescending()) {
+                comparator = comparator.reversed();
+            }
         }
-
-        int offset = page * size;
-        int toIndex = Math.min(offset + size, products.size());
-
-        List<Product> pagedProducts = (offset > products.size()) ? List.of() : products.subList(offset, toIndex);
-
-        return pagedProducts.stream()
-                .map(AdminProductSummaryResponse::from)
-                .toList();
+        return comparator;
     }
 
-
-    @Transactional(readOnly = true)
-    public List<AdminProductSummaryResponse> sortMyProducts(Long memberId, int page, int size, String sortBy, boolean ascending) {
-        List<Product> products = productRepository.findByMemberId(memberId);
-
-        products.sort(getComparator(sortBy, ascending));
-
-        int offset = page * size;
-        int toIndex = Math.min(offset + size, products.size());
-
-        List<Product> pagedProducts = (offset > products.size()) ? List.of() : products.subList(offset, toIndex);
-
-        return pagedProducts.stream()
-                .map(AdminProductSummaryResponse::from)
-                .toList();
-    }
-
-
-    private Comparator<Product> getComparator(String sortBy, boolean ascending) {
-        Comparator<Product> comparator;
-        switch (sortBy) {
-            case "productName" -> comparator = Comparator.comparing(Product::getProductName, String.CASE_INSENSITIVE_ORDER);
-            case "price" -> comparator = Comparator.comparing(p -> Optional.ofNullable(p.getMinPriceOption()).map(ProductOption::getPrice).orElse(0));
-            case "discountPrice" -> comparator = Comparator.comparing(p -> Optional.ofNullable(p.getMinPriceOption()).map(ProductOption::getDiscountPrice).orElse(0));
-            case "totalStock" -> comparator = Comparator.comparing(Product::getTotalStock);
-            case "updatedAt" -> comparator = Comparator.comparing(Product::getUpdatedAt);
-            default -> throw new IllegalArgumentException("Invalid sortBy value: " + sortBy);
-        }
-        return ascending ? comparator : comparator.reversed();
-    }
 }
