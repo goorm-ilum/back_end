@@ -32,6 +32,16 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
             @Param("buyerId") String buyerId,
             @Param("sellerId") String sellerId
     );
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE ChatRoomMember crm " +
+            "SET crm.isDel = :isDel " +
+            "WHERE crm.memberId = :memberId AND crm.roomId = :roomId")
+    void updateIsDelByMemberIdAndRoomId(@Param("memberId") String memberId,
+                                        @Param("roomId") String roomId,
+                                        @Param("isDel") int isDel);
+
 }
 
 

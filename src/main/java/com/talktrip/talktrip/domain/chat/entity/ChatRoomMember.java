@@ -3,10 +3,7 @@ package com.talktrip.talktrip.domain.chat.entity;
 
 import com.talktrip.talktrip.global.entity.BaseEntity;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
@@ -16,8 +13,8 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
+@AllArgsConstructor
 @Table(name = "chating_room_member_tab")
-
 public class ChatRoomMember {
     
     @Id
@@ -32,6 +29,8 @@ public class ChatRoomMember {
     
     @Column(name = "last_member_read_time")
     private LocalDateTime lastMemberReadTime;
+    @Column(name = "is_del")
+    private int isDel;
 
     @Builder
     public ChatRoomMember(String roomMemberId,String memberId, String roomId) {

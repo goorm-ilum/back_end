@@ -38,7 +38,7 @@ import java.util.Optional;
             )
             FROM ChatRoomMember crmt
             JOIN ChatRoom crt ON crt.roomId = crmt.roomId
-            WHERE crmt.memberId = :memberId
+            WHERE crmt.memberId = :memberId and crmt.isDel = 0
     """, nativeQuery = false)
         List<ChatRoomDTO> findRoomsWithLastMessageByMemberId(@Param("memberId") String memberId);
     }
