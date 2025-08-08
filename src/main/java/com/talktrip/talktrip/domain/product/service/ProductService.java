@@ -130,7 +130,7 @@ public class ProductService {
 
 
 
-    public List<ProductSummaryResponse> aiSearchProducts(String query) {
+    public List<ProductSummaryResponse> aiSearchProducts(String query, CustomMemberDetails memberDetails) {
         try {
             String fastApiUrl = fastApiBaseUrl + "/query";
             
@@ -187,7 +187,11 @@ public class ProductService {
                                 .average()
                                 .orElse(0.0);
                         
-                        return ProductSummaryResponse.from(product, avgStar, false);
+                        // 사용자 인증 정보가 있는 경우 좋아요 상태 확인
+                        boolean liked = memberDetails != null && 
+                            likeRepository.existsByProductIdAndMemberId(product.getId(), memberDetails.getId());
+                        
+                        return ProductSummaryResponse.from(product, avgStar, liked);
                     })
                     .toList();
             

@@ -60,7 +60,8 @@ public class ProductController {
     @Operation(summary = "AI 상품 검색")
     @GetMapping("/aisearch")
     public ResponseEntity<List<ProductSummaryResponse>> aiSearchProducts(
-            @RequestParam String question) {
-        return ResponseEntity.ok(productService.aiSearchProducts(question));
+            @RequestParam String question,
+            @AuthenticationPrincipal CustomMemberDetails memberDetails) {
+        return ResponseEntity.ok(productService.aiSearchProducts(question, memberDetails));
     }
 }
