@@ -40,11 +40,15 @@ public class ProductService {
     private String fastApiBaseUrl;
 
     @Transactional
-    public Page<ProductSummaryResponse> searchProducts(String keyword, CustomMemberDetails memberDetails, Pageable pageable) {
+    public Page<ProductSummaryResponse> searchProducts(String keyword, String countryName, CustomMemberDetails memberDetails, Pageable pageable) {
         List<Product> products;
 
         if (keyword == null || keyword.trim().isEmpty()) {
-            products = productRepository.findAll();
+            if ("전체".equals(countryName)) {
+                products = productRepository.findAll();
+            } else {
+                products = productRepository.findByCountryName(countryName);  // 국가 필터링
+            }
         } else {
             List<String> keywords = Arrays.stream(keyword.trim().split("\\s+")).toList();
             List<Product> candidates = productRepository.searchByKeywords(keywords, 0, Integer.MAX_VALUE);
@@ -88,6 +92,7 @@ public class ProductService {
 
         return new PageImpl<>(responseList, pageable, filtered.size());
     }
+
 
 
     @Transactional
