@@ -122,4 +122,8 @@ public class ChatService {
 
         return newRoomId;
     }
+    @Transactional
+    public void markChatRoomAsDeleted(String memberId, String roomId) {
+        chatRoomMemberRepository.updateIsDelByMemberIdAndRoomId(memberId, roomId, 1);
+    }
 }
