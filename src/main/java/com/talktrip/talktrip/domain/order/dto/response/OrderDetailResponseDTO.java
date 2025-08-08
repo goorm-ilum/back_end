@@ -5,8 +5,6 @@ import com.talktrip.talktrip.domain.order.entity.Order;
 import com.talktrip.talktrip.domain.order.entity.OrderItem;
 import com.talktrip.talktrip.domain.order.entity.Payment;
 import com.talktrip.talktrip.domain.order.entity.CardPayment;
-import com.talktrip.talktrip.domain.product.entity.Product;
-import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
@@ -99,19 +97,18 @@ public class OrderDetailResponseDTO {
         private final int quantity;
         private final int unitPrice;
         private final int totalItemPrice;
-        private final LocalDate startDate;
 
         public OrderItemDTO(OrderItem orderItem) {
-            // 스냅샷 데이터 사용
+
             this.id = orderItem.getId();
             this.productName = orderItem.getProductName();
             this.productThumbnail = orderItem.getProductThumbnailUrl();
             this.optionName = orderItem.getOptionName();
             this.quantity = orderItem.getQuantity();
             this.unitPrice = orderItem.getPrice();
-            this.totalItemPrice = orderItem.getPrice() * orderItem.getQuantity();
-            this.startDate = orderItem.getStartDate();
+            this.totalItemPrice = unitPrice * quantity;
         }
+
     }
 
     @Getter

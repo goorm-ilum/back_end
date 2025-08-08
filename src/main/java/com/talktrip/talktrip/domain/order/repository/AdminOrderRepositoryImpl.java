@@ -3,6 +3,7 @@ package com.talktrip.talktrip.domain.order.repository;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.querydsl.jpa.JPAExpressions;
 import com.talktrip.talktrip.domain.member.entity.QMember;
 import com.talktrip.talktrip.domain.order.dto.response.AdminOrderResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.QAdminOrderResponseDTO;
@@ -13,6 +14,8 @@ import com.talktrip.talktrip.domain.order.entity.QPayment;
 import com.talktrip.talktrip.domain.order.enums.OrderStatus;
 import com.talktrip.talktrip.domain.order.enums.PaymentMethod;
 import com.talktrip.talktrip.domain.order.entity.QCardPayment;
+import com.talktrip.talktrip.domain.product.entity.QProduct;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -34,7 +37,7 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
         QOrderItem orderItem = QOrderItem.orderItem;
         QMember member = QMember.member;
         QPayment payment = QPayment.payment;
-
+        QProduct product = QProduct.product;
         return queryFactory
                 .select(new QAdminOrderResponseDTO(
                         order.orderCode,
@@ -49,7 +52,12 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
                 .join(order.member, member)
                 .join(order.orderItems, orderItem)
                 .leftJoin(payment).on(payment.order.eq(order))
-                .where(orderItem.productId.eq(sellerId)) // productId로 판매자 필터링
+                .where(orderItem.productId.in(
+                    JPAExpressions
+                        .select(product.id)
+                        .from(product)
+                        .where(product.member.Id.eq(sellerId))
+                )) // 서브쿼리로 판매자의 상품 ID들만 필터링
                 .distinct()
                 .fetch();
     }
@@ -67,10 +75,16 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
         QOrderItem orderItem = QOrderItem.orderItem;
         QMember member = QMember.member;
         QPayment payment = QPayment.payment;
+        QProduct product = QProduct.product;
 
-        // 기본 조건: 판매자 ID (스냅샷 필드 사용)
+        // 기본 조건: 판매자의 상품 ID들만 필터링
         BooleanBuilder whereClause = new BooleanBuilder();
-        whereClause.and(orderItem.productId.eq(sellerId));
+        whereClause.and(orderItem.productId.in(
+            JPAExpressions
+                .select(product.id)
+                .from(product)
+                .where(product.member.Id.eq(sellerId))
+        ));
 
         // 결제수단 필터
         if (paymentMethod != null && !paymentMethod.trim().isEmpty()) {
