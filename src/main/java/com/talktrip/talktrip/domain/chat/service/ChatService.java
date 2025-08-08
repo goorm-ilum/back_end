@@ -1,6 +1,7 @@
 package com.talktrip.talktrip.domain.chat.service;
 
 import com.talktrip.talktrip.domain.chat.dto.request.ChatMessageRequestDto;
+import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDTO;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomResponseDto;
 import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
 import com.talktrip.talktrip.domain.chat.entity.ChatRoom;
@@ -13,6 +14,7 @@ import com.talktrip.talktrip.domain.chat.repository.ChatRoomRepository;
 import com.talktrip.talktrip.global.redis.RedisPublisher;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Service;
 
@@ -20,7 +22,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChatService {
@@ -36,12 +38,13 @@ public class ChatService {
 
     @Transactional
     public void saveAndSend(ChatMessageRequestDto dto) {
-        // 1. DB 저장
+    try {
         ChatMessage entity = chatMessageRepository.save(dto.toEntity());
-        // 2. Redis 발행
-        int unreadCount = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(dto.getRoomId(), dto.getReceiverId());
+        int unreadCount = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(
+            dto.getRoomId(), 
+            dto.getReceiverId()
+        );
 
-        // 3. Redis로 상대방에게 "해당 방만 업데이트" 메시지 전송
         ChatRoomUpdateMessage updateMessage = ChatRoomUpdateMessage.builder()
                 .memberId(dto.getMemberId())
                 .receiverId(dto.getReceiverId())
@@ -52,14 +55,17 @@ public class ChatService {
                 .build();
 
         redisPublisher.publish(topic, updateMessage);
-
+    } catch (Exception e) {
+        log.error("채팅 메시지 저장 및 발행 중 오류 발생: {}", e.getMessage());
+        throw new RuntimeException("채팅 처리 중 오류가 발생했습니다.");
     }
+}
     public String createRoom(String userA, String userB) {
         // 기존 방 있으면 재사용, 없으면 새로 생성
         // room_id = UUID.randomUUID().toString()
         return userA;
     }
-    public List<ChatRoom> getRooms(String memberId) {
+    public List<ChatRoomDTO> getRooms(String memberId) {
         //redis 추가
         return chatRoomRepository.findRoomsWithLastMessageByMemberId(memberId);
     }
