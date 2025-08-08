@@ -34,6 +34,7 @@ public class MemberController {
         return ResponseEntity.ok(Map.of("url", kakaoUrl));
     }
 
+
     @Operation(summary = "카카오 로그인 콜백", description = "인가 코드를 통해 로그인 처리를 수행합니다.")
     @PostMapping("member/kakao")
     public Map<String, Object> kakaoLogin(String code) {
