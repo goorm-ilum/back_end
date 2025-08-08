@@ -30,6 +30,8 @@ public class QChatRoom extends EntityPathBase<ChatRoom> {
 
     public final StringPath roomId = createString("roomId");
 
+    public final StringPath roomMemberId = createString("roomMemberId");
+
     public final StringPath title = createString("title");
 
     //inherited

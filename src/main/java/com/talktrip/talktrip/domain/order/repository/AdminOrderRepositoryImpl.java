@@ -8,13 +8,13 @@ import com.talktrip.talktrip.domain.member.entity.QMember;
 import com.talktrip.talktrip.domain.order.dto.response.AdminOrderResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.QAdminOrderResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.AdminOrderDetailResponseDTO;
+import com.talktrip.talktrip.domain.product.entity.QProduct;
 import com.talktrip.talktrip.domain.order.entity.QOrder;
 import com.talktrip.talktrip.domain.order.entity.QOrderItem;
 import com.talktrip.talktrip.domain.order.entity.QPayment;
 import com.talktrip.talktrip.domain.order.enums.OrderStatus;
 import com.talktrip.talktrip.domain.order.enums.PaymentMethod;
 import com.talktrip.talktrip.domain.order.entity.QCardPayment;
-import com.talktrip.talktrip.domain.product.entity.QProduct;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -130,7 +130,7 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
                 .select(new QAdminOrderResponseDTO(
                         order.orderCode,
                         member.name,
-                        orderItem.productName, // 스냅샷 필드 사용
+                        orderItem.productName,
                         order.createdAt,
                         order.totalPrice,
                         payment.method,
@@ -169,6 +169,7 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
         QMember buyer = QMember.member;
         QPayment payment = QPayment.payment;
         QCardPayment cardPayment = QCardPayment.cardPayment;
+        QProduct product = QProduct.product;
 
         // 주문 기본 정보 조회 (Payment 정보 포함)
         var orderInfo = queryFactory
@@ -187,7 +188,12 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
                 .leftJoin(payment).on(payment.order.eq(order))
                 .leftJoin(cardPayment).on(cardPayment.payment.eq(payment))
                 .where(order.orderCode.eq(orderCode)
-                        .and(orderItem.productId.eq(sellerId))) // 스냅샷 필드로 판매자 필터링
+                        .and(orderItem.productId.in(
+                                JPAExpressions
+                                        .select(product.id)
+                                        .from(product)
+                                        .where(product.member.Id.eq(sellerId))
+                        )))
                 .fetchFirst();
 
         if (orderInfo == null) {
@@ -197,17 +203,22 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
         // 주문 상품 목록 조회 (스냅샷 데이터 사용)
         List<AdminOrderDetailResponseDTO.OrderItemDetailDTO> orderItems = queryFactory
                 .select(com.querydsl.core.types.Projections.constructor(AdminOrderDetailResponseDTO.OrderItemDetailDTO.class,
-                        orderItem.productName, // 스냅샷 필드
-                        orderItem.optionName, // 스냅샷 필드
+                        orderItem.productName,
+                        orderItem.optionName,
                         orderItem.quantity,
-                        orderItem.optionPrice, // 스냅샷 필드
-                        orderItem.optionDiscountPrice, // 스냅샷 필드
+                        orderItem.optionPrice,
+                        orderItem.optionDiscountPrice,
                         orderItem.optionDiscountPrice.multiply(orderItem.quantity),
-                        orderItem.startDate // 스냅샷 필드
+                        orderItem.startDate
                 ))
                 .from(orderItem)
                 .where(orderItem.order.orderCode.eq(orderCode)
-                        .and(orderItem.productId.eq(sellerId))) // 스냅샷 필드로 판매자 필터링
+                        .and(orderItem.productId.in(
+                                JPAExpressions
+                                        .select(product.id)
+                                        .from(product)
+                                        .where(product.member.Id.eq(sellerId))
+                        )))
                 .fetch();
 
         // 할인 정보 계산
