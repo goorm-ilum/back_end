@@ -1,7 +1,7 @@
 package com.talktrip.talktrip.global.s3;
 
 import com.talktrip.talktrip.global.exception.ErrorCode;
-import com.talktrip.talktrip.global.exception.S3Excepttion;
+import com.talktrip.talktrip.global.exception.S3Exception;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -42,7 +42,7 @@ public class S3Uploader {
                     RequestBody.fromBytes(file.getBytes())
             );
         } catch (IOException e) {
-            throw new S3Excepttion(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new S3Exception(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
         return "https://" + bucket + ".s3.ap-northeast-2.amazonaws.com/" + fileName;
     }
@@ -62,7 +62,7 @@ public class S3Uploader {
                     .key(key)
                     .build());
         } catch (Exception e) {
-            throw new S3Excepttion(ErrorCode.IMAGE_DELETE_FAILED);
+            throw new S3Exception(ErrorCode.IMAGE_DELETE_FAILED);
         }
     }
 
@@ -88,9 +88,9 @@ public class S3Uploader {
             return Base64.getEncoder().encodeToString(hash);
 
         } catch (IOException e) {
-            throw new S3Excepttion(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new S3Exception(ErrorCode.IMAGE_UPLOAD_FAILED);
         } catch (NoSuchAlgorithmException e) {
-            throw new S3Excepttion(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new S3Exception(ErrorCode.IMAGE_UPLOAD_FAILED);
         }
     }
 
