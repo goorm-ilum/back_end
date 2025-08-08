@@ -72,17 +72,17 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, String
 
     @Query(value = """
       SELECT count(*)
-    FROM chating_message_history_tab cmht
-    WHERE cmht.room_id = :roomId
-      AND cmht.member_id != :memberId
-      AND cmht.created_at > (
-        SELECT cmht2.created_at
-        FROM chating_message_history_tab cmht2
-        WHERE cmht2.room_id = :roomId
-          AND cmht2.member_id = :memberId
-        ORDER BY cmht2.created_at DESC
-        LIMIT 1
-    )
+          FROM chating_message_history_tab cmht
+          WHERE cmht.room_id = :roomId
+            AND cmht.member_id = :memberId
+            AND cmht.created_at > (
+              SELECT cmht2.created_at
+              FROM chating_message_history_tab cmht2
+              WHERE cmht2.room_id = :roomId
+                AND cmht2.member_id != :memberId
+              ORDER BY cmht2.created_at DESC
+              LIMIT 1
+          )
 """, nativeQuery = true)
     int countUnreadMessagesByRoomIdAndMemberId(
             @Param("roomId") String roomId,
