@@ -27,7 +27,10 @@ public record ProductDetailResponse(
         List<ProductOptionResponse> stocks,
         float averageReviewStar,
         List<ReviewResponse> reviews,
-        boolean isLiked
+        boolean isLiked,
+        String sellerName,
+        String email,
+        String phoneNum
 ) {
     public static ProductDetailResponse from(Product product, float avgStar, List<ReviewResponse> reviews, boolean isLiked) {
         List<ProductOption> futureOptions = product.getProductOptions().stream()
@@ -53,7 +56,10 @@ public record ProductDetailResponse(
                 futureOptions.stream().map(ProductOptionResponse::from).toList(),
                 avgStar,
                 reviews,
-                isLiked
+                isLiked,
+                product.getMember().getName(),
+                product.getMember().getAccountEmail(),
+                product.getMember().getPhoneNum()
         );
     }
 }

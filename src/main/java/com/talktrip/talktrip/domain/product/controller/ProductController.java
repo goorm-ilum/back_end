@@ -33,14 +33,16 @@ public class ProductController {
     @GetMapping
     public ResponseEntity<Page<ProductSummaryResponse>> getProducts(
             @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "전체") String countryName,  // 국가 파라미터 추가
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "updatedAt,desc") List<String> sort,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
         Pageable pageable = PageRequest.of(page, size, buildSort(sort));
-        return ResponseEntity.ok(productService.searchProducts(keyword, memberDetails, pageable));
+        return ResponseEntity.ok(productService.searchProducts(keyword, countryName, memberDetails, pageable));
     }
+
 
     @Operation(summary = "상품 상세 조회")
     @GetMapping("/{productId}")
