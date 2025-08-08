@@ -3,10 +3,9 @@ package com.talktrip.talktrip.global.exception;
 import lombok.Getter;
 
 @Getter
-public class ReviewException extends CustomException {
-    public ReviewException(ErrorCode errorCode) {
+public class S3Exception extends CustomException {
+    public S3Exception(ErrorCode errorCode) {
         super(errorCode);
     }
 }
-
 

@@ -1,6 +1,7 @@
 package com.talktrip.talktrip.domain.chat.controller;
 
 import com.talktrip.talktrip.domain.chat.dto.request.ChatRoomRequestDto;
+import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDTO;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomResponseDto;
 import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
 import com.talktrip.talktrip.domain.chat.entity.ChatRoom;
@@ -32,9 +33,9 @@ public class ChatApiController {
 
     @Operation(summary = "내 채팅 목록")
     @GetMapping("/me/chatRooms")
-    public List<ChatRoom> getMyChats() {
+    public List<ChatRoomDTO> getMyChats() {
         // 실제 데이터베이스 조회는 나중에 활성화
-         List<ChatRoom> rooms = chatService.getRooms("dhrdbs");
+         List<ChatRoomDTO> rooms = chatService.getRooms("dhrdbs");
          return rooms;
     }
     @Operation(summary = "채팅방 상세 조회")
