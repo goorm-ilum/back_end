@@ -26,7 +26,6 @@ public class MemberController {
 
     private final KakaoAuthService kakaoAuthService;
     private final MemberService memberService;
-    private final MemberRepository memberRepository;
 
     @Operation(summary = "카카오 로그인 URL 요청", description = "카카오 로그인 인가 URL을 반환합니다.")
     @GetMapping("member/kakao-login-url")
