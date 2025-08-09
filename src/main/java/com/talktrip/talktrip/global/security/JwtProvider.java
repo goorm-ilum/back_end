@@ -1,19 +1,14 @@
 package com.talktrip.talktrip.global.security;
 
 import com.talktrip.talktrip.global.util.JWTUtil;
-import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
-import java.security.Key;
 import java.util.Map;
-@Getter
+
 @Component
 public class JwtProvider {
 
-    // 키를 직접 쓰지 않고, JWTUtil 내부에서 관리하므로 필드는 남겨두지 않아도 됩니다.
-    // 필요 시 다른 용도로 사용할 수 있어 보관 형태만 유지합니다.
     private final String secret;
 
     public JwtProvider(@Value("${jwt.secret-key}") String secretKey) {
@@ -37,12 +32,27 @@ public class JwtProvider {
 
     public String getUserId(String token) {
         Map<String, Object> claims = JWTUtil.validateToken(token);
-        Object sub = claims.get("sub");
-        if (sub == null || String.valueOf(sub).isBlank()) {
+        String userId = firstNonBlank(
+                toStr(claims.get("sub")),          // 표준
+                toStr(claims.get("email")),        // 현재 토큰에 존재
+                toStr(claims.get("userId")),
+                toStr(claims.get("username")),
+                toStr(claims.get("accountEmail"))
+        );
+        if (userId == null) {
             throw new IllegalArgumentException("subject(sub) not found in token");
         }
-        return String.valueOf(sub);
+        return userId;
     }
 
+    private static String toStr(Object o) {
+        if (o == null) return null;
+        String s = String.valueOf(o);
+        return s.isBlank() ? null : s;
+    }
 
+    private static String firstNonBlank(String... vals) {
+        for (String v : vals) if (v != null && !v.isBlank()) return v;
+        return null;
+    }
 }
