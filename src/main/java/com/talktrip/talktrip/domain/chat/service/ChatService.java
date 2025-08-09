@@ -55,6 +55,10 @@ public class ChatService {
                 .build();
 
         redisPublisher.publish(topic, updateMessage);
+
+
+    chatRoomMemberRepository.resetIsDelByRoomId(dto.getRoomId());
+
     } catch (Exception e) {
         log.error("채팅 메시지 저장 및 발행 중 오류 발생: {}", e.getMessage());
         throw new RuntimeException("채팅 처리 중 오류가 발생했습니다.");
