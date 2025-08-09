@@ -25,9 +25,9 @@ public class ChatWebSocketController {
     private final ObjectMapper objectMapper;
 
     @MessageMapping("/chat/message")  // 클라이언트 → /app/chat/message
-    public void handleMessage(ChatMessageRequestDto dto, Principal principal) {
-        chatService.saveAndSend(dto);
+    public void handleMessage(ChatMessageRequestDto dto,Principal principal) {
+        chatService.saveAndSend(dto,principal);
     }
-    
-    
 }
+
+    

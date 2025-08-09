@@ -46,15 +46,19 @@ public class JWTUtil {
     // JWT 생성 (분 단위 만료)
     public static String generateToken(Map<String, Object> valueMap, int min) {
         try {
-            Map<String, Object> header = Map.of(
-                    "alg", "HS256",
-                    "typ", "JWT"
-            );
+            Map<String, Object> header = Map.of("alg", "HS256", "typ", "JWT");
 
             long nowSec = Instant.now().getEpochSecond();
-            long expSec = Instant.now().plusSeconds(min * 60L).getEpochSecond();
+            long expSec = nowSec + min * 60L;
 
             Map<String, Object> claims = new HashMap<>(valueMap == null ? Map.of() : valueMap);
+            // subject 보장: sub 없으면 email/userId/username 순으로 대체
+            if (!claims.containsKey("sub")) {
+                Object sub = coalesce(claims.get("sub"), claims.get("email"), claims.get("userId"), claims.get("username"), claims.get("accountEmail"));
+                if (sub != null) {
+                    claims.put("sub", String.valueOf(sub));
+                }
+            }
             claims.putIfAbsent("iat", nowSec);
             claims.put("exp", expSec);
 
