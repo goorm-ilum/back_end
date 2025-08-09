@@ -10,6 +10,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
+
+import java.security.Principal;
+
 @Slf4j
 @RequiredArgsConstructor
 @Controller
@@ -22,11 +25,9 @@ public class ChatWebSocketController {
     private final ObjectMapper objectMapper;
 
     @MessageMapping("/chat/message")  // 클라이언트 → /app/chat/message
-    public void handleMessage(ChatMessageRequestDto dto) {
+    public void handleMessage(ChatMessageRequestDto dto, Principal principal) {
         chatService.saveAndSend(dto);
     }
     
-    // 클라이언트가 구독할 엔드포인트:
-    // 채팅 메시지: /topic/chat/room/{roomId}
-    // 채팅방 업데이트: /topic/chat/room/{roomId}/update
+    
 }
