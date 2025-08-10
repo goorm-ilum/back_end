@@ -11,11 +11,11 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.ZonedDateTime;
 import java.util.Base64;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+
+import static com.querydsl.collections.CollQueryFunctions.coalesce;
 
 @Log4j2
 @Component
@@ -145,5 +145,31 @@ public class JWTUtil {
             result |= a.charAt(i) ^ b.charAt(i);
         }
         return result == 0;
+    }
+
+    /**
+     * 주어진 claim 키 목록 중에서, 첫 번째로 유효한(문자열이면 non-blank, 그 외는 non-null) 값을 String으로 반환합니다.
+     * 없으면 null을 반환하거나, 필요하다면 IllegalStateException을 던지도록 바꾸세요.
+     */
+    public static String constantTimeEquals(Map<String, Object> claims, String... keys) {
+        if (claims == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            if (key == null) continue;
+            Object value = claims.get(key);
+            if (value == null) continue;
+
+            if (value instanceof CharSequence) {
+                String s = value.toString().trim();
+                if (!s.isEmpty()) {
+                    return s;
+                }
+            } else {
+                // 숫자/불린/기타 타입도 안전하게 문자열화
+                return value.toString();
+            }
+        }
+        return null; // 또는 throw new IllegalStateException("필수 claim 없음");
     }
 }
