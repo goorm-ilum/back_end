@@ -8,36 +8,32 @@ import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import com.talktrip.talktrip.global.util.SortUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-import static com.talktrip.talktrip.global.util.SortUtil.buildSort;
-
 @Tag(name = "Review", description = "리뷰 관련 API")
 @RestController
-@AllArgsConstructor
+@RequiredArgsConstructor
 @RequestMapping("/api")
 public class ReviewController {
 
     private final ReviewService reviewService;
 
     @Operation(summary = "리뷰 작성")
-    @PostMapping("/products/{productId}/reviews")
+    @PostMapping("/orders/{orderId}/review")
     public ResponseEntity<Void> createReview(
-            @PathVariable Long productId,
+            @PathVariable Long orderId,
             @RequestBody ReviewRequest request,
             @AuthenticationPrincipal CustomMemberDetails memberDetails) {
 
-        reviewService.createReview(productId, memberDetails.getId(), request);
+        reviewService.createReview(orderId, memberDetails.getId(), request);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
@@ -70,23 +66,22 @@ public class ReviewController {
             @RequestParam(defaultValue = "9") int size,
             @RequestParam(defaultValue = "createdAt,desc") List<String> sort
     ) {
-        Pageable pageable = PageRequest.of(page, size, buildSort(sort));
+        Pageable pageable = PageRequest.of(page, size, SortUtil.buildSort(sort));
         Page<ReviewResponse> reviews = reviewService.getMyReviews(memberDetails.getId(), pageable);
         return ResponseEntity.ok(reviews);
     }
 
-
-    @Operation(summary = "리뷰 작성 폼 조회 (리뷰가 없을 때만)")
-    @GetMapping("/products/{productId}/reviews/form")
+    @Operation(summary = "리뷰 작성 폼 (아직 없을 때)")
+    @GetMapping("/orders/{orderId}/review/form")
     public ResponseEntity<MyReviewFormResponse> getReviewCreateForm(
-            @PathVariable Long productId,
+            @PathVariable Long orderId,
             @AuthenticationPrincipal CustomMemberDetails memberDetails) {
 
-        MyReviewFormResponse response = reviewService.getReviewCreateForm(productId, memberDetails.getId());
+        MyReviewFormResponse response = reviewService.getReviewCreateForm(orderId, memberDetails.getId());
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "리뷰 수정 폼 조회 (내 리뷰일 때만)")
+    @Operation(summary = "리뷰 수정 폼 (내 리뷰)")
     @GetMapping("/reviews/{reviewId}/form")
     public ResponseEntity<MyReviewFormResponse> getReviewUpdateForm(
             @PathVariable Long reviewId,
@@ -96,4 +91,18 @@ public class ReviewController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "특정 상품 리뷰 목록")
+    @GetMapping("/seller/products/{productId}/reviews")
+    public ResponseEntity<Page<ReviewResponse>> getReviewsForSellerProduct(
+            @PathVariable Long productId,
+            @AuthenticationPrincipal CustomMemberDetails memberDetails, // seller
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt,desc") List<String> sort
+    ) {
+        Pageable pageable = PageRequest.of(page, size, SortUtil.buildSort(sort));
+        Page<ReviewResponse> pageResult =
+                reviewService.getReviewsForSellerProduct(memberDetails.getId(), productId, pageable);
+        return ResponseEntity.ok(pageResult);
+    }
 }

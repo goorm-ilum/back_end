@@ -6,24 +6,24 @@ import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.global.entity.BaseEntity;
 import com.talktrip.talktrip.global.entity.Country;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.Where;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.util.*;
 
 @Entity
 @Builder
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
+@SQLDelete(sql = "UPDATE product SET deleted = true, deleted_at = NOW() WHERE id = ?")
+@Where(clause = "deleted = false") // 기본 조회에서 삭제 제외
 public class Product extends BaseEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(length = 100, nullable = false)
@@ -33,7 +33,6 @@ public class Product extends BaseEntity {
     private String description;
 
     private String thumbnailImageUrl;
-
     private String thumbnailImageHash;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -46,11 +45,12 @@ public class Product extends BaseEntity {
 
     @Builder.Default
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ProductImage> images = new ArrayList<>();
+    private List<Review> reviews = new ArrayList<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Review> reviews = new ArrayList<>();
+    @OrderBy("sortOrder ASC")
+    private List<ProductImage> images = new ArrayList<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -63,6 +63,21 @@ public class Product extends BaseEntity {
     @Builder.Default
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductOption> productOptions = new ArrayList<>();
+
+    @Column(nullable = false)
+    private boolean deleted = false;
+
+    private LocalDateTime deletedAt;
+
+    public void markDeleted() {
+        this.deleted = true;
+        this.deletedAt = LocalDateTime.now();
+    }
+
+    public void restore() {
+        this.deleted = false;
+        this.deletedAt = null;
+    }
 
     public void updateThumbnailImage(String url, String hash) {
         this.thumbnailImageUrl = url;
@@ -77,14 +92,12 @@ public class Product extends BaseEntity {
 
     public ProductOption getMinPriceOption() {
         return productOptions.stream()
-                .filter(option -> !option.getStartDate().isBefore(LocalDate.now())) // 오늘 이후만
-                .min((o1, o2) -> Integer.compare(o1.getDiscountPrice(), o2.getDiscountPrice()))
+                .filter(option -> !option.getStartDate().isBefore(LocalDate.now()))
+                .min(Comparator.comparingInt(ProductOption::getDiscountPrice))
                 .orElse(null);
     }
 
     public int getTotalStock() {
-        return productOptions.stream()
-                .mapToInt(ProductOption::getStock)
-                .sum();
+        return productOptions.stream().mapToInt(ProductOption::getStock).sum();
     }
 }

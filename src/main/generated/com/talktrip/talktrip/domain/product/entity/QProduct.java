@@ -29,6 +29,10 @@ public class QProduct extends EntityPathBase<Product> {
     //inherited
     public final DateTimePath<java.time.LocalDateTime> createdAt = _super.createdAt;
 
+    public final BooleanPath deleted = createBoolean("deleted");
+
+    public final DateTimePath<java.time.LocalDateTime> deletedAt = createDateTime("deletedAt", java.time.LocalDateTime.class);
+
     public final StringPath description = createString("description");
 
     public final ListPath<HashTag, QHashTag> hashtags = this.<HashTag, QHashTag>createList("hashtags", HashTag.class, QHashTag.class, PathInits.DIRECT2);

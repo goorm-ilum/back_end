@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -39,7 +40,7 @@ public class AdminProductController {
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
         adminProductService.createProduct(request, memberDetails.getId(), thumbnailImage, detailImages);
-        return ResponseEntity.status(201).build();
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     @Operation(summary = "판매자 상품 목록 조회 + 검색 + 정렬")
@@ -47,12 +48,13 @@ public class AdminProductController {
     public ResponseEntity<Page<AdminProductSummaryResponse>> getMyProducts(
             @AuthenticationPrincipal CustomMemberDetails memberDetails,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false, defaultValue = "ACTIVE") String status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "updatedAt,desc") List<String> sort
     ) {
         Pageable pageable = PageRequest.of(page, size, buildSort(sort));
-        return ResponseEntity.ok(adminProductService.getMyProducts(memberDetails.getId(), keyword, pageable));
+        return ResponseEntity.ok(adminProductService.getMyProducts(memberDetails.getId(), keyword, status, pageable));
     }
 
     @Operation(summary = "판매자 상품 상세 조회")
@@ -64,17 +66,18 @@ public class AdminProductController {
         return ResponseEntity.ok(adminProductService.getMyProductEditForm(productId, memberDetails.getId()));
     }
 
-    @Operation(summary = "판매자 상품 수정")
+    @Operation(summary = "판매자 상품 수정 (기존+신규 이미지를 최종 순서로 반영)")
     @PutMapping(value = "/{productId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Void> updateProduct(
             @PathVariable Long productId,
             @RequestPart("request") AdminProductUpdateRequest request,
             @RequestPart(value = "thumbnailImage", required = false) MultipartFile thumbnailImage,
             @RequestPart(value = "detailImages", required = false) List<MultipartFile> detailImages,
+            @RequestPart(value = "detailImageOrder", required = false) List<String> detailImageOrder,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
-
-        adminProductService.updateProduct(productId, request, memberDetails.getId(), thumbnailImage, detailImages);
+        adminProductService.updateProduct(productId, request, memberDetails.getId(),
+                thumbnailImage, detailImages, detailImageOrder);
         return ResponseEntity.ok().build();
     }
 
@@ -85,6 +88,16 @@ public class AdminProductController {
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
         adminProductService.deleteProduct(productId, memberDetails.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "소프트 삭제된 상품 복구")
+    @PostMapping("/{productId}/restore")
+    public ResponseEntity<Void> restore(
+            @PathVariable Long productId,
+            @AuthenticationPrincipal CustomMemberDetails seller
+    ) {
+        adminProductService.restoreProduct(productId, seller.getId());
         return ResponseEntity.noContent().build();
     }
 }

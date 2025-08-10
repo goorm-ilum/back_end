@@ -47,7 +47,7 @@ public class ProductService {
             if ("전체".equals(countryName)) {
                 products = productRepository.findAll();
             } else {
-                products = productRepository.findByCountryName(countryName);  // 국가 필터링
+                products = productRepository.findByCountryName(countryName);
             }
         } else {
             List<String> keywords = Arrays.stream(keyword.trim().split("\\s+")).toList();
@@ -72,7 +72,7 @@ public class ProductService {
 
         List<Product> filtered = products.stream()
                 .filter(product -> product.getProductOptions().stream()
-                        .filter(option -> !option.getStartDate().isBefore(today)) // ⬅️ 오늘 이후 옵션만 포함
+                        .filter(option -> !option.getStartDate().isBefore(today))
                         .mapToInt(ProductOption::getStock).sum() > 0)
                 .sorted(getComparator(pageable.getSort()))
                 .toList();
@@ -117,8 +117,9 @@ public class ProductService {
                 .orElse(0.0);
 
         List<ReviewResponse> reviewResponses = reviewPage.stream()
-                .map(ReviewResponse::from)
+                .map(review -> ReviewResponse.from(review, product))
                 .toList();
+
 
         boolean isLiked = false;
         if (memberDetails != null) {

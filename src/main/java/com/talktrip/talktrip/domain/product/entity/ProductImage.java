@@ -22,5 +22,8 @@ public class ProductImage {
     private Product product;
 
     private String imageUrl;
+
+    @Column(name = "sort_order", nullable = false)
+    private int sortOrder;
 }
 

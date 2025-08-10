@@ -33,6 +33,8 @@ public class QReview extends EntityPathBase<Review> {
 
     public final com.talktrip.talktrip.domain.member.entity.QMember member;
 
+    public final com.talktrip.talktrip.domain.order.entity.QOrder order;
+
     public final com.talktrip.talktrip.domain.product.entity.QProduct product;
 
     public final NumberPath<Float> reviewStar = createNumber("reviewStar", Float.class);
@@ -59,6 +61,7 @@ public class QReview extends EntityPathBase<Review> {
     public QReview(Class<? extends Review> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
         this.member = inits.isInitialized("member") ? new com.talktrip.talktrip.domain.member.entity.QMember(forProperty("member")) : null;
+        this.order = inits.isInitialized("order") ? new com.talktrip.talktrip.domain.order.entity.QOrder(forProperty("order"), inits.get("order")) : null;
         this.product = inits.isInitialized("product") ? new com.talktrip.talktrip.domain.product.entity.QProduct(forProperty("product"), inits.get("product")) : null;
     }
 
