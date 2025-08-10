@@ -27,9 +27,6 @@ public class ChatApiController {
     @PostMapping
     public void enterChatRoom() {}
 
-    @Operation(summary = "채팅 입력")
-    @PostMapping("/input")
-    public void sendMessage() {}
 
     @Operation(summary = "내 채팅 목록")
     @GetMapping("/me/chatRooms")
@@ -63,4 +60,11 @@ public class ChatApiController {
         String roomId = chatService.enterOrCreateRoom("dhrdbs", request.getSellerId());
         return ResponseEntity.ok(new ChatRoomResponseDto(roomId));
     }
+    @Operation(summary = "채팅방 나가기(삭제 처리)")
+    @PatchMapping("/me/chatRooms/{roomId}")
+    public ResponseEntity<Void> leaveChatRoom(@PathVariable String roomId) {
+        chatService.markChatRoomAsDeleted("dhrdbs", roomId);
+        return ResponseEntity.noContent().build(); // 204 No Content
+    }
+
 }

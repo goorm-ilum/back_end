@@ -12,11 +12,13 @@ import com.talktrip.talktrip.domain.chat.repository.ChatMessageRepository;
 import com.talktrip.talktrip.domain.chat.repository.ChatRoomMemberRepository;
 import com.talktrip.talktrip.domain.chat.repository.ChatRoomRepository;
 import com.talktrip.talktrip.global.redis.RedisPublisher;
+import com.talktrip.talktrip.global.util.SecurityUtils;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Service;
+import java.security.Principal;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -36,8 +38,9 @@ public class ChatService {
     private final ChannelTopic roomUpdateTopic;
 
 
+
     @Transactional
-    public void saveAndSend(ChatMessageRequestDto dto) {
+    public void saveAndSend(ChatMessageRequestDto dto,Principal principal) {
     try {
         ChatMessage entity = chatMessageRepository.save(dto.toEntity());
         int unreadCount = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(
@@ -55,6 +58,10 @@ public class ChatService {
                 .build();
 
         redisPublisher.publish(topic, updateMessage);
+
+
+    chatRoomMemberRepository.resetIsDelByRoomId(dto.getRoomId());
+
     } catch (Exception e) {
         log.error("채팅 메시지 저장 및 발행 중 오류 발생: {}", e.getMessage());
         throw new RuntimeException("채팅 처리 중 오류가 발생했습니다.");
@@ -67,6 +74,8 @@ public class ChatService {
     }
     public List<ChatRoomDTO> getRooms(String memberId) {
         //redis 추가
+        //String memberId = SecurityUtils.currentUserId();
+
         return chatRoomRepository.findRoomsWithLastMessageByMemberId(memberId);
     }
     public int getCountALLUnreadMessagesRooms(String userId) {
@@ -121,5 +130,9 @@ public class ChatService {
         chatRoomMemberRepository.save(sellerMember);
 
         return newRoomId;
+    }
+    @Transactional
+    public void markChatRoomAsDeleted(String memberId, String roomId) {
+        chatRoomMemberRepository.updateIsDelByMemberIdAndRoomId(memberId, roomId, 1);
     }
 }
