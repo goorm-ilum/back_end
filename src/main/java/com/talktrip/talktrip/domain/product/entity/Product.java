@@ -29,7 +29,7 @@ public class Product extends BaseEntity {
     @Column(length = 100, nullable = false)
     private String productName;
 
-    @Column(length = 50, nullable = false)
+    @Column(length = 1000, nullable = false)
     private String description;
 
     private String thumbnailImageUrl;
