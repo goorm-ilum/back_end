@@ -64,7 +64,7 @@ public class ReviewController {
             @AuthenticationPrincipal CustomMemberDetails memberDetails,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "9") int size,
-            @RequestParam(defaultValue = "createdAt,desc") List<String> sort
+            @RequestParam(defaultValue = "updatedAt,desc") List<String> sort
     ) {
         Pageable pageable = PageRequest.of(page, size, SortUtil.buildSort(sort));
         Page<ReviewResponse> reviews = reviewService.getMyReviews(memberDetails.getId(), pageable);
@@ -92,17 +92,17 @@ public class ReviewController {
     }
 
     @Operation(summary = "특정 상품 리뷰 목록")
-    @GetMapping("/seller/products/{productId}/reviews")
+    @GetMapping("/admin/products/{productId}/reviews")
     public ResponseEntity<Page<ReviewResponse>> getReviewsForSellerProduct(
             @PathVariable Long productId,
             @AuthenticationPrincipal CustomMemberDetails memberDetails, // seller
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "createdAt,desc") List<String> sort
+            @RequestParam(defaultValue = "updatedAt,desc") List<String> sort
     ) {
         Pageable pageable = PageRequest.of(page, size, SortUtil.buildSort(sort));
         Page<ReviewResponse> pageResult =
-                reviewService.getReviewsForSellerProduct(memberDetails.getId(), productId, pageable);
+                reviewService.getReviewsForAdminProduct(memberDetails.getId(), productId, pageable);
         return ResponseEntity.ok(pageResult);
     }
 }

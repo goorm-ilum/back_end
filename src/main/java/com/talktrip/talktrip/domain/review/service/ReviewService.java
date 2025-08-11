@@ -17,10 +17,14 @@ import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.ReviewException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 
 @Service
@@ -133,14 +137,47 @@ public class ReviewService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ReviewResponse> getReviewsForSellerProduct(Long sellerId, Long productId, Pageable pageable) {
-        // 소유권/존재 확인(삭제 포함)
+    public Page<ReviewResponse> getReviewsForAdminProduct(
+            Long sellerId,
+            Long productId,
+            Pageable pageable
+    ) {
         productRepository.findByIdAndMemberIdIncludingDeleted(productId, sellerId)
                 .orElseThrow(() -> new ReviewException(ErrorCode.ACCESS_DENIED));
 
-        Page<Review> page = reviewRepository.findByProductId(productId, pageable);
+        List<Review> allReviews = reviewRepository.findByProductId(productId);
+
+        List<Review> sorted = allReviews.stream()
+                .sorted(getComparator(pageable.getSort()))
+                .toList();
+
+        int offset = (int) pageable.getOffset();
+        int toIndex = Math.min(offset + pageable.getPageSize(), sorted.size());
+        List<Review> paged = (offset > sorted.size()) ? List.of() : sorted.subList(offset, toIndex);
+
         Product product = productRepository.findByIdIncludingDeleted(productId).orElse(null);
 
-        return page.map(r -> ReviewResponse.from(r, product));
+        return new PageImpl<>(
+                paged.stream().map(r -> ReviewResponse.from(r, product)).toList(),
+                pageable,
+                sorted.size()
+        );
+    }
+
+    private Comparator<Review> getComparator(Sort sort) {
+        Comparator<Review> comparator = Comparator.comparing(Review::getUpdatedAt); // 기본값
+
+        for (Sort.Order order : sort) {
+            switch (order.getProperty()) {
+                case "updatedAt" -> comparator = Comparator.comparing(Review::getUpdatedAt);
+                case "reviewStar" -> comparator = Comparator.comparing(Review::getReviewStar);
+                default -> throw new IllegalArgumentException("Invalid sort property: " + order.getProperty());
+            }
+
+            if (order.getDirection().isDescending()) {
+                comparator = comparator.reversed();
+            }
+        }
+        return comparator;
     }
 }
