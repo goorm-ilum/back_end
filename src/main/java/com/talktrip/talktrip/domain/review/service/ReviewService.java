@@ -145,7 +145,8 @@ public class ReviewService {
         productRepository.findByIdAndMemberIdIncludingDeleted(productId, sellerId)
                 .orElseThrow(() -> new ReviewException(ErrorCode.ACCESS_DENIED));
 
-        List<Review> allReviews = reviewRepository.findByProductId(productId);
+        List<Review> allReviews = reviewRepository.findByProductIdIncludingDeleted(productId);
+
 
         List<Review> sorted = allReviews.stream()
                 .sorted(getComparator(pageable.getSort()))
