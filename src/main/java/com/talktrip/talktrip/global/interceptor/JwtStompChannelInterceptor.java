@@ -50,17 +50,20 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
                 throw new AccessDeniedException("Invalid JWT");
             }
 
-            // sub -> email -> userId -> username -> accountEmail 순으로 사용자 식별자 추출
-            String userId = JWTUtil.constantTimeEquals(claims, "sub", "email", "userId", "username", "accountEmail");
-            if (userId == null || userId.isBlank()) {
+            String accountEmail = JWTUtil.constantTimeEquals(
+                    claims, "sub", "email", "userId", "username", "accountEmail"
+            );
+            if (accountEmail == null || accountEmail.isBlank()) {
                 throw new AccessDeniedException("Missing subject claim");
             }
 
-            Member member = memberRepository.findByAccountEmail(userId)
+            // 존재 사용자 확인(필요 시)
+            Member member = memberRepository.findByAccountEmail(accountEmail)
                     .orElseThrow(() -> new AccessDeniedException("User not found"));
 
+            // 핵심: principal을 Member가 아닌 "accountEmail 문자열"로 세팅
             UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(member, null, List.of());
+                    new UsernamePasswordAuthenticationToken(accountEmail, null, List.of());
 
             // STOMP 세션/메시지에 사용자 주입
             acc.setUser(authentication);
@@ -92,27 +95,21 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
                 throw new AccessDeniedException("Unauthenticated WebSocket session");
             }
 
-            // 메시지에 사용자 재설정(이후 핸들러에서 Principal 주입 보장)
+            // 이후 핸들러에서 Principal 주입 보장
             acc.setUser(principal);
         }
 
         return message;
     }
 
-    /**
-     * STOMP native headers에서 키 대소문자 무시하고 첫 번째 값을 찾습니다.
-     */
     private String firstNativeHeaderIgnoreCase(StompHeaderAccessor acc, String key) {
         if (acc == null || key == null) return null;
         List<String> exact = acc.getNativeHeader(key);
         if (exact != null && !exact.isEmpty()) return exact.get(0);
-
         List<String> lower = acc.getNativeHeader(key.toLowerCase());
         if (lower != null && !lower.isEmpty()) return lower.get(0);
-
         List<String> upper = acc.getNativeHeader(key.toUpperCase());
         if (upper != null && !upper.isEmpty()) return upper.get(0);
-
         return null;
     }
 }
