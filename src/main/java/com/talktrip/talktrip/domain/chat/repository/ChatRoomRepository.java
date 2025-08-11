@@ -17,7 +17,7 @@ import java.util.Optional;
         @Query(value = """
            SELECT NEW com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDTO(
                 crmt.roomId,
-                crmt.roomMemberId,
+                crmt.roomAccountId,
                 crt.createdAt,
                 crt.updatedAt,
                 CONCAT('채팅방 ', crt.roomId),
@@ -33,12 +33,12 @@ import java.util.Optional;
                     FROM ChatMessage msg
                     WHERE msg.roomId = crt.roomId
                       AND msg.createdAt > COALESCE(crmt.lastMemberReadTime, '1970-01-01 00:00:00')
-                      AND msg.memberId != :memberId
+                      AND msg.accountEmail != :memberId
                 )
             )
-            FROM ChatRoomMember crmt
+            FROM ChatRoomAccount crmt
             JOIN ChatRoom crt ON crt.roomId = crmt.roomId
-            WHERE crmt.memberId = :memberId and crmt.isDel = 0
+            WHERE crmt.accountEmail = :memberId and crmt.isDel = 0
     """, nativeQuery = false)
         List<ChatRoomDTO> findRoomsWithLastMessageByMemberId(@Param("memberId") String memberId);
     }
