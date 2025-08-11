@@ -4,4 +4,5 @@ package com.talktrip.talktrip.domain.chat.dto.request;
 public class ChatRoomRequestDto {
     private String buyerAccountEmail;
     private String sellerAccountEmail;
+    private int productId;
 }

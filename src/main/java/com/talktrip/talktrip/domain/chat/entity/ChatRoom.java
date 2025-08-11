@@ -22,5 +22,6 @@ public class ChatRoom extends BaseEntity {
     private String title;
     private String lastMessage;
     private int notReadMessageCount;
+    private int productId;
 
 }

@@ -5,41 +5,54 @@ import com.talktrip.talktrip.domain.chat.entity.ChatRoom;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
+public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
 
-    @Repository
-    public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
-
-        @Query(value = """
-           SELECT NEW com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDTO(
-                crmt.roomId,
-                crmt.roomAccountId,
-                crt.createdAt,
-                crt.updatedAt,
-                CONCAT('채팅방 ', crt.roomId),
-                COALESCE((
-                      SELECT cmht.message
-                      FROM ChatMessage cmht
-                      WHERE cmht.roomId = crt.roomId
-                      ORDER BY cmht.createdAt DESC
-                      LIMIT 1
-                  ), ''),
-                (
-                    SELECT COUNT(msg)
-                    FROM ChatMessage msg
-                    WHERE msg.roomId = crt.roomId
-                      AND msg.createdAt > COALESCE(crmt.lastMemberReadTime, '1970-01-01 00:00:00')
-                      AND msg.accountEmail != :memberId
-                )
-            )
-            FROM ChatRoomAccount crmt
-            JOIN ChatRoom crt ON crt.roomId = crmt.roomId
-            WHERE crmt.accountEmail = :memberId and crmt.isDel = 0
-    """, nativeQuery = false)
-        List<ChatRoomDTO> findRoomsWithLastMessageByMemberId(@Param("memberId") String memberId);
-    }
-
+    @Query("""
+        SELECT NEW com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDTO(
+            crmt.roomId,
+            crmt.roomAccountId,
+            crt.createdAt,
+            crt.updatedAt,
+            CONCAT(
+                CONCAT(COALESCE(m.name, ''), ' '),
+                CONCAT(CONCAT(COALESCE(p.productName, ''), ' '), crt.roomId)
+            ) as title,
+            COALESCE((
+                SELECT cm1.message
+                FROM ChatMessage cm1
+                WHERE cm1.roomId = crt.roomId
+                  AND cm1.createdAt = (
+                      SELECT MAX(cm1b.createdAt)
+                      FROM ChatMessage cm1b
+                      WHERE cm1b.roomId = crt.roomId
+                  )
+            ), '')AS lastMessage,
+            (
+                SELECT COUNT(cm2)
+                FROM ChatMessage cm2
+                WHERE cm2.roomId = crt.roomId
+                  AND cm2.createdAt > COALESCE(crmt.lastMemberReadTime, '1970-01-01 00:00:00')
+                  AND cm2.accountEmail <> :memberId
+            )AS notReadMessageCount
+        )
+        FROM ChatRoomAccount crmt
+        JOIN ChatRoom crt ON crt.roomId = crmt.roomId
+        LEFT JOIN ChatRoomAccount other
+               ON other.roomId = crmt.roomId
+              AND other.accountEmail <> :memberId
+              AND other.isDel = 0
+        LEFT JOIN Member m
+               ON m.accountEmail = other.accountEmail
+        LEFT JOIN Product p
+               ON p.id = crt.productId
+        WHERE crmt.accountEmail = :memberId
+          AND crmt.isDel = 0
+    """)
+    List<ChatRoomDTO> findRoomsWithLastMessageByMemberId(
+            @Param("memberId") String memberId
+    );
+}
