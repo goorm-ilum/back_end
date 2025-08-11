@@ -43,7 +43,7 @@ public class ChatService {
     @Transactional
     public void saveAndSend(ChatMessageRequestDto dto,Principal principal) {
     try {
-        String accountEmail = dto.getAccountEmail();
+        String accountEmail = principal.getName();
         ChatMessage entity = chatMessageRepository.save(dto.toEntity());
         String receiverAccountEmail = chatMessageRepository.getOtherMemberIdByRoomIdandUserId(accountEmail, dto.getRoomId());
         int unreadCount = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(dto.getRoomId(), accountEmail);//수정하기....

@@ -6,7 +6,7 @@ import jakarta.persistence.Id;
 @Entity
 public class UserAlarmStatus {
     @Id
-    private String userId;
+    private String accountEmail;
 
     private int unreadAlarmCount;
 }

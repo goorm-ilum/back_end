@@ -54,8 +54,8 @@ public class ChatApiController {
 
     @Operation(summary = "안읽은 모든 채팅갯수")
     @GetMapping("/countALLUnreadMessages")
-    public Map<String, Integer> getCountAllUnreadMessages(@RequestParam String userId) {
-        int count = chatService.getCountAllUnreadMessages("dhrdbs");
+    public Map<String, Integer> getCountAllUnreadMessages(Principal principal) {
+        int count = chatService.getCountAllUnreadMessages(principal.getName());//실시간으로 나오게
         return Map.of("count", count);
     }
     @Operation(summary = "채팅방 입장 또는 생성")
