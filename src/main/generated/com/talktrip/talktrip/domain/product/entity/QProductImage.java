@@ -28,6 +28,8 @@ public class QProductImage extends EntityPathBase<ProductImage> {
 
     public final QProduct product;
 
+    public final NumberPath<Integer> sortOrder = createNumber("sortOrder", Integer.class);
+
     public QProductImage(String variable) {
         this(ProductImage.class, forVariable(variable), INITS);
     }

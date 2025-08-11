@@ -11,14 +11,16 @@ public class OrderHistoryResponseDTO {
     private Long orderId;
     private Long productId;
     private String productName;
+    private String thumbnailUrl;
     private String paymentMethod;
     private int totalPrice;
     private LocalDateTime createdAt;
 
-    public OrderHistoryResponseDTO(Long orderId, Long productId, String productName, String paymentMethod, int totalPrice, LocalDateTime createdAt) {
+    public OrderHistoryResponseDTO(Long orderId, Long productId, String productName, String thumbnailUrl, String paymentMethod, int totalPrice, LocalDateTime createdAt) {
         this.orderId = orderId;
         this.productId = productId;
         this.productName = productName;
+        this.thumbnailUrl = thumbnailUrl;
         this.paymentMethod = paymentMethod;
         this.totalPrice = totalPrice;
         this.createdAt = createdAt;
@@ -30,6 +32,7 @@ public class OrderHistoryResponseDTO {
 
         // 스냅샷 데이터 사용
         String productName = firstItem.getProductName();
+        String thumbnailUrl = firstItem.getProductThumbnailUrl();
         Long productId = firstItem.getProductId();
 
         // Payment 엔티티에서 결제 수단 가져오기
@@ -44,6 +47,7 @@ public class OrderHistoryResponseDTO {
                 order.getId(),
                 productId,
                 productName,
+                thumbnailUrl,
                 paymentMethod,
                 order.getTotalPrice(),
                 order.getCreatedAt()

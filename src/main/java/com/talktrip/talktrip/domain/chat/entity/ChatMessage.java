@@ -16,11 +16,10 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "chating_message_history_tab")
+@Table(name = "chatting_message_history_tab")
 @Data
 @NoArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
-
 public class ChatMessage {
 
     @Id
@@ -28,16 +27,16 @@ public class ChatMessage {
 
     private String roomId;
 
-    private String memberId;
+    private String accountEmail;
 
     private String message;
 
     @CreatedDate
     private LocalDateTime createdAt;
-    public ChatMessage(String messageId, String roomId, String memberId, String message, LocalDateTime createdAt) {
+    public ChatMessage(String messageId, String roomId, String accountEmail, String message, LocalDateTime createdAt) {
         this.messageId = messageId;
         this.roomId = roomId;
-        this.memberId = memberId;
+        this.accountEmail = accountEmail;
         this.message = message;
         this.createdAt = createdAt;
     }

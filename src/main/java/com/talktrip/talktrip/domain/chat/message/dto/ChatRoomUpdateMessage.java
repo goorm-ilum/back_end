@@ -1,30 +1,34 @@
 package com.talktrip.talktrip.domain.chat.message.dto;
 
-import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
 import lombok.Builder;
 import lombok.Getter;
-import org.hibernate.annotations.CurrentTimestamp;
 
 import java.sql.Timestamp;
 
 @Builder
 @Getter
 public class ChatRoomUpdateMessage {
-    private String memberId;
-    private String roomId;        // 어떤 방이 변경됐는지
-    private String message;   // 마지막 메시지
-    private int notReadMessageCount;      // 안 읽은 메시지 수
-    private String receiverId;  // 수신자 ID (알림 받을 사람)
+    private String accountEmail;             // 보낸 사람 이메일(발신자)
+    private String roomId;                   // 방 ID
+    private String message;                  // 마지막 메시지
+    private int notReadMessageCount;         // 하위 호환: 수신자 기준 값으로 채움
+    private String receiverAccountEmail;     // 수신자 이메일
     private Timestamp updatedAt;
+
+    // 신규 필드: 사용자별 읽지 않음 수
+    private int unreadCountForSender;        // 발신자 기준
+    private int unreadCountForReceiver;      // 수신자 기준
 
     public ChatRoomUpdateMessage toEntity() {
         return ChatRoomUpdateMessage.builder()
-                .memberId(memberId)
+                .accountEmail(accountEmail)
                 .roomId(roomId)
                 .message(message)
                 .notReadMessageCount(notReadMessageCount)
-                .receiverId(receiverId)
+                .receiverAccountEmail(receiverAccountEmail)
                 .updatedAt(updatedAt)
+                .unreadCountForSender(unreadCountForSender)
+                .unreadCountForReceiver(unreadCountForReceiver)
                 .build();
     }
 }

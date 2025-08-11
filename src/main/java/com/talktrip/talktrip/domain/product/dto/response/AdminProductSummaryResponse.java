@@ -12,6 +12,7 @@ public record AdminProductSummaryResponse(
         Long id,
         String productName,
         String thumbnailImageUrl,
+        boolean isDeleted,
         int totalStock,
         @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
         LocalDateTime updatedAt
@@ -25,6 +26,7 @@ public record AdminProductSummaryResponse(
                 .id(product.getId())
                 .productName(product.getProductName())
                 .thumbnailImageUrl(product.getThumbnailImageUrl())
+                .isDeleted(product.isDeleted())
                 .totalStock(stockSum)
                 .updatedAt(product.getCreatedAt())
                 .build();

@@ -39,7 +39,7 @@ public class RedisSubscriber implements MessageListener {
                     break;
                 
                 case "chat.room.update":
-                    handleMessage(payload, ChatUpdateMessage.class, "/topic/chat/room/", "/update");
+                    handleMessage(payload, ChatRoomUpdateMessage.class, "/topic/chat/room/", "/update");
                     break;
                 
                 default:

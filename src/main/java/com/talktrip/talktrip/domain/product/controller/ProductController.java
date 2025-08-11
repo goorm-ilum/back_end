@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -51,7 +50,7 @@ public class ProductController {
             @AuthenticationPrincipal CustomMemberDetails memberDetails,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "3") int size,
-            @RequestParam(defaultValue = "createdAt,desc") List<String> sort
+            @RequestParam(defaultValue = "updatedAt,desc") List<String> sort
     ) {
         Pageable pageable = PageRequest.of(page, size, buildSort(sort));
         return ResponseEntity.ok(productService.getProductDetail(productId, memberDetails, pageable));

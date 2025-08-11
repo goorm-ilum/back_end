@@ -1,6 +1,7 @@
 package com.talktrip.talktrip.domain.review.entity;
 
 import com.talktrip.talktrip.domain.member.entity.Member;
+import com.talktrip.talktrip.domain.order.entity.Order;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.global.entity.BaseEntity;
 import jakarta.persistence.*;
@@ -27,6 +28,10 @@ public class Review extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id", nullable = false)
     private Member member;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id", nullable = false)
+    private Order order;
 
     private String comment;
 

@@ -1,5 +1,6 @@
 package com.talktrip.talktrip.domain.review.dto.response;
 
+import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.review.entity.Review;
 
 public record ReviewResponse(
@@ -11,15 +12,18 @@ public record ReviewResponse(
         float reviewStar,
         String updatedAt
 ) {
-    public static ReviewResponse from(Review review) {
+    public static ReviewResponse from(Review review, Product product) {
+        String name = (product != null) ? product.getProductName() : "(삭제된 상품)";
+        String thumb = (product != null) ? product.getThumbnailImageUrl() : null;
+
         return new ReviewResponse(
                 review.getId(),
                 review.getMember().getNickname(),
-                review.getProduct().getProductName(),
-                review.getProduct().getThumbnailImageUrl(),
+                name,
+                thumb,
                 review.getComment(),
                 review.getReviewStar(),
-                review.getUpdatedAt().toString()
+                review.getUpdatedAt() != null ? review.getUpdatedAt().toString() : null
         );
     }
 }
