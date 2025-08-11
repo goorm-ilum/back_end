@@ -11,5 +11,5 @@ public class MessageResponseDto {
     private String content;
     private String createdAt;
     private String roomId;
-    private String userId ;
+    private String accountEmail ;
 }

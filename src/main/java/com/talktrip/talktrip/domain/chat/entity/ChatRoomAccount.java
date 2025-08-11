@@ -1,6 +1,7 @@
 package com.talktrip.talktrip.domain.chat.entity;
 
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.talktrip.talktrip.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
@@ -14,41 +15,43 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
 @AllArgsConstructor
-@Table(name = "chating_room_member_tab")
-public class ChatRoomMember {
-    
-    @Id
-    @Column(name = "room_member_id")
-    private String roomMemberId;
+@Table(name = "chatting_room_account_tab")
+public class ChatRoomAccount {
 
-    @Column(name = "member_id")
-    private String memberId;
-    
+    @Id
+    @Column(name = "room_account_id")
+    private String roomAccountId;
+
+    @Column(name = "account_email")
+    private String accountEmail;
+
     @Column(name = "room_id")
     private String roomId;
-    
+
     @Column(name = "last_member_read_time")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime lastMemberReadTime;
+
     @Column(name = "is_del")
     private int isDel;
 
     @Builder
-    public ChatRoomMember(String roomMemberId,String memberId, String roomId) {
-        this.roomMemberId = roomMemberId;
-        this.memberId = memberId;
+    public ChatRoomAccount(String roomAccountId,String accountEmail, String roomId) {
+        this.roomAccountId = roomAccountId;
+        this.accountEmail = accountEmail;
         this.roomId = roomId;
     }
-    
+
     public void updateLastReadTime(LocalDateTime time) {
         this.lastMemberReadTime = time;
     }
 
-    public static ChatRoomMember create(String roomId, String memberId) {
-        String newRoomMemberId = "RM_" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
-        return ChatRoomMember.builder()
-                .roomMemberId(newRoomMemberId)
+    public static ChatRoomAccount create(String roomId, String accountEmail) {
+        String roomAccountId = "RA_" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+        return ChatRoomAccount.builder()
+                .roomAccountId(roomAccountId)
                 .roomId(roomId)
-                .memberId(memberId)
+                .accountEmail(accountEmail)
                 .build();
     }
 }

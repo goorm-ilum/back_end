@@ -13,7 +13,7 @@ public class ChatMessageResponseDto {
 
     private final String messageId;
     private final String roomId;
-    private final String memberId;
+    private final String accountEmail;
     private final String message;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
@@ -23,7 +23,7 @@ public class ChatMessageResponseDto {
         return new ChatMessageResponseDto(
                 entity.getMessageId(),
                 entity.getRoomId(),
-                entity.getMemberId(),
+                entity.getAccountEmail(),
                 entity.getMessage(),
                 entity.getCreatedAt()
         );

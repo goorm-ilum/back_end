@@ -48,12 +48,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/user/login").permitAll()
                         .requestMatchers("/api/orders/**").permitAll()
                         .requestMatchers("/api/tosspay/**").permitAll()
-                        .requestMatchers("/api/chat/**").permitAll()  // 채팅 API 허용
-                        .requestMatchers("/ws/**", "/ws").permitAll()
-                        .requestMatchers("/ws-info/**", "/ws-info").permitAll()
-                        .requestMatchers("/topic/**").permitAll()
-                        .requestMatchers("/app/**").permitAll()
-                        .requestMatchers("/ws/**", "/app/**", "/topic/**", "/websocket/**", "/sockjs-node/**").permitAll()
+//                        .requestMatchers("/api/chat/**").permitAll()  // 채팅 API 허용
+//                        .requestMatchers("/ws/**", "/ws").permitAll()
+//                        .requestMatchers("/ws-info/**", "/ws-info").permitAll()
+//                        .requestMatchers("/topic/**").permitAll()
+//                        .requestMatchers("/app/**").permitAll()
+//                        .requestMatchers("/ws/**", "/app/**", "/topic/**", "/websocket/**", "/sockjs-node/**").permitAll()
 
                         .anyRequest().authenticated()
                 )

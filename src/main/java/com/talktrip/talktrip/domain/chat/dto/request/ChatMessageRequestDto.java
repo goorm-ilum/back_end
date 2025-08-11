@@ -14,22 +14,22 @@ import java.util.UUID;
 @NoArgsConstructor
 public class ChatMessageRequestDto {
     private String roomId;
-    private String memberId;
+    private String accountEmail;
     private String message;
-    private String receiverId;
+    private String receiverAccountEmail;
 
     @JsonCreator
     public ChatMessageRequestDto(
             @JsonProperty("roomId") String roomId,
-            @JsonProperty("memberId") String memberId,
+            @JsonProperty("accountEmail") String accountEmail,
             @JsonProperty("message") String message,
-            @JsonProperty("receiverId") String receiverId
+            @JsonProperty("receiverAccountEmail") String receiverAccountEmail
 
             ) {
         this.roomId = roomId;
-        this.memberId = memberId;
+        this.accountEmail = accountEmail;
         this.message = message;
-        this.receiverId=receiverId;
+        this.receiverAccountEmail=receiverAccountEmail;
 
     }
 
@@ -40,7 +40,7 @@ public class ChatMessageRequestDto {
         return new ChatMessage(
                 messageId,
                 this.roomId,
-                this.memberId,
+                this.accountEmail,
                 this.message,
                 null
         );

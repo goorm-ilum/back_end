@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 
@@ -30,21 +31,24 @@ public class ChatApiController {
 
     @Operation(summary = "내 채팅 목록")
     @GetMapping("/me/chatRooms")
-    public List<ChatRoomDTO> getMyChats() {
+    public List<ChatRoomDTO> getMyChats(Principal principal) {
+        String accountEmail = principal.getName();
         // 실제 데이터베이스 조회는 나중에 활성화
-         List<ChatRoomDTO> rooms = chatService.getRooms("dhrdbs");
+         List<ChatRoomDTO> rooms = chatService.getRooms(accountEmail);
          return rooms;
     }
     @Operation(summary = "채팅방 상세 조회")
     @GetMapping("/me/chatRooms/{roomId}")
-    public List<ChatMessage> getChatRoom(@PathVariable String roomId) {
-        return chatService.getRoomChattingHistoryAndMarkAsRead(roomId,"dhrdbs");
+    public List<ChatMessage> getChatRoom(@PathVariable String roomId,Principal principal) {
+        String accountEmail = principal.getName();
+        return chatService.getRoomChattingHistoryAndMarkAsRead(roomId,accountEmail);
     }
 
     @Operation(summary = "안읽은 채팅방 갯수")
     @GetMapping("/countALLUnreadMessagesRooms")
-    public int getCountALLUnreadMessagesRooms(String userId) {
-        return chatService.getCountALLUnreadMessagesRooms("dhrdbs");
+    public int getCountALLUnreadMessagesRooms(String userId,Principal principal) {
+        String accountEmail = principal.getName();
+        return chatService.getCountALLUnreadMessagesRooms(accountEmail);
     }
 
 
@@ -57,7 +61,7 @@ public class ChatApiController {
     @Operation(summary = "채팅방 입장 또는 생성")
     @PostMapping("/rooms/enter")
     public ResponseEntity<ChatRoomResponseDto> enterOrCreateRoom(@RequestBody ChatRoomRequestDto request) {
-        String roomId = chatService.enterOrCreateRoom("dhrdbs", request.getSellerId());
+        String roomId = chatService.enterOrCreateRoom(request.getBuyerEmailAccount(), request.getSellerEmailAccount());
         return ResponseEntity.ok(new ChatRoomResponseDto(roomId));
     }
     @Operation(summary = "채팅방 나가기(삭제 처리)")

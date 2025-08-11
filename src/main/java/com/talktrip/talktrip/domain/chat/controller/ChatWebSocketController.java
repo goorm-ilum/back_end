@@ -8,6 +8,7 @@ import com.talktrip.talktrip.global.redis.RedisPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
 
@@ -23,10 +24,11 @@ public class ChatWebSocketController {
     private final ChannelTopic topic;
     private final ChannelTopic roomUpdateTopic;  // Redis 채널 토픽 추가
     private final ObjectMapper objectMapper;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @MessageMapping("/chat/message")  // 클라이언트 → /app/chat/message
-    public void handleMessage(ChatMessageRequestDto dto,Principal principal) {
-        chatService.saveAndSend(dto,principal);
+    public void handleMessage(ChatMessageRequestDto dto, Principal principal) {
+        chatService.saveAndSend(dto, principal);
     }
 }
 
