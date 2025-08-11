@@ -60,14 +60,14 @@ public class ChatApiController {
     }
     @Operation(summary = "채팅방 입장 또는 생성")
     @PostMapping("/rooms/enter")
-    public ResponseEntity<ChatRoomResponseDto> enterOrCreateRoom(@RequestBody ChatRoomRequestDto request) {
-        String roomId = chatService.enterOrCreateRoom(request.getBuyerEmailAccount(), request.getSellerEmailAccount());
+    public ResponseEntity<ChatRoomResponseDto> enterOrCreateRoom(Principal principal, @RequestBody ChatRoomRequestDto chatRoomRequestDto) {
+        String roomId = chatService.enterOrCreateRoom(principal,chatRoomRequestDto);
         return ResponseEntity.ok(new ChatRoomResponseDto(roomId));
     }
     @Operation(summary = "채팅방 나가기(삭제 처리)")
     @PatchMapping("/me/chatRooms/{roomId}")
-    public ResponseEntity<Void> leaveChatRoom(@PathVariable String roomId) {
-        chatService.markChatRoomAsDeleted("dhrdbs", roomId);
+    public ResponseEntity<Void> leaveChatRoom(Principal principal,@PathVariable String roomId) {
+        chatService.markChatRoomAsDeleted(principal.getName(), roomId);
         return ResponseEntity.noContent().build(); // 204 No Content
     }
 
