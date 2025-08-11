@@ -19,6 +19,8 @@ public class QChatRoomMember extends EntityPathBase<ChatRoomMember> {
 
     public static final QChatRoomMember chatRoomMember = new QChatRoomMember("chatRoomMember");
 
+    public final NumberPath<Integer> isDel = createNumber("isDel", Integer.class);
+
     public final DateTimePath<java.time.LocalDateTime> lastMemberReadTime = createDateTime("lastMemberReadTime", java.time.LocalDateTime.class);
 
     public final StringPath memberId = createString("memberId");
