@@ -1,6 +1,7 @@
 package com.talktrip.talktrip.domain.chat.service;
 
 import com.talktrip.talktrip.domain.chat.dto.request.ChatMessageRequestDto;
+import com.talktrip.talktrip.domain.chat.dto.request.ChatRoomRequestDto;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatMessageResponseDto;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDTO;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomResponseDto;
@@ -19,6 +20,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.services.s3.endpoints.internal.Value;
+
 import java.security.Principal;
 
 import java.sql.Timestamp;
@@ -125,9 +128,10 @@ public class ChatService {
     }
     
     @Transactional
-    public String enterOrCreateRoom(String buyerId, String sellerId) {
-        String accountEmail = SecurityUtils.currentAccountEmail();
-        Optional<String> existingRoom = chatRoomMemberRepository.findRoomIdByBuyerIdAndSellerId(buyerId, sellerId);
+    public String enterOrCreateRoom(Principal principal, ChatRoomRequestDto chatRoomRequestDto) {
+        String accountEmail = principal.getName();
+        String sellerAccountEmail = chatRoomRequestDto.getSellerAccountEmail();
+        Optional<String> existingRoom = chatRoomMemberRepository.findRoomIdByBuyerIdAndSellerId(accountEmail, sellerAccountEmail);
 
         if (existingRoom.isPresent()) {
             return existingRoom.get();
@@ -140,8 +144,8 @@ public class ChatService {
                 .build();
         chatRoomRepository.save(chatRoom);
 
-        ChatRoomAccount buyerMember = ChatRoomAccount.create(newRoomId, buyerId);
-        ChatRoomAccount sellerMember = ChatRoomAccount.create(newRoomId, sellerId);
+        ChatRoomAccount buyerMember = ChatRoomAccount.create(newRoomId, accountEmail);
+        ChatRoomAccount sellerMember = ChatRoomAccount.create(newRoomId, sellerAccountEmail);
 
         chatRoomMemberRepository.save(buyerMember);
         chatRoomMemberRepository.save(sellerMember);
