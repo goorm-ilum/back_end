@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class ChatRoomDTO {
     private String roomId;
-    private String roomMemberId;
+    private String roomAccountId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String title;
@@ -18,7 +18,7 @@ public class ChatRoomDTO {
 
     public ChatRoomDTO(
             String roomId,
-            String roomMemberId,
+            String roomAccountId,
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
             String title,
@@ -26,7 +26,7 @@ public class ChatRoomDTO {
             Long notReadMessageCount
     ) {
         this.roomId = roomId;
-        this.roomMemberId = roomMemberId;
+        this.roomAccountId = roomAccountId;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.title = title;

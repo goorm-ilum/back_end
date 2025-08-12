@@ -1,11 +1,13 @@
 package com.talktrip.talktrip.domain.chat.service;
 
 import com.talktrip.talktrip.domain.chat.dto.request.ChatMessageRequestDto;
+import com.talktrip.talktrip.domain.chat.dto.request.ChatRoomRequestDto;
+import com.talktrip.talktrip.domain.chat.dto.response.ChatMessageResponseDto;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDTO;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomResponseDto;
 import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
 import com.talktrip.talktrip.domain.chat.entity.ChatRoom;
-import com.talktrip.talktrip.domain.chat.entity.ChatRoomMember;
+import com.talktrip.talktrip.domain.chat.entity.ChatRoomAccount;
 import com.talktrip.talktrip.domain.chat.message.dto.ChatRoomUpdateMessage;
 import com.talktrip.talktrip.domain.chat.message.dto.ChatUpdateMessage;
 import com.talktrip.talktrip.domain.chat.repository.ChatMessageRepository;
@@ -18,6 +20,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.services.s3.endpoints.internal.Value;
+
 import java.security.Principal;
 
 import java.sql.Timestamp;
@@ -42,22 +46,38 @@ public class ChatService {
     @Transactional
     public void saveAndSend(ChatMessageRequestDto dto,Principal principal) {
     try {
+        String accountEmail = principal.getName();
         ChatMessage entity = chatMessageRepository.save(dto.toEntity());
-        int unreadCount = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(
-            dto.getRoomId(), 
-            dto.getReceiverId()
+        String receiverAccountEmail = chatMessageRepository.getOtherMemberIdByRoomIdandUserId(accountEmail, dto.getRoomId());
+        int unreadCount = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(dto.getRoomId(), accountEmail);//수정하기....
+
+
+        // 3) 사용자별 안읽음 수 계산
+        int unreadCountForReceiver = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(
+                dto.getRoomId(), receiverAccountEmail
+        );
+        int unreadCountForSender = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(
+                dto.getRoomId(), accountEmail
         );
 
+
         ChatRoomUpdateMessage updateMessage = ChatRoomUpdateMessage.builder()
-                .memberId(dto.getMemberId())
-                .receiverId(dto.getReceiverId())
+                .accountEmail(accountEmail)
+                .receiverAccountEmail(receiverAccountEmail)
                 .message(entity.getMessage())
                 .roomId(dto.getRoomId())
                 .notReadMessageCount(unreadCount)
+                .unreadCountForSender(unreadCountForSender)
+                .unreadCountForReceiver(unreadCountForReceiver)
                 .updatedAt(Timestamp.valueOf(LocalDateTime.now()))
                 .build();
 
         redisPublisher.publish(topic, updateMessage);
+
+
+        // 5) 실시간 전송: 단건 메시지 이벤트(채팅창 append 용)
+        //var messagePayload = ChatMessageResponseDto.from(entity);
+        redisPublisher.publish(roomUpdateTopic, updateMessage); //"/topic/chat/room/{roomId}/update"로 전달됨
 
 
     chatRoomMemberRepository.resetIsDelByRoomId(dto.getRoomId());
@@ -69,48 +89,48 @@ public class ChatService {
 }
     public String createRoom(String userA, String userB) {
         // 기존 방 있으면 재사용, 없으면 새로 생성
-        // room_id = UUID.randomUUID().toString()
+        // room_id = UUID.ranㄴdomUUID().toString()
         return userA;
     }
-    public List<ChatRoomDTO> getRooms(String memberId) {
+    public List<ChatRoomDTO> getRooms(String accountEmail) {
         //redis 추가
-        //String memberId = SecurityUtils.currentUserId();
 
-        return chatRoomRepository.findRoomsWithLastMessageByMemberId(memberId);
+        return chatRoomRepository.findRoomsWithLastMessageByMemberId(accountEmail);
     }
-    public int getCountALLUnreadMessagesRooms(String userId) {
-        return chatMessageRepository.countUnreadMessagesRooms( userId);
+    public int getCountALLUnreadMessagesRooms(String accountEmail) {
+        return chatMessageRepository.countUnreadMessagesRooms( accountEmail);
     }
-    public int getCountAllUnreadMessages(String userId) {
-        return chatMessageRepository.countUnreadMessages(userId);
+    public int getCountAllUnreadMessages(String accountEmail) {
+        return chatMessageRepository.countUnreadMessages(accountEmail);
     }
-    public  int getCountUnreadMessagesByRoomId(String roomId,String userId) {
-        return chatMessageRepository.countUnreadMessagesByRoomId(roomId,userId);
+    public  int getCountUnreadMessagesByRoomId(String roomId,String accountEmail) {
+        return chatMessageRepository.countUnreadMessagesByRoomId(roomId,accountEmail);
     }
 
     public List<ChatMessage> getRoomChattingHistory(String roomId) {
         return chatMessageRepository.findByRoomIdOrderByCreatedAt(roomId);
     }
     @Transactional
-    public List<ChatMessage> getRoomChattingHistoryAndMarkAsRead(String roomId, String memberId) {
+    public List<ChatMessage> getRoomChattingHistoryAndMarkAsRead(String roomId, String accountEmail) {
         // 1. 메시지 조회
         List<ChatMessage> messages = chatMessageRepository.findByRoomIdOrderByCreatedAt(roomId);
         // 2. 읽음 처리
-        chatRoomMemberRepository.updateLastReadTime(roomId, memberId);
+        chatRoomMemberRepository.updateLastReadTime(roomId, accountEmail);
         return messages;
     }
 
-    public void updateLastReadTime(String roomId, String memberId) {
-        chatRoomMemberRepository.updateLastReadTime(roomId, memberId);
+    public void updateLastReadTime(String roomId, String accountEmail) {
+        chatRoomMemberRepository.updateLastReadTime(roomId, accountEmail);
         // Redis로 업데이트 알림 발행 - roomId 포함하여 생성
-        ChatUpdateMessage updateMessage = new ChatUpdateMessage(memberId);
+        ChatUpdateMessage updateMessage = new ChatUpdateMessage(accountEmail);
         redisPublisher.publish(roomUpdateTopic, updateMessage);
     }
     
     @Transactional
-    public String enterOrCreateRoom(String buyerId, String sellerId) {
-
-        Optional<String> existingRoom = chatRoomMemberRepository.findRoomIdByBuyerIdAndSellerId(buyerId, sellerId);
+    public String enterOrCreateRoom(Principal principal, ChatRoomRequestDto chatRoomRequestDto) {
+        String accountEmail = principal.getName();
+        String sellerAccountEmail = chatRoomRequestDto.getSellerAccountEmail();
+        Optional<String> existingRoom = chatRoomMemberRepository.findRoomIdByBuyerIdAndSellerId(accountEmail, sellerAccountEmail);
 
         if (existingRoom.isPresent()) {
             return existingRoom.get();
@@ -120,11 +140,12 @@ public class ChatService {
 
         ChatRoom chatRoom = ChatRoom.builder()
                 .roomId(newRoomId)
+                .productId(chatRoomRequestDto.getProductId())
                 .build();
         chatRoomRepository.save(chatRoom);
 
-        ChatRoomMember buyerMember = ChatRoomMember.create(newRoomId, buyerId);
-        ChatRoomMember sellerMember = ChatRoomMember.create(newRoomId, sellerId);
+        ChatRoomAccount buyerMember = ChatRoomAccount.create(newRoomId, accountEmail);
+        ChatRoomAccount sellerMember = ChatRoomAccount.create(newRoomId, sellerAccountEmail);
 
         chatRoomMemberRepository.save(buyerMember);
         chatRoomMemberRepository.save(sellerMember);
@@ -132,7 +153,7 @@ public class ChatService {
         return newRoomId;
     }
     @Transactional
-    public void markChatRoomAsDeleted(String memberId, String roomId) {
-        chatRoomMemberRepository.updateIsDelByMemberIdAndRoomId(memberId, roomId, 1);
+    public void markChatRoomAsDeleted(String accountEmail, String roomId) {
+        chatRoomMemberRepository.updateIsDelByMemberIdAndRoomId(accountEmail, roomId, 1);
     }
 }

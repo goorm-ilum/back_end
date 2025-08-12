@@ -14,13 +14,14 @@ import java.time.LocalDateTime;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "chating_room_tab")
+@Table(name = "chatting_room_tab")
 public class ChatRoom extends BaseEntity {
     @Id
     private String roomId;
-    private String roomMemberId;
+    private String roomAccountId;
     private String title;
     private String lastMessage;
     private int notReadMessageCount;
+    private int productId;
 
 }
