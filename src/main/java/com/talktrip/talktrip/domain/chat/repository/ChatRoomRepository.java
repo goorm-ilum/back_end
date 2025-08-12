@@ -18,8 +18,8 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
             crt.createdAt,
             crt.updatedAt,
             CONCAT(
-                CONCAT(COALESCE(m.name, ''), ' '),
-                CONCAT(CONCAT(COALESCE(p.productName, ''), ' '), crt.roomId)
+                CONCAT(COALESCE(m.name, ''), '_'),
+                CONCAT(CONCAT(COALESCE(p.productName, ''), '_'), crt.roomId)
             ) as title,
             COALESCE((
                 SELECT cm1.message
