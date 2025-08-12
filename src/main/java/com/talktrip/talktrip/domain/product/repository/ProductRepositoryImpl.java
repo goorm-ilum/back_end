@@ -16,20 +16,25 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public List<Product> searchByKeywords(List<String> keywords, int offset, int limit) {
+    public List<Product> searchByKeywords(List<String> keywords, String countryName, int offset, int limit) {
         QProduct product = QProduct.product;
         QHashTag hashtag = QHashTag.hashTag;
         QCountry country = QCountry.country;
 
         BooleanBuilder builder = new BooleanBuilder();
-        for (String keyword : keywords) {
-            String like = "%" + keyword + "%";
-            BooleanBuilder perKeyword = new BooleanBuilder();
-            perKeyword.or(product.productName.likeIgnoreCase(like))
+
+        for (String k : keywords) {
+            String like = "%" + k + "%";
+            BooleanBuilder perKeyword = new BooleanBuilder()
+                    .or(product.productName.likeIgnoreCase(like))
                     .or(product.description.likeIgnoreCase(like))
                     .or(hashtag.hashtag.likeIgnoreCase(like))
                     .or(country.name.likeIgnoreCase(like));
             builder.and(perKeyword);
+        }
+
+        if (countryName != null && !countryName.isBlank() && !"전체".equals(countryName)) {
+            builder.and(country.name.eq(countryName)); // 필요하면 eqIgnoreCase 로 바꿔도 됨
         }
 
         return queryFactory.selectDistinct(product)
@@ -41,30 +46,6 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
                 .limit(limit)
                 .fetch();
     }
-
-    @Override
-    public List<Product> searchByKeywordsAndMemberId(List<String> keywords, Long memberId) {
-        QProduct product = QProduct.product;
-        QHashTag hashtag = QHashTag.hashTag;
-        QCountry country = QCountry.country;
-
-        BooleanBuilder builder = new BooleanBuilder();
-        for (String keyword : keywords) {
-            String like = "%" + keyword + "%";
-            BooleanBuilder perKeyword = new BooleanBuilder();
-            perKeyword.or(product.productName.likeIgnoreCase(like))
-                    .or(product.description.likeIgnoreCase(like))
-                    .or(hashtag.hashtag.likeIgnoreCase(like))
-                    .or(country.name.likeIgnoreCase(like));
-            builder.and(perKeyword);
-        }
-
-        return queryFactory.selectDistinct(product)
-                .from(product)
-                .leftJoin(product.hashtags, hashtag).fetchJoin()
-                .leftJoin(product.country, country).fetchJoin()
-                .where(builder.and(product.member.Id.eq(memberId)))
-                .fetch();
-    }
 }
+
 

@@ -5,6 +5,5 @@ import com.talktrip.talktrip.domain.product.entity.Product;
 import java.util.List;
 
 public interface ProductRepositoryCustom {
-    List<Product> searchByKeywords(List<String> keywords, int offset, int limit);
-    List<Product> searchByKeywordsAndMemberId(List<String> keywords, Long memberId);
+    List<Product> searchByKeywords(List<String> keywords, String countryName, int offset, int limit);
 }

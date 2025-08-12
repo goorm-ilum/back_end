@@ -51,8 +51,12 @@ public class ProductService {
             }
         } else {
             List<String> keywords = Arrays.stream(keyword.trim().split("\\s+")).toList();
-            List<Product> candidates = productRepository.searchByKeywords(keywords, 0, Integer.MAX_VALUE);
-
+            List<Product> candidates = productRepository.searchByKeywords(
+                    keywords,
+                    countryName,
+                    0,
+                    Integer.MAX_VALUE
+            );
             products = candidates.stream()
                     .filter(product -> {
                         String combined = (product.getProductName() + " " + product.getDescription()).toLowerCase();
