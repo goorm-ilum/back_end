@@ -43,37 +43,24 @@ public class ProductService {
     public Page<ProductSummaryResponse> searchProducts(String keyword, String countryName, CustomMemberDetails memberDetails, Pageable pageable) {
         List<Product> products;
 
-        if (keyword == null || keyword.trim().isEmpty()) {
-            if ("전체".equals(countryName)) {
-                products = productRepository.findAll();
-            } else {
-                products = productRepository.findByCountryName(countryName);
-            }
+        if (keyword == null || keyword.isBlank()) {
+            products = "전체".equals(countryName)
+                    ? productRepository.findAll()
+                    : productRepository.findByCountryName(countryName);
         } else {
-            List<String> keywords = Arrays.stream(keyword.trim().split("\\s+")).toList();
-            List<Product> candidates = productRepository.searchByKeywords(
+            List<String> keywords = Arrays.stream(keyword.trim().split("\\s+"))
+                    .filter(s -> !s.isBlank())
+                    .toList();
+
+            products = productRepository.searchByKeywords(
                     keywords,
                     countryName,
                     0,
                     Integer.MAX_VALUE
             );
-            products = candidates.stream()
-                    .filter(product -> {
-                        String combined = (product.getProductName() + " " + product.getDescription()).toLowerCase();
-                        List<String> combinedWords = Arrays.asList(combined.split("\\s+"));
-
-                        for (String k : keywords) {
-                            long count = combinedWords.stream().filter(word -> word.equals(k.toLowerCase())).count();
-                            long required = keywords.stream().filter(s -> s.equalsIgnoreCase(k)).count();
-                            if (count < required) return false;
-                        }
-                        return true;
-                    })
-                    .toList();
         }
 
         LocalDate today = LocalDate.now();
-
         List<Product> filtered = products.stream()
                 .filter(product -> product.getProductOptions().stream()
                         .filter(option -> !option.getStartDate().isBefore(today))

@@ -28,9 +28,11 @@ public class QChatRoom extends EntityPathBase<ChatRoom> {
 
     public final NumberPath<Integer> notReadMessageCount = createNumber("notReadMessageCount", Integer.class);
 
-    public final StringPath roomId = createString("roomId");
+    public final NumberPath<Integer> productId = createNumber("productId", Integer.class);
 
-    public final StringPath roomMemberId = createString("roomMemberId");
+    public final StringPath roomAccountId = createString("roomAccountId");
+
+    public final StringPath roomId = createString("roomId");
 
     public final StringPath title = createString("title");
 

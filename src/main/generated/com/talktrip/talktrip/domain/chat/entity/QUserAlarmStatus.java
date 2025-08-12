@@ -19,9 +19,9 @@ public class QUserAlarmStatus extends EntityPathBase<UserAlarmStatus> {
 
     public static final QUserAlarmStatus userAlarmStatus = new QUserAlarmStatus("userAlarmStatus");
 
-    public final NumberPath<Integer> unreadAlarmCount = createNumber("unreadAlarmCount", Integer.class);
+    public final StringPath accountEmail = createString("accountEmail");
 
-    public final StringPath userId = createString("userId");
+    public final NumberPath<Integer> unreadAlarmCount = createNumber("unreadAlarmCount", Integer.class);
 
     public QUserAlarmStatus(String variable) {
         super(UserAlarmStatus.class, forVariable(variable));
