@@ -19,6 +19,8 @@ public class QAlarm extends EntityPathBase<Alarm> {
 
     public static final QAlarm alarm = new QAlarm("alarm");
 
+    public final StringPath accountEmail = createString("accountEmail");
+
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
 
     public final NumberPath<Long> id = createNumber("id", Long.class);
@@ -28,8 +30,6 @@ public class QAlarm extends EntityPathBase<Alarm> {
     public final StringPath link = createString("link");
 
     public final StringPath message = createString("message");
-
-    public final StringPath userId = createString("userId");
 
     public QAlarm(String variable) {
         super(Alarm.class, forVariable(variable));
