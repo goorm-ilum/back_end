@@ -1,0 +1,194 @@
+package com.talktrip.talktrip.domain.like.repository;
+
+import com.talktrip.talktrip.domain.like.entity.Like;
+import com.talktrip.talktrip.domain.member.entity.Member;
+import com.talktrip.talktrip.domain.member.enums.MemberRole;
+import com.talktrip.talktrip.domain.member.enums.MemberState;
+import com.talktrip.talktrip.domain.product.entity.Product;
+import com.talktrip.talktrip.global.config.QuerydslConfig;
+import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.test.context.ActiveProfiles;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@DataJpaTest
+@ActiveProfiles("test")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
+@Import(QuerydslConfig.class)
+class LikeRepositoryTest {
+
+    @Autowired LikeRepository likeRepository;
+    @Autowired EntityManager em;
+
+    private Member Member() {
+        Member m = Member.builder()
+                .accountEmail("khn21c@naver.com")
+                .memberRole(MemberRole.U)
+                .memberState(MemberState.A)
+                .build();
+        em.persist(m);
+        return m;
+    }
+
+    private Product Product(Member member, String name) {
+        Product p = Product.builder()
+                .productName(name)
+                .description("test description")
+                .deleted(false)
+                .member(member)
+                .build();
+        em.persist(p);
+        return p;
+    }
+
+    private void Like(Product product, Member member) {
+        Like like = Like.builder()
+                .product(product)
+                .member(member)
+                .build();
+        em.persist(like);
+    }
+
+    @Nested
+    @DisplayName("상품 ID와 회원 ID로 좋아요 존재 여부 확인")
+    class ExistsBy {
+
+        @Test
+        @DisplayName("저장된 좋아요가 존재하면 true 반환 테스트")
+        void exists_true() {
+            // given
+            Member member = Member();
+            Product product = Product(member, "P1");
+            Like(product, member);
+            em.flush(); em.clear();
+
+            // when
+            boolean exists = likeRepository.existsByProductIdAndMemberId(product.getId(), member.getId());
+
+            // then
+            assertThat(exists).isTrue();
+        }
+
+        @Test
+        @DisplayName("저장된 좋아요가 없으면 false 반환 테스트")
+        void exists_false() {
+            // given
+            Member member = Member();
+            Product product = Product(member,"P1");
+            em.flush(); em.clear();
+
+            // when
+            boolean exists = likeRepository.existsByProductIdAndMemberId(product.getId(), member.getId());
+
+            // then
+            assertThat(exists).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("회원 ID로 좋아요 목록 조회")
+    class FindByMemberId {
+
+        @Test
+        @DisplayName("좋아요 3개 중 첫 페이지 조회 테스트")
+        void page_first() {
+            // given
+            Member member = Member();
+            Product p1 = Product(member, "P1");
+            Product p2 = Product(member, "P2");
+            Product p3 = Product(member, "P3");
+            Like(p1, member);
+            Like(p2, member);
+            Like(p3, member);
+            em.flush(); em.clear();
+
+            // when
+            Page<Like> page = likeRepository.findByMemberId(member.getId(), PageRequest.of(0, 2));
+
+            // then
+            assertThat(page.getContent()).hasSize(2);
+            assertThat(page.getTotalElements()).isEqualTo(3);
+            assertThat(page.getNumber()).isEqualTo(0);
+            assertThat(page.getSize()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("좋아요 3개 중 두 번째 페이지 조회 테스트")
+        void page_second() {
+            // given
+            Member member = Member();
+            Product p1 = Product(member, "P1");
+            Product p2 = Product(member, "P2");
+            Product p3 = Product(member, "P3");
+            Like(p1, member);
+            Like(p2, member);
+            Like(p3, member);
+            em.flush(); em.clear();
+
+            // when
+            Page<Like> page = likeRepository.findByMemberId(member.getId(), PageRequest.of(1, 2));
+
+            // then
+            assertThat(page.getContent()).hasSize(1);
+            assertThat(page.getTotalElements()).isEqualTo(3);
+            assertThat(page.getNumber()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("좋아요가 없을 때 빈 페이지 반환 테스트")
+        void empty_boundary() {
+            // given
+            Member member = Member();
+            em.flush(); em.clear();
+
+            // when
+            Page<Like> page = likeRepository.findByMemberId(member.getId(), PageRequest.of(0, 10));
+
+            // then
+            assertThat(page.getContent()).isEmpty();
+            assertThat(page.getTotalElements()).isZero();
+        }
+    }
+
+    @Nested
+    @DisplayName("상품 ID와 회원 ID로 좋아요 삭제")
+    class DeleteBy {
+
+        @Test
+        @DisplayName("저장된 좋아요 삭제 후 존재하지 않음 테스트")
+        void delete_success() {
+            // given
+            Member member = Member();
+            Product product = Product(member, "P1");
+            Like(product, member);
+            em.flush(); em.clear();
+
+            // when
+            likeRepository.deleteByProductIdAndMemberId(product.getId(), member.getId());
+            em.flush(); em.clear();
+
+            // then
+            boolean exists = likeRepository.existsByProductIdAndMemberId(product.getId(), member.getId());
+            assertThat(exists).isFalse();
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 좋아요 삭제 시 예외 없이 통과 테스트")
+        void delete_noop() {
+            // when
+            likeRepository.deleteByProductIdAndMemberId(999L, 888L);
+
+            // then
+            assertThat(likeRepository.count()).isEqualTo(0);
+        }
+    }
+}
