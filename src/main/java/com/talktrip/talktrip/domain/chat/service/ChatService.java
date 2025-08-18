@@ -94,7 +94,6 @@ public class ChatService {
     }
     public List<ChatRoomDTO> getRooms(String accountEmail) {
         //redis 추가
-        String memberId = SecurityUtils.currentUserId();
 
         return chatRoomRepository.findRoomsWithLastMessageByMemberId(accountEmail);
     }
@@ -141,6 +140,7 @@ public class ChatService {
 
         ChatRoom chatRoom = ChatRoom.builder()
                 .roomId(newRoomId)
+                .productId(chatRoomRequestDto.getProductId())
                 .build();
         chatRoomRepository.save(chatRoom);
 

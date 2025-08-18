@@ -11,10 +11,5 @@ import java.util.Optional;
 
 @Repository
 public interface ProductOptionRepository extends JpaRepository<ProductOption, Long> {
-
     void deleteAllByProduct(Product product);
-
-    List<ProductOption> findByProductId(Long productId);
-
-    Optional<ProductOption> findByProductIdAndOptionName(Long productId, String optionName);
 }

@@ -10,6 +10,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,17 +21,12 @@ import java.io.PrintWriter;
 import java.net.URLDecoder;
 import java.util.Map;
 import java.util.Optional;
-
+@RequiredArgsConstructor
 @Slf4j
 public class JWTCheckFilter extends OncePerRequestFilter {
 
     private final JWTUtil jwtUtil;
     private final MemberRepository memberRepository;
-
-    public JWTCheckFilter(JWTUtil jwtUtil, MemberRepository memberRepository) {
-        this.jwtUtil = jwtUtil;
-        this.memberRepository = memberRepository;
-    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -134,14 +130,15 @@ public class JWTCheckFilter extends OncePerRequestFilter {
                 uri.startsWith("/api/products") ||
                 uri.startsWith("/api/orders")||
                 uri.startsWith("/api/chat/") ||  // 채팅 API 제외
-                uri.startsWith("/api/alarm/") || // 알림 API 제외 (개발 단계)
+                uri.startsWith("/api/alarm/")  // 알림 API 제외 (개발 단계)
 
                 // WebSocket 관련 모든 경로 허용
-                uri.startsWith("/ws");        // WebSocket 모든 경로 (/ws, /ws/info, /ws/{server-id}/{session-id}/websocket 등)
-
-
-
+                // 핸드셰이크 공개 유지(옵션 A/B-1 선택 시)
+                || uri.startsWith("/ws")
+                || uri.startsWith("/ws-info")
+                || uri.startsWith("/sockjs-node");
     }
+
 
     private void respondWithUnauthorized(HttpServletResponse response, String message) throws IOException {
         response.setContentType("application/json");
@@ -151,3 +148,5 @@ public class JWTCheckFilter extends OncePerRequestFilter {
         writer.flush();
     }
 }
+
+

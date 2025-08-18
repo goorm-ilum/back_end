@@ -60,7 +60,8 @@ public class ChatApiController {
     }
     @Operation(summary = "채팅방 입장 또는 생성")
     @PostMapping("/rooms/enter")
-    public ResponseEntity<ChatRoomResponseDto> enterOrCreateRoom(Principal principal, @RequestBody ChatRoomRequestDto chatRoomRequestDto) {
+    public ResponseEntity<ChatRoomResponseDto> enterOrCreateRoom(Principal principal,
+                                                                 @RequestBody ChatRoomRequestDto chatRoomRequestDto) {
         String roomId = chatService.enterOrCreateRoom(principal,chatRoomRequestDto);
         return ResponseEntity.ok(new ChatRoomResponseDto(roomId));
     }
