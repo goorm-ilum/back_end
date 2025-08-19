@@ -202,3 +202,6 @@ application.yaml
 application-secret.yaml
 application-local.yaml
 application-prod.yaml
+
+# kafka data file
+./kafka-data/

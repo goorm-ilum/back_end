@@ -11,17 +11,22 @@ import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.review.dto.request.ReviewRequest;
 import com.talktrip.talktrip.domain.review.dto.response.MyReviewFormResponse;
 import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
+import com.talktrip.talktrip.domain.review.dto.event.ReviewEventDTO;
 import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.domain.review.repository.ReviewRepository;
 import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.ReviewException;
+import com.talktrip.talktrip.global.kafka.ReviewProducer;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Comparator;
 import java.util.List;
@@ -29,12 +34,16 @@ import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ReviewService {
 
     private final ReviewRepository reviewRepository;
     private final ProductRepository productRepository;
     private final MemberRepository memberRepository;
     private final OrderRepository orderRepository;
+    private final ReviewProducer reviewProducer;
+
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public void createReview(Long orderId, Long memberId, ReviewRequest request) {
@@ -68,6 +77,19 @@ public class ReviewService {
                 .build();
 
         reviewRepository.save(review);
+
+        // Kafka 메시지 발송
+        try {
+            ReviewEventDTO eventDTO = new ReviewEventDTO(
+                    review.getId(),
+                    product.getId(),
+                    review.getComment()
+            );
+            String reviewJson = objectMapper.writeValueAsString(eventDTO);
+            reviewProducer.sendReview(reviewJson);
+        } catch (JsonProcessingException e) {
+            log.error("리뷰 직렬화 실패", e);
+        }
     }
 
     @Transactional
