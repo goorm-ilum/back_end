@@ -10,9 +10,9 @@ import com.talktrip.talktrip.domain.product.dto.response.ProductSummaryResponse;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.review.entity.Review;
+import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.MemberException;
 import com.talktrip.talktrip.global.exception.ProductException;
-import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -24,6 +24,7 @@ import org.springframework.data.domain.*;
 import java.util.List;
 import java.util.Optional;
 
+import static com.talktrip.talktrip.global.TestConst.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
@@ -35,176 +36,166 @@ class LikeServiceTest {
     @Mock ProductRepository productRepository;
     @Mock MemberRepository memberRepository;
 
-    private CustomMemberDetails memberDetails(long id) {
-        CustomMemberDetails md = mock(CustomMemberDetails.class);
-        when(md.getId()).thenReturn(id);
-        return md;
-    }
-
-    private Member member(long id, String email, MemberRole role) {
+    private Member user() {
         return Member.builder()
-                .Id(id)
-                .accountEmail(email)
-                .memberRole(role)
-                .memberState(MemberState.A)
+                .Id(USER_ID).accountEmail(USER_EMAIL)
+                .memberRole(MemberRole.U).memberState(MemberState.A)
                 .build();
     }
 
-    private Product product(long id, Member member) {
+    private Member seller() {
+        return Member.builder()
+                .Id(SELLER_ID).accountEmail(SELLER_EMAIL)
+                .memberRole(MemberRole.A).memberState(MemberState.A)
+                .build();
+    }
+
+    private Product product() {
         return Product.builder()
-                .id(id)
-                .member(member)
-                .productName("P1")
-                .description("test description")
+                .id(PRODUCT_ID).member(seller())
+                .productName(PRODUCT_NAME_1).description(DESC)
                 .deleted(false)
                 .build();
     }
 
-    @Nested
-    @DisplayName("toggleLike")
+    @Nested @DisplayName("toggleLike(productId, memberId)")
     class ToggleLike {
 
-        @Test
-        @DisplayName("이미 좋아요가 존재하면 삭제")
+        @Test @DisplayName("이미 존재 → 삭제")
         void whenExists_delete() {
-            // given
-            long productId = 1L, userId = 1L;
-            CustomMemberDetails md = memberDetails(userId);
-            given(likeRepository.existsByProductIdAndMemberId(productId, userId)).willReturn(true);
+            given(likeRepository.existsByProductIdAndMemberId(PRODUCT_ID, USER_ID)).willReturn(true);
 
-            // when
-            likeService.toggleLike(productId, md);
+            likeService.toggleLike(PRODUCT_ID, USER_ID);
 
-            // then
-            then(likeRepository).should().deleteByProductIdAndMemberId(productId, userId);
+            then(likeRepository).should().deleteByProductIdAndMemberId(PRODUCT_ID, USER_ID);
             then(productRepository).shouldHaveNoInteractions();
             then(memberRepository).shouldHaveNoInteractions();
             then(likeRepository).should(never()).save(any());
         }
 
-        @Test
-        @DisplayName("좋아요가 없으면 상품/회원 조회 후 저장")
+        @Test @DisplayName("없으면 상품/회원 조회 후 저장")
         void whenNotExists_save() {
-            long productId = 1L, userId = 1L, sellerId = 2L;
-            CustomMemberDetails md = memberDetails(userId);
-            Member member = member(userId, "user@gmail.com", MemberRole.U);
-            Member seller = member(sellerId, "seller@gmail.com", MemberRole.A);
-            Product product = product(productId, seller);
+            Product p = product();
+            Member u = user();
+            given(likeRepository.existsByProductIdAndMemberId(PRODUCT_ID, USER_ID)).willReturn(false);
+            given(productRepository.findById(PRODUCT_ID)).willReturn(Optional.of(p));
+            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(u));
 
-            given(likeRepository.existsByProductIdAndMemberId(productId, userId)).willReturn(false);
-            given(productRepository.findById(productId)).willReturn(Optional.of(product));
-            given(memberRepository.findById(userId)).willReturn(Optional.of(member));
+            likeService.toggleLike(PRODUCT_ID, USER_ID);
 
-            likeService.toggleLike(productId, md);
-
-            then(likeRepository).should().save(argThat(l ->
-                    l.getProduct() == product && l.getMember() == member));
+            then(likeRepository).should().save(argThat(l -> l.getProduct() == p && l.getMember() == u));
         }
 
-        @Test
-        @DisplayName("좋아요 없음 + 상품 미존재 -> ProductException")
-        void whenProductMissing_throw() {
-            long productId = 1L, userId = 1L;
-            CustomMemberDetails md = memberDetails(userId);
+        @Test @DisplayName("PRODUCT_NOT_FOUND")
+        void productMissing() {
+            given(likeRepository.existsByProductIdAndMemberId(PRODUCT_ID, USER_ID)).willReturn(false);
+            given(productRepository.findById(PRODUCT_ID)).willReturn(Optional.empty());
 
-            given(likeRepository.existsByProductIdAndMemberId(productId, userId)).willReturn(false);
-            given(productRepository.findById(productId)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() -> likeService.toggleLike(productId, md))
-                    .isInstanceOf(ProductException.class);
+            assertThatThrownBy(() -> likeService.toggleLike(PRODUCT_ID, USER_ID))
+                    .isInstanceOf(ProductException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.PRODUCT_NOT_FOUND);
         }
 
-        @Test
-        @DisplayName("좋아요 없음 + 회원 미존재 -> MemberException")
-        void whenMemberMissing_throw() {
-            long productId = 1L, userId = 1L, sellerId = 2L;
-            CustomMemberDetails md = memberDetails(userId);
-            Member seller = member(sellerId, "seller@gmail.com", MemberRole.A);
-            given(likeRepository.existsByProductIdAndMemberId(productId, userId)).willReturn(false);
-            given(productRepository.findById(productId)).willReturn(Optional.of(product(productId, seller)));
-            given(memberRepository.findById(userId)).willReturn(Optional.empty());
+        @Test @DisplayName("USER_NOT_FOUND")
+        void userMissing() {
+            given(likeRepository.existsByProductIdAndMemberId(PRODUCT_ID, USER_ID)).willReturn(false);
+            given(productRepository.findById(PRODUCT_ID)).willReturn(Optional.of(product()));
+            given(memberRepository.findById(USER_ID)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> likeService.toggleLike(productId, md))
-                    .isInstanceOf(MemberException.class);
-        }
-
-        @Test
-        @DisplayName("예외: 인증 정보 없음 -> MemberException")
-        void NoPrincipal() {
-            assertThatThrownBy(() -> likeService.toggleLike(1L, null))
-                    .isInstanceOf(MemberException.class);
+            assertThatThrownBy(() -> likeService.toggleLike(PRODUCT_ID, USER_ID))
+                    .isInstanceOf(MemberException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
         }
     }
 
-    @Nested
-    @DisplayName("getLikedProducts")
+    @Nested @DisplayName("getLikedProducts(memberId, pageable)")
     class GetLikedProducts {
 
-        @Test
-        @DisplayName("리뷰 평균 계산 + liked=true 매핑")
-        void reviewAverage() {
-            long productId = 1L, userId = 1L, sellerId = 2L;
-            CustomMemberDetails md = memberDetails(userId);
-            Member member = member(userId, "user@gmail.com", MemberRole.U);
-            Member seller = member(sellerId, "seller@gmail.com", MemberRole.A);
-            Product p = product(productId, seller);
-            Review r1 = Review.builder().reviewStar(5f).product(p).build();
-            Review r2 = Review.builder().reviewStar(3f).product(p).build();
-            p.getReviews().addAll(List.of(r1, r2));
+        @Test @DisplayName("USER_NOT_FOUND")
+        void userMissing() {
+            given(memberRepository.findById(USER_ID)).willReturn(Optional.empty());
 
-            Like like = Like.builder().product(p).member(member).build();
-            Page<Like> page = new PageImpl<>(List.of(like), PageRequest.of(0, 10), 1);
-
-            given(likeRepository.findByMemberId(eq(userId), any(Pageable.class)))
-                    .willReturn(page);
-
-            Page<ProductSummaryResponse> res = likeService.getLikedProducts(md, PageRequest.of(0, 10));
-
-            assertThat(res.getTotalElements()).isEqualTo(1);
-            ProductSummaryResponse first = res.getContent().getFirst();
-            assertThat(first.averageReviewStar()).isEqualTo(4.0f);
-            assertThat(first.isLiked()).isTrue();
+            assertThatThrownBy(() -> likeService.getLikedProducts(USER_ID, PageRequest.of(PAGE_0, SIZE_9)))
+                    .isInstanceOf(MemberException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
         }
 
-        @Test
-        @DisplayName("리뷰가 없으면 평균 0.0")
-        void avgZeroWhenNoReviews() {
-            long productId = 1L, userId = 1L, sellerId = 2L;
-            CustomMemberDetails md = memberDetails(userId);
-            Member member = member(userId, "user@gmail.com", MemberRole.U);
-            Member seller = member(sellerId, "seller@gmail.com", MemberRole.A);
-
-            Product p = product(productId, seller);
-            Like like = Like.builder().product(p).member(member).build();
-            Page<Like> page = new PageImpl<>(List.of(like), PageRequest.of(0, 10), 1);
-
-            given(likeRepository.findByMemberId(eq(userId), any(Pageable.class)))
-                    .willReturn(page);
-
-            Page<ProductSummaryResponse> res = likeService.getLikedProducts(md, PageRequest.of(0, 10));
-            assertThat(res.getContent().getFirst().averageReviewStar()).isEqualTo(0.0f);
-        }
-
-        @Test
-        @DisplayName("좋아요가 없으면 빈 페이지")
+        @Test @DisplayName("빈 페이지 반환")
         void empty() {
-            long userId = 1L;
-            CustomMemberDetails md = memberDetails(userId);
+            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(user()));
+            Pageable expected = PageRequest.of(PAGE_0, SIZE_9, SORT_BY_UPDATED_DESC);
+            Page<Like> page = new PageImpl<>(List.of(), expected, 0);
+            given(likeRepository.findByMemberId(eq(USER_ID), any(Pageable.class))).willReturn(page);
 
-            Page<Like> page = new PageImpl<>(List.of(), PageRequest.of(0, 10), 0);
-            given(likeRepository.findByMemberId(eq(userId), any(Pageable.class)))
-                    .willReturn(page);
+            Page<ProductSummaryResponse> res = likeService.getLikedProducts(USER_ID, expected);
 
-            Page<ProductSummaryResponse> res = likeService.getLikedProducts(md, PageRequest.of(0, 10));
             assertThat(res.getContent()).isEmpty();
             assertThat(res.getTotalElements()).isZero();
+            assertThat(res.getNumber()).isEqualTo(PAGE_0);
+            assertThat(res.getSize()).isEqualTo(SIZE_9);
+
+            ArgumentCaptor<Pageable> pageableCap = ArgumentCaptor.forClass(Pageable.class);
+            then(likeRepository).should().findByMemberId(eq(USER_ID), pageableCap.capture());
+            Pageable sent = pageableCap.getValue();
+            assertThat(sent.getSort()).isEqualTo(SORT_BY_UPDATED_DESC);
+            assertThat(sent.getPageNumber()).isEqualTo(PAGE_0);
+            assertThat(sent.getPageSize()).isEqualTo(SIZE_9);
         }
 
-        @Test
-        @DisplayName("예외: 인증 없음 -> MemberException")
-        void noPrincipal() {
-            assertThatThrownBy(() -> likeService.getLikedProducts(null, PageRequest.of(0, 10)))
-                    .isInstanceOf(MemberException.class);
+        @Test @DisplayName("정상 조회: 여러 좋아요 → 평균/liked 매핑")
+        void success_multipleLikes() {
+            Member u = user();
+
+            Product p1 = product();
+            p1.getReviews().addAll(List.of(
+                    Review.builder().product(p1).reviewStar(STAR_4_0).build(),
+                    Review.builder().product(p1).reviewStar(STAR_2_0).build()
+            ));
+            Like like1 = Like.builder().product(p1).member(u).build();
+
+            Product p2 = Product.builder()
+                    .id(OTHER_PRODUCT_ID).member(seller())
+                    .productName(PRODUCT_NAME_2).description(DESC)
+                    .deleted(false).build();
+            p2.getReviews().add(Review.builder().product(p2).reviewStar(STAR_5_0).build());
+            Like like2 = Like.builder().product(p2).member(u).build();
+
+            Page<Like> page = new PageImpl<>(List.of(like1, like2), PageRequest.of(PAGE_0, SIZE_9), 2);
+
+            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(u));
+            given(likeRepository.findByMemberId(eq(USER_ID), any(Pageable.class))).willReturn(page);
+
+            Page<ProductSummaryResponse> res = likeService.getLikedProducts(USER_ID, PageRequest.of(PAGE_0, SIZE_9));
+
+            assertThat(res.getTotalElements()).isEqualTo(2);
+            assertThat(res.getContent()).hasSize(2);
+
+            ProductSummaryResponse r1 = res.getContent().getFirst();
+            assertThat(r1.productId()).isEqualTo(PRODUCT_ID);
+            assertThat(r1.productName()).isEqualTo(PRODUCT_NAME_1);
+            assertThat(r1.averageReviewStar()).isEqualTo(AVG_3_0);
+            assertThat(r1.isLiked()).isTrue();
+
+            ProductSummaryResponse r2 = res.getContent().get(1);
+            assertThat(r2.productId()).isEqualTo(OTHER_PRODUCT_ID);
+            assertThat(r2.productName()).isEqualTo(PRODUCT_NAME_2);
+            assertThat(r2.averageReviewStar()).isEqualTo(AVG_5_0);
+            assertThat(r2.isLiked()).isTrue();
+        }
+
+        @Test @DisplayName("초과 페이지 → 빈 페이지 반환(문서화)")
+        void overflow_passthrough() {
+            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(user()));
+            Pageable overflow = PageRequest.of(PAGE_3, SIZE_10, SORT_BY_UPDATED_DESC);
+            Page<Like> page = new PageImpl<>(List.of(), overflow, 2);
+            given(likeRepository.findByMemberId(eq(USER_ID), any(Pageable.class))).willReturn(page);
+
+            Page<ProductSummaryResponse> res = likeService.getLikedProducts(USER_ID, overflow);
+
+            assertThat(res.getContent()).isEmpty();
+            assertThat(res.getTotalElements()).isEqualTo(2);
+            assertThat(res.getNumber()).isEqualTo(PAGE_3);
+            assertThat(res.getSize()).isEqualTo(SIZE_10);
         }
     }
 }

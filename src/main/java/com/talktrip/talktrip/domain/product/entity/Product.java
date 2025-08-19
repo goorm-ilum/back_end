@@ -65,6 +65,7 @@ public class Product extends BaseEntity {
     private List<ProductOption> productOptions = new ArrayList<>();
 
     @Column(nullable = false)
+    @Builder.Default
     private boolean deleted = false;
 
     private LocalDateTime deletedAt;
