@@ -39,7 +39,7 @@ public class LikeController {
             @AuthenticationPrincipal CustomMemberDetails memberDetails,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "9") int size,
-            @RequestParam(defaultValue = "createdAt,desc") List<String> sort) {
+            @RequestParam(defaultValue = "updatedAt,desc") List<String> sort) {
 
         Pageable pageable = PageRequest.of(page, size, buildSort(sort));
         return ResponseEntity.ok(likeService.getLikedProducts(memberDetails, pageable));
