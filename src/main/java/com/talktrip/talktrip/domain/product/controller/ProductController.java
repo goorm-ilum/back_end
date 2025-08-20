@@ -32,16 +32,16 @@ public class ProductController {
     @GetMapping
     public ResponseEntity<Page<ProductSummaryResponse>> getProducts(
             @RequestParam(required = false) String keyword,
-            @RequestParam(defaultValue = "전체") String countryName,  // 국가 파라미터 추가
+            @RequestParam(defaultValue = "전체") String countryName,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "updatedAt,desc") List<String> sort,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
         Pageable pageable = PageRequest.of(page, size, buildSort(sort));
-        return ResponseEntity.ok(productService.searchProducts(keyword, countryName, memberDetails, pageable));
+        Long memberId = (memberDetails != null) ? memberDetails.getId() : null;
+        return ResponseEntity.ok(productService.searchProducts(keyword, countryName, memberId, pageable));
     }
-
 
     @Operation(summary = "상품 상세 조회")
     @GetMapping("/{productId}")
@@ -53,14 +53,18 @@ public class ProductController {
             @RequestParam(defaultValue = "updatedAt,desc") List<String> sort
     ) {
         Pageable pageable = PageRequest.of(page, size, buildSort(sort));
-        return ResponseEntity.ok(productService.getProductDetail(productId, memberDetails, pageable));
+        Long memberId = (memberDetails != null) ? memberDetails.getId() : null;
+        return ResponseEntity.ok(productService.getProductDetail(productId, memberId, pageable));
     }
 
     @Operation(summary = "AI 상품 검색")
     @GetMapping("/aisearch")
     public ResponseEntity<List<ProductSummaryResponse>> aiSearchProducts(
             @RequestParam String question,
-            @AuthenticationPrincipal CustomMemberDetails memberDetails) {
-        return ResponseEntity.ok(productService.aiSearchProducts(question, memberDetails));
+            @AuthenticationPrincipal CustomMemberDetails memberDetails
+    ) {
+        Long memberId = (memberDetails != null) ? memberDetails.getId() : null;
+        return ResponseEntity.ok(productService.aiSearchProducts(question, memberId));
     }
+
 }

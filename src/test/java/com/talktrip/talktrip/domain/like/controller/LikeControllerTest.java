@@ -1,3 +1,4 @@
+// src/test/java/com/talktrip/talktrip/domain/like/controller/LikeControllerTest.java
 package com.talktrip.talktrip.domain.like.controller;
 
 import com.talktrip.talktrip.domain.like.service.LikeService;

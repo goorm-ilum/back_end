@@ -13,13 +13,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.boot.test.context.TestConfiguration;
+
+import java.util.List;
+import java.util.Set;
 
 import static com.talktrip.talktrip.global.TestConst.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -207,5 +210,50 @@ class LikeRepositoryTest {
     void delete_noop() {
         likeRepository.deleteByProductIdAndMemberId(1L, 1L);
         assertThat(likeRepository.count()).isEqualTo(0);
+    }
+
+    @Test @DisplayName("findLikedProductIdsRaw: 주어진 productIds 교집합만 반환")
+    void findLikedProductIdsRaw_intersection() {
+        Member u = user();
+        Member s = seller();
+        Product p1 = product(s, PRODUCT_NAME_1);
+        Product p2 = product(s, PRODUCT_NAME_2);
+        Product p3 = product(s, PRODUCT_NAME_3);
+
+        like(u, p1);
+        like(u, p3);
+
+        List<Long> raw = likeRepository.findLikedProductIdsRaw(u.getId(), List.of(p1.getId(), p2.getId()));
+
+        assertThat(raw).containsExactlyInAnyOrder(p1.getId());
+        assertThat(raw).doesNotContain(p2.getId());
+    }
+
+    @Test @DisplayName("findLikedProductIds: 기본 메서드가 Set 으로 변환하고 null/빈 리스트 방어")
+    void findLikedProductIds_defaults_and_defensive() {
+        Member u = user();
+        Member s = seller();
+        Product p1 = product(s, PRODUCT_NAME_1);
+        Product p2 = product(s, PRODUCT_NAME_2);
+        like(u, p1);
+
+        Set<Long> liked = likeRepository.findLikedProductIds(u.getId(), List.of(p1.getId(), p2.getId()));
+        assertThat(liked).containsExactlyInAnyOrder(p1.getId());
+
+        assertThat(likeRepository.findLikedProductIds(null, List.of(p1.getId()))).isEmpty();
+
+        assertThat(likeRepository.findLikedProductIds(u.getId(), null)).isEmpty();
+        assertThat(likeRepository.findLikedProductIds(u.getId(), List.of())).isEmpty();
+    }
+
+    @Test @DisplayName("findLikedProductIds: 좋아요가 전혀 없으면 빈 Set 반환")
+    void findLikedProductIds_empty_when_no_likes() {
+        Member u = user();
+        Member s = seller();
+        Product p1 = product(s, PRODUCT_NAME_1);
+        Product p2 = product(s, PRODUCT_NAME_2);
+
+        Set<Long> liked = likeRepository.findLikedProductIds(u.getId(), List.of(p1.getId(), p2.getId()));
+        assertThat(liked).isEmpty();
     }
 }

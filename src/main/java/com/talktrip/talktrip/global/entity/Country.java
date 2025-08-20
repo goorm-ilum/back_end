@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 public class Country {
 
     @Id
-    private String id;
+    private Long id;
 
     private String continent;
 

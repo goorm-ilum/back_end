@@ -45,7 +45,7 @@ class ReviewControllerTest {
     @Autowired ObjectMapper om;
 
     private final ReviewResponse REVIEW_DTO = new ReviewResponse(
-            REVIEW_ID, "user", PRODUCT_NAME_1, null, COMMENT_TEST, STAR_4_0, FIXED_REVIEW_TIME
+            REVIEW_ID, "user", PRODUCT_NAME_1, null, COMMENT_TEST, STAR_4_0, TIME
     );
 
     @TestConfiguration
@@ -65,7 +65,6 @@ class ReviewControllerTest {
 
     @Nested @DisplayName("POST " + EP_CREATE_REVIEW + " (리뷰 작성)")
     class CreateReview {
-
         @Test @DisplayName("201 Created + 서비스 전달값 검증")
         void create_ok() throws Exception {
             willDoNothing().given(reviewService)

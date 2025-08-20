@@ -11,8 +11,6 @@ import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.domain.review.repository.ReviewRepository;
 import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.ProductException;
-import com.talktrip.talktrip.global.security.CustomMemberDetails;
-import com.talktrip.talktrip.global.util.PaginationUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -39,55 +37,52 @@ public class ProductService {
     @Value("${fastapi.base-url}")
     private String fastApiBaseUrl;
 
-    @Transactional
-    public Page<ProductSummaryResponse> searchProducts(String keyword, String countryName, CustomMemberDetails memberDetails, Pageable pageable) {
-        List<Product> products;
+    @Transactional(readOnly = true)
+    public Page<ProductSummaryResponse> searchProducts(
+            String keyword,
+            String countryName,
+            Long memberId,
+            Pageable pageable
+    ) {
+        Page<Product> page = (keyword == null || keyword.isBlank())
+                ? productRepository.findVisibleProducts(countryName, pageable)
+                : productRepository.searchByKeywords(
+                Arrays.stream(keyword.trim().split("\\s+"))
+                        .filter(s -> !s.isBlank()).toList(),
+                countryName,
+                pageable
+        );
 
-        if (keyword == null || keyword.isBlank()) {
-            products = "전체".equals(countryName)
-                    ? productRepository.findAll()
-                    : productRepository.findByCountryName(countryName);
-        } else {
-            List<String> keywords = Arrays.stream(keyword.trim().split("\\s+"))
-                    .filter(s -> !s.isBlank())
-                    .toList();
-
-            products = productRepository.searchByKeywords(
-                    keywords,
-                    countryName,
-                    0,
-                    Integer.MAX_VALUE
-            );
+        List<Product> products = page.getContent();
+        if (products.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, page.getTotalElements());
         }
 
-        LocalDate today = LocalDate.now();
-        List<Product> filtered = products.stream()
-                .filter(product -> product.getProductOptions().stream()
-                        .filter(option -> !option.getStartDate().isBefore(today))
-                        .mapToInt(ProductOption::getStock).sum() > 0)
-                .sorted(getComparator(pageable.getSort()))
-                .toList();
+        List<Long> productIds = products.stream().map(Product::getId).toList();
 
-        int offset = (int) pageable.getOffset();
-        int toIndex = Math.min(offset + pageable.getPageSize(), filtered.size());
-        List<Product> paged = (offset > filtered.size()) ? List.of() : filtered.subList(offset, toIndex);
+        // 평균별점 배치 조회
+        Map<Long, Double> avgStarMap = reviewRepository.fetchAvgStarsByProductIds(productIds);
 
-        List<ProductSummaryResponse> responseList = paged.stream()
-                .map(product -> {
-                    float avgStar = (float) reviewRepository.findByProductId(product.getId()).stream()
-                            .mapToDouble(Review::getReviewStar).average().orElse(0.0);
-                    boolean liked = memberDetails != null && likeRepository.existsByProductIdAndMemberId(product.getId(), memberDetails.getId());
-                    return ProductSummaryResponse.from(product, avgStar, liked);
-                })
-                .toList();
+        // 좋아요 배치 조회
+        Set<Long> likedProductIds = (memberId == null)
+                ? Set.of()
+                : likeRepository.findLikedProductIds(memberId, productIds);
 
-        return new PageImpl<>(responseList, pageable, filtered.size());
+        List<ProductSummaryResponse> content = products.stream().map(p -> {
+            float avgStar = avgStarMap.getOrDefault(p.getId(), 0.0).floatValue();
+            boolean liked = likedProductIds.contains(p.getId());
+            return ProductSummaryResponse.from(p, avgStar, liked);
+        }).toList();
+
+        return new PageImpl<>(content, pageable, page.getTotalElements());
     }
 
-
-
-    @Transactional
-    public ProductDetailResponse getProductDetail(Long productId, CustomMemberDetails memberDetails, Pageable pageable) {
+    @Transactional(readOnly = true)
+    public ProductDetailResponse getProductDetail(
+            Long productId,
+            Long memberId,
+            Pageable pageable
+    ) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
 
@@ -102,7 +97,7 @@ public class ProductService {
 
         Page<Review> reviewPage = reviewRepository.findByProductId(productId, pageable);
 
-        float avgStar = (float) reviewPage.getContent().stream()
+        float avgStar = (float) reviewRepository.findByProductId(productId).stream()
                 .mapToDouble(Review::getReviewStar)
                 .average()
                 .orElse(0.0);
@@ -112,37 +107,37 @@ public class ProductService {
                 .toList();
 
 
-        boolean isLiked = false;
-        if (memberDetails != null) {
-            isLiked = likeRepository.existsByProductIdAndMemberId(productId, memberDetails.getId());
-        }
+        boolean isLiked = (memberId != null) &&
+                likeRepository.existsByProductIdAndMemberId(productId, memberId);
 
         return ProductDetailResponse.from(product, avgStar, reviewResponses, isLiked);
     }
 
 
-
-    public List<ProductSummaryResponse> aiSearchProducts(String query, CustomMemberDetails memberDetails) {
+    @Transactional(readOnly = true)
+    public List<ProductSummaryResponse> aiSearchProducts(
+            String query,
+            Long memberId
+    ) {
         try {
             String fastApiUrl = fastApiBaseUrl + "/query";
-            
+
             Map<String, String> requestBody = Map.of("query", query);
-            
-            // FastAPI에서 상품 ID 목록 받기
+
+            @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.postForObject(
                     fastApiUrl,
                     requestBody,
                     Map.class
             );
-            
+
             if (response == null || !response.containsKey("product_ids")) {
                 return List.of();
             }
-            
-            // 안전한 타입 변환
+
             Object productIdsObj = response.get("product_ids");
             List<String> productIdStrings;
-            
+
             if (productIdsObj instanceof List<?>) {
                 productIdStrings = ((List<?>) productIdsObj).stream()
                         .map(Object::toString)
@@ -150,75 +145,40 @@ public class ProductService {
             } else {
                 return List.of();
             }
-            
 
-            
             if (productIdStrings.isEmpty()) {
                 return List.of();
             }
-            
-            // 문자열 ID를 Long으로 변환하고 상품 정보 조회
+
             List<Long> productIds = productIdStrings.stream()
                     .map(Long::parseLong)
                     .toList();
-            
+
             List<Product> products = productRepository.findAllById(productIds);
-            
-            // 상품 ID 순서대로 정렬
+
             Map<Long, Integer> idOrder = new HashMap<>();
             for (int i = 0; i < productIds.size(); i++) {
                 idOrder.put(productIds.get(i), i);
             }
-            
-            List<ProductSummaryResponse> result = products.stream()
-                    .sorted(Comparator.comparing(product -> idOrder.get(product.getId())))
+
+            return products.stream()
+                    .sorted(Comparator.comparing(p -> idOrder.getOrDefault(p.getId(), Integer.MAX_VALUE)))
                     .map(product -> {
                         List<Review> allReviews = reviewRepository.findByProductId(product.getId());
                         float avgStar = (float) allReviews.stream()
                                 .mapToDouble(Review::getReviewStar)
                                 .average()
                                 .orElse(0.0);
-                        
-                        // 사용자 인증 정보가 있는 경우 좋아요 상태 확인
-                        boolean liked = memberDetails != null && 
-                            likeRepository.existsByProductIdAndMemberId(product.getId(), memberDetails.getId());
-                        
+
+                        boolean liked = (memberId != null) &&
+                                likeRepository.existsByProductIdAndMemberId(product.getId(), memberId);
+
                         return ProductSummaryResponse.from(product, avgStar, liked);
                     })
                     .toList();
-            
-            return result;
-                    
+
         } catch (Exception e) {
             throw new ProductException(ErrorCode.PRODUCT_NOT_FOUND);
         }
-    }
-
-    private Comparator<Product> getComparator(Sort sort) {
-        Comparator<Product> comparator = Comparator.comparing(Product::getUpdatedAt); // default
-
-        for (Sort.Order order : sort) {
-            switch (order.getProperty()) {
-                case "discountPrice" -> comparator = Comparator.comparing(
-                        p -> Optional.ofNullable(p.getMinPriceOption())
-                                .map(ProductOption::getDiscountPrice)
-                                .orElse(0)
-                );
-                case "updatedAt" -> comparator = Comparator.comparing(Product::getUpdatedAt);
-                case "averageStar" -> comparator = Comparator.comparing(
-                        p -> (float) p.getReviews().stream()
-                                .mapToDouble(Review::getReviewStar)
-                                .average()
-                                .orElse(0.0)
-                );
-                default -> throw new IllegalArgumentException("Invalid sort property: " + order.getProperty());
-            }
-
-            if (order.getDirection().isDescending()) {
-                comparator = comparator.reversed();
-            }
-        }
-
-        return comparator;
     }
 }
