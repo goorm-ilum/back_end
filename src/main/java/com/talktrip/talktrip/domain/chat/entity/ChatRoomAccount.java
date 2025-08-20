@@ -2,7 +2,6 @@ package com.talktrip.talktrip.domain.chat.entity;
 
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.talktrip.talktrip.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;

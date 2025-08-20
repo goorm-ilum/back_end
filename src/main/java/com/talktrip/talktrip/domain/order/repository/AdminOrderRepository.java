@@ -1,7 +1,7 @@
 package com.talktrip.talktrip.domain.order.repository;
 
-import com.talktrip.talktrip.domain.order.entity.Order;
 import com.talktrip.talktrip.domain.order.dto.response.AdminOrderDetailResponseDTO;
+import com.talktrip.talktrip.domain.order.entity.Order;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

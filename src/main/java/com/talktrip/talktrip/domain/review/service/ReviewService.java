@@ -94,8 +94,6 @@ public class ReviewService {
         Page<Review> page = reviewRepository.findByMemberId(memberId, pageable);
 
         return page.map(r -> {
-            // @Where(deleted=false)가 걸린 엔티티 연관 때문에 소프트삭제 상품은 바로 못 불러올 수 있으니,
-            // 항상 "삭제 포함"으로 안전하게 로드
             Product product = productRepository.findByIdIncludingDeleted(r.getProduct().getId()).orElse(null);
             return ReviewResponse.from(r, product);
         });

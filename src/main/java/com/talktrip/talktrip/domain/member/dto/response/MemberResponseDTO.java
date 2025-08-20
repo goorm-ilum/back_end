@@ -1,11 +1,11 @@
 package com.talktrip.talktrip.domain.member.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.enums.Gender;
 import com.talktrip.talktrip.domain.member.enums.MemberRole;
 import com.talktrip.talktrip.domain.member.enums.MemberState;
 import lombok.Getter;
-import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.time.LocalDate;
 import java.util.HashMap;

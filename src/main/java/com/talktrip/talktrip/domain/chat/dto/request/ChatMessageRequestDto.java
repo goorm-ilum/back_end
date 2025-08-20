@@ -5,9 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CurrentTimestamp;
 
-import java.sql.Timestamp;
 import java.util.UUID;
 
 @Getter

@@ -1,11 +1,11 @@
 package com.talktrip.talktrip.domain.order.repository;
 
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.talktrip.talktrip.domain.member.entity.QMember;
 import com.talktrip.talktrip.domain.order.dto.response.OrderDetailWithPaymentDTO;
+import com.talktrip.talktrip.domain.order.entity.QCardPayment;
 import com.talktrip.talktrip.domain.order.entity.QOrder;
 import com.talktrip.talktrip.domain.order.entity.QPayment;
-import com.talktrip.talktrip.domain.order.entity.QCardPayment;
-import com.talktrip.talktrip.domain.member.entity.QMember;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 

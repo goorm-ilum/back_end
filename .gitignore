@@ -202,3 +202,4 @@ application.yaml
 application-secret.yaml
 application-local.yaml
 application-prod.yaml
+application-test.yaml

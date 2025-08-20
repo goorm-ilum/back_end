@@ -11,7 +11,6 @@ import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.MemberException;
 import com.talktrip.talktrip.global.exception.ProductException;
-import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,36 +26,29 @@ public class LikeService {
     private final MemberRepository memberRepository;
 
     @Transactional
-    public void toggleLike(Long productId, CustomMemberDetails memberDetails) {
-        if (memberDetails == null) {
-            throw new MemberException(ErrorCode.UNAUTHORIZED_MEMBER);
-        }
-
-        Long memberId = memberDetails.getId();
-
+    public void toggleLike(Long productId, Long memberId) {
         if (likeRepository.existsByProductIdAndMemberId(productId, memberId)) {
             likeRepository.deleteByProductIdAndMemberId(productId, memberId);
-        } else {
-            Product product = productRepository.findById(productId)
-                    .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
-
-            Member member = memberRepository.findById(memberId)
-                    .orElseThrow(() -> new MemberException(ErrorCode.USER_NOT_FOUND));
-
-            likeRepository.save(Like.builder()
-                    .product(product)
-                    .member(member)
-                    .build());
+            return;
         }
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(ErrorCode.USER_NOT_FOUND));
+
+        likeRepository.save(Like.builder()
+                .product(product)
+                .member(member)
+                .build());
     }
 
     @Transactional(readOnly = true)
-    public Page<ProductSummaryResponse> getLikedProducts(CustomMemberDetails memberDetails, Pageable pageable) {
-        if (memberDetails == null) {
-            throw new MemberException(ErrorCode.UNAUTHORIZED_MEMBER);
-        }
+    public Page<ProductSummaryResponse> getLikedProducts(Long memberId, Pageable pageable) {
+        memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(ErrorCode.USER_NOT_FOUND));
 
-        Long memberId = memberDetails.getId();
         Page<Like> likes = likeRepository.findByMemberId(memberId, pageable);
 
         return likes.map(like -> {

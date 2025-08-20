@@ -1,7 +1,7 @@
 package com.talktrip.talktrip.domain.order.repository;
 
-import com.talktrip.talktrip.domain.order.dto.response.AdminOrderResponseDTO;
 import com.talktrip.talktrip.domain.order.dto.response.AdminOrderDetailResponseDTO;
+import com.talktrip.talktrip.domain.order.dto.response.AdminOrderResponseDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

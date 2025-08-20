@@ -25,11 +25,11 @@ public class LikeController {
 
     private final LikeService likeService;
 
-    @Operation(summary = "상품 좋아요 클릭")
+    @Operation(summary = "상품 좋아요 토글")
     @PostMapping("/products/{productId}/like")
     public ResponseEntity<Void> toggleLike(@PathVariable Long productId,
                                            @AuthenticationPrincipal CustomMemberDetails memberDetails) {
-        likeService.toggleLike(productId, memberDetails);
+        likeService.toggleLike(productId, memberDetails.getId());
         return ResponseEntity.ok().build();
     }
 
@@ -39,10 +39,9 @@ public class LikeController {
             @AuthenticationPrincipal CustomMemberDetails memberDetails,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "9") int size,
-            @RequestParam(defaultValue = "createdAt,desc") List<String> sort) {
-
+            @RequestParam(defaultValue = "updatedAt,desc") List<String> sort) {
         Pageable pageable = PageRequest.of(page, size, buildSort(sort));
-        return ResponseEntity.ok(likeService.getLikedProducts(memberDetails, pageable));
+        Page<ProductSummaryResponse> result = likeService.getLikedProducts(memberDetails.getId(), pageable);
+        return ResponseEntity.ok(result);
     }
 }
-

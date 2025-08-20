@@ -8,14 +8,19 @@ import com.talktrip.talktrip.domain.product.dto.response.AdminProductEditRespons
 import com.talktrip.talktrip.domain.product.dto.response.AdminProductSummaryResponse;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductImage;
-import com.talktrip.talktrip.domain.product.entity.ProductOption;
-import com.talktrip.talktrip.domain.product.repository.*;
+import com.talktrip.talktrip.domain.product.repository.ProductHashTagRepository;
+import com.talktrip.talktrip.domain.product.repository.ProductImageRepository;
+import com.talktrip.talktrip.domain.product.repository.ProductOptionRepository;
+import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.global.entity.Country;
-import com.talktrip.talktrip.global.exception.*;
+import com.talktrip.talktrip.global.exception.ErrorCode;
+import com.talktrip.talktrip.global.exception.MemberException;
+import com.talktrip.talktrip.global.exception.ProductException;
 import com.talktrip.talktrip.global.repository.CountryRepository;
 import com.talktrip.talktrip.global.s3.S3Uploader;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -76,33 +81,28 @@ public class AdminProductService {
 
         productRepository.save(product);
     }
+
     @Transactional(readOnly = true)
-    public Page<AdminProductSummaryResponse> getMyProducts(Long memberId, String keyword, String status, Pageable pageable) {
-        String st = (status == null || status.isBlank()) ? "ACTIVE" : status.toUpperCase();
-        List<Product> base = productRepository.findBySellerWithStatus(memberId, st);
+    public Page<AdminProductSummaryResponse> getMyProducts(
+            Long memberId,
+            String keyword,
+            String status,
+            Pageable pageable
+    ) {
+        String st = (status == null || status.isBlank()) ? "ACTIVE" : status.trim();
+        Page<Product> page = productRepository.findSellerProducts(memberId, st, keyword, pageable);
 
-        List<Product> filtered = (keyword == null || keyword.isBlank()) ? base
-                : base.stream().filter(p -> {
-            String text = (p.getProductName() + " " + p.getDescription()).toLowerCase();
-            return Arrays.stream(keyword.trim().toLowerCase().split("\\s+"))
-                    .allMatch(text::contains);
-        }).toList();
-
-        List<Product> sorted = filtered.stream()
-                .sorted(getComparator(pageable.getSort()))
-                .toList();
-
-        int offset = (int) pageable.getOffset();
-        int toIndex = Math.min(offset + pageable.getPageSize(), sorted.size());
-        List<Product> paged = (offset > sorted.size()) ? List.of() : sorted.subList(offset, toIndex);
-
-        return new PageImpl<>(paged.stream().map(AdminProductSummaryResponse::from).toList(), pageable, filtered.size());
+        return page.map(AdminProductSummaryResponse::from);
     }
 
     @Transactional
     public AdminProductEditResponse getMyProductEditForm(Long productId, Long memberId) {
-        Product product = productRepository.findByIdAndMemberId(productId, memberId)
+        Product product = productRepository.findByIdIncludingDeleted(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        if (!product.getMember().getId().equals(memberId)) {
+            throw new ProductException(ErrorCode.ACCESS_DENIED);
+        }
         return AdminProductEditResponse.from(product);
     }
 
@@ -118,8 +118,12 @@ public class AdminProductService {
                               List<MultipartFile> detailImages,
                               List<String> detailImageOrder) {
 
-        Product product = productRepository.findByIdAndMemberId(productId, memberId)
+        Product product = productRepository.findByIdIncludingDeleted(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        if (!product.getMember().getId().equals(memberId)) {
+            throw new ProductException(ErrorCode.ACCESS_DENIED);
+        }
 
         Country country = countryRepository.findByName(request.countryName())
                 .orElseThrow(() -> new ProductException(ErrorCode.COUNTRY_NOT_FOUND));
@@ -252,31 +256,25 @@ public class AdminProductService {
 
     @Transactional
     public void deleteProduct(Long productId, Long memberId) {
-        Product product = productRepository.findByIdAndMemberId(productId, memberId)
+        Product product = productRepository.findByIdIncludingDeleted(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        if (!product.getMember().getId().equals(memberId)) {
+            throw new ProductException(ErrorCode.ACCESS_DENIED);
+        }
+
         product.markDeleted();
     }
 
     @Transactional
     public void restoreProduct(Long productId, Long memberId) {
-        Product product = productRepository.findByIdAndMemberIdIncludingDeleted(productId, memberId)
+        Product product = productRepository.findByIdIncludingDeleted(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
-        product.restore();
-    }
 
-    private Comparator<Product> getComparator(Sort sort) {
-        Comparator<Product> comparator = Comparator.comparing(Product::getUpdatedAt); // default
-        for (Sort.Order order : sort) {
-            switch (order.getProperty()) {
-                case "productName" -> comparator = Comparator.comparing(Product::getProductName, String.CASE_INSENSITIVE_ORDER);
-                case "price" -> comparator = Comparator.comparing(p -> Optional.ofNullable(p.getMinPriceOption()).map(ProductOption::getPrice).orElse(0));
-                case "discountPrice" -> comparator = Comparator.comparing(p -> Optional.ofNullable(p.getMinPriceOption()).map(ProductOption::getDiscountPrice).orElse(0));
-                case "totalStock" -> comparator = Comparator.comparing(Product::getTotalStock);
-                case "updatedAt" -> comparator = Comparator.comparing(Product::getUpdatedAt);
-                default -> throw new IllegalArgumentException("Invalid sort property: " + order.getProperty());
-            }
-            if (order.getDirection().isDescending()) comparator = comparator.reversed();
+        if (!product.getMember().getId().equals(memberId)) {
+            throw new ProductException(ErrorCode.ACCESS_DENIED);
         }
-        return comparator;
+
+        product.restore();
     }
 }

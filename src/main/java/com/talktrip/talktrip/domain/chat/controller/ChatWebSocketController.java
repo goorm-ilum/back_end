@@ -2,14 +2,13 @@ package com.talktrip.talktrip.domain.chat.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.talktrip.talktrip.domain.chat.dto.request.ChatMessageRequestDto;
-import com.talktrip.talktrip.domain.chat.message.dto.ChatUpdateMessage;
 import com.talktrip.talktrip.domain.chat.service.ChatService;
 import com.talktrip.talktrip.global.redis.RedisPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.listener.ChannelTopic;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;

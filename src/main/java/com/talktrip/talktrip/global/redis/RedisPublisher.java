@@ -2,8 +2,6 @@ package com.talktrip.talktrip.global.redis;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.talktrip.talktrip.domain.chat.dto.request.ChatMessageRequestDto;
-import com.talktrip.talktrip.domain.chat.message.dto.ChatUpdateMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.redis.core.RedisTemplate;
