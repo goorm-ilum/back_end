@@ -28,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Optional;
 
+@Tag(name = "Order", description = "주문 관련 API")
 @Controller
 @RequestMapping("/api/tosspay")
 public class WidgetController {
@@ -44,6 +45,7 @@ public class WidgetController {
         this.orderService = orderService;
     }
 
+    @Operation(summary = "결제 진행", description = "주문 정보와 결제 정보를 입력받아 결제를 진행하고, 결제 여부를 반환합니다.")
     @PostMapping(value = "/confirm")
     public ResponseEntity<JSONObject> confirmPayment(@RequestBody String jsonBody) throws Exception {
 

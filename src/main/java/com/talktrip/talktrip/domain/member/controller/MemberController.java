@@ -2,7 +2,6 @@ package com.talktrip.talktrip.domain.member.controller;
 
 import com.talktrip.talktrip.domain.member.dto.request.MemberUpdateRequestDTO;
 import com.talktrip.talktrip.domain.member.dto.response.MemberResponseDTO;
-import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.member.service.KakaoAuthService;
 import com.talktrip.talktrip.domain.member.service.MemberService;
 import com.talktrip.talktrip.global.security.CustomMemberDetails;
@@ -26,7 +25,6 @@ public class MemberController {
 
     private final KakaoAuthService kakaoAuthService;
     private final MemberService memberService;
-    private final MemberRepository memberRepository;
 
     @Operation(summary = "카카오 로그인 URL 요청", description = "카카오 로그인 인가 URL을 반환합니다.")
     @GetMapping("member/kakao-login-url")
@@ -34,6 +32,7 @@ public class MemberController {
         String kakaoUrl = kakaoAuthService.getKakaoAuthorizeUrl();
         return ResponseEntity.ok(Map.of("url", kakaoUrl));
     }
+
 
     @Operation(summary = "카카오 로그인 콜백", description = "인가 코드를 통해 로그인 처리를 수행합니다.")
     @PostMapping("member/kakao")
