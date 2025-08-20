@@ -1,14 +1,14 @@
 package com.talktrip.talktrip.domain.order.dto.response;
 
 import com.talktrip.talktrip.domain.member.entity.Member;
+import com.talktrip.talktrip.domain.order.entity.CardPayment;
 import com.talktrip.talktrip.domain.order.entity.Order;
 import com.talktrip.talktrip.domain.order.entity.OrderItem;
 import com.talktrip.talktrip.domain.order.entity.Payment;
-import com.talktrip.talktrip.domain.order.entity.CardPayment;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 

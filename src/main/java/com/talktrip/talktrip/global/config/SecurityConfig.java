@@ -1,8 +1,8 @@
 package com.talktrip.talktrip.global.config;
 
-import com.talktrip.talktrip.global.util.JWTUtil;
-import com.talktrip.talktrip.global.security.filter.JWTCheckFilter;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
+import com.talktrip.talktrip.global.security.filter.JWTCheckFilter;
+import com.talktrip.talktrip.global.util.JWTUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

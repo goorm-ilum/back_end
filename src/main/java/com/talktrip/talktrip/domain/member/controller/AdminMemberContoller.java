@@ -1,9 +1,8 @@
 package com.talktrip.talktrip.domain.member.controller;
 
-import com.talktrip.talktrip.domain.member.service.AdminMemberService;
 import com.talktrip.talktrip.domain.member.dto.request.MemberUpdateRequestDTO;
 import com.talktrip.talktrip.domain.member.dto.response.MemberResponseDTO;
-import com.talktrip.talktrip.domain.member.service.MemberService;
+import com.talktrip.talktrip.domain.member.service.AdminMemberService;
 import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

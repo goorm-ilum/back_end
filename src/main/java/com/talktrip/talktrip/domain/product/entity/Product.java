@@ -6,13 +6,18 @@ import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.global.entity.BaseEntity;
 import com.talktrip.talktrip.global.entity.Country;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.Where;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 @Entity
 @Builder

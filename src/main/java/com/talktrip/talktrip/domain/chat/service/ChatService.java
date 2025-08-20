@@ -2,7 +2,6 @@ package com.talktrip.talktrip.domain.chat.service;
 
 import com.talktrip.talktrip.domain.chat.dto.request.ChatMessageRequestDto;
 import com.talktrip.talktrip.domain.chat.dto.request.ChatRoomRequestDto;
-import com.talktrip.talktrip.domain.chat.dto.response.ChatMessageResponseDto;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDTO;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomResponseDto;
 import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
@@ -14,16 +13,13 @@ import com.talktrip.talktrip.domain.chat.repository.ChatMessageRepository;
 import com.talktrip.talktrip.domain.chat.repository.ChatRoomMemberRepository;
 import com.talktrip.talktrip.domain.chat.repository.ChatRoomRepository;
 import com.talktrip.talktrip.global.redis.RedisPublisher;
-import com.talktrip.talktrip.global.util.SecurityUtils;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.services.s3.endpoints.internal.Value;
 
 import java.security.Principal;
-
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;

@@ -1,10 +1,10 @@
 package com.talktrip.talktrip.domain.member.service;
 
+import com.talktrip.talktrip.domain.member.dto.response.MemberResponseDTO;
+import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.enums.Gender;
 import com.talktrip.talktrip.domain.member.enums.MemberRole;
 import com.talktrip.talktrip.domain.member.enums.MemberState;
-import com.talktrip.talktrip.domain.member.entity.Member;
-import com.talktrip.talktrip.domain.member.dto.response.MemberResponseDTO;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.global.util.RandomNicknameGenerator;
 import jakarta.transaction.Transactional;
@@ -19,8 +19,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.Map;
 import java.time.LocalDate;
+import java.util.Map;
 
 @Service
 @Transactional

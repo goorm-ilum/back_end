@@ -1,5 +1,7 @@
 package com.talktrip.talktrip.global.interceptor;
 
+import com.talktrip.talktrip.domain.member.entity.Member;
+import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.global.util.JWTUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
@@ -11,9 +13,6 @@ import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Component;
-
-import com.talktrip.talktrip.domain.member.entity.Member;
-import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 
 import java.security.Principal;
 import java.util.List;

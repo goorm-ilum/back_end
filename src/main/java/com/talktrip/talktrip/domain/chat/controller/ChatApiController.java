@@ -4,7 +4,6 @@ import com.talktrip.talktrip.domain.chat.dto.request.ChatRoomRequestDto;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDTO;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomResponseDto;
 import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
-import com.talktrip.talktrip.domain.chat.entity.ChatRoom;
 import com.talktrip.talktrip.domain.chat.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

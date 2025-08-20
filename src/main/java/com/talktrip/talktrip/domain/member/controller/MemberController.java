@@ -1,19 +1,19 @@
 package com.talktrip.talktrip.domain.member.controller;
 
-import com.talktrip.talktrip.domain.member.service.MemberService;
 import com.talktrip.talktrip.domain.member.dto.request.MemberUpdateRequestDTO;
-import com.talktrip.talktrip.global.security.CustomMemberDetails;
-import com.talktrip.talktrip.global.util.JWTUtil;
 import com.talktrip.talktrip.domain.member.dto.response.MemberResponseDTO;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.member.service.KakaoAuthService;
+import com.talktrip.talktrip.domain.member.service.MemberService;
+import com.talktrip.talktrip.global.security.CustomMemberDetails;
+import com.talktrip.talktrip.global.util.JWTUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
