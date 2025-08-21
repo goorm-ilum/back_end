@@ -23,15 +23,8 @@ public class RedisSubscriber implements MessageListener {
     @Override
     public void onMessage(Message message, byte[] pattern) {
         try {
-            String channel = new String(message.getChannel());
+            String channel = new String(message.getChannel(), StandardCharsets.UTF_8);
             String payload = new String(message.getBody(), StandardCharsets.UTF_8);
-            log.debug("🔥 Redis에서 받은 payload: {}", payload);
-
-            // 페이로드가 이미 JSON 문자열 형태로 이중 직렬화되어 있는 경우
-            if (payload.startsWith("\"") && payload.endsWith("\"")) {
-                // 이중 직렬화된 문자열을 먼저 일반 JSON 문자열로 변환
-                payload = objectMapper.readValue(payload, String.class);
-            }
         
             switch (channel) {
                 case "chat.message":
@@ -51,16 +44,31 @@ public class RedisSubscriber implements MessageListener {
             log.error("메시지 처리 중 에러 발생: ", e);
         }
     }
-
-    private <T> void handleMessage(String payload, Class<T> valueType, String destination, String... additionalPath) {
+    // prefix + suffix (가변 인자 버전)
+    private <T> void handleMessage(String payload, Class<T> type, String prefix, String... suffix) {
         try {
-            T message = objectMapper.readValue(payload, valueType);
-            String roomId = getRoomId(message);
-            String fullDestination = destination + roomId + String.join("", additionalPath);
-            messagingTemplate.convertAndSend(fullDestination, message);
+            // ✅ 이중 직렬화 언래핑 없이 한 번만 파싱
+            T dto = objectMapper.readValue(payload, type);
+
+            // ✅ roomId 추출 (필요시 타입 분기)
+            String roomId = null;
+            if (dto instanceof ChatRoomUpdateMessage m) {
+                roomId = m.getRoomId();
+            }
+            if (roomId == null || roomId.isBlank()) {
+                log.warn("roomId가 비어있어 메시지를 전송하지 않습니다. payload={}", payload);
+                return;
+            }
+
+            String dest = prefix + roomId + (suffix != null ? String.join("", suffix) : "");
+            messagingTemplate.convertAndSend(dest, dto); // STOMP로 그대로 전달
         } catch (Exception e) {
-            log.error("메시지 변환 중 에러 발생: ", e);
+            log.error("Redis payload 처리 실패: {}", e.getMessage(), e);
         }
+    }
+    // prefix만 있는 경우
+    private <T> void handleMessage(String payload, Class<T> type, String prefix) {
+        handleMessage(payload, type, prefix, "");
     }
 
     private String getRoomId(Object message) {
