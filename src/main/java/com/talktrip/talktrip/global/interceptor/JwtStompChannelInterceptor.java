@@ -4,6 +4,7 @@ import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.global.util.JWTUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Bean;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
@@ -32,8 +33,8 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
 
         StompCommand cmd = acc.getCommand();
         if (cmd == null) return message;
-
-        // CONNECT 또는 STOMP에서만 토큰을 강제
+        //simpDestination -> /topic/chat/room/ROOM_0f7871a736 이렇게 config에 지정된 topic 만 subscribe
+        // CONNECT 또는 STOMP에서만 토큰을 강제, ***SUBSCRIBE도 추가 해줘야함...!!!
         if (StompCommand.CONNECT.equals(cmd) || StompCommand.STOMP.equals(cmd)) {
             String auth = firstNativeHeaderIgnoreCase(acc, "Authorization");
             if (auth == null || !auth.startsWith("Bearer ")) {
