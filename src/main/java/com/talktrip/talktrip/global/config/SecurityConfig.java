@@ -6,6 +6,8 @@ import com.talktrip.talktrip.global.util.JWTUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -34,20 +36,22 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .cors()  // CORS 활성화
-                .and()
+                .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()
-                        .requestMatchers("/api/products", "/api/products/**").permitAll()
+                        .requestMatchers("/api/products").permitAll()
+                        .requestMatchers("/api/products/{productId}").permitAll()
+                        .requestMatchers("/api/products/aisearch").permitAll()
                         .requestMatchers("/api/member/kakao-login-url").permitAll()
                         .requestMatchers("/api/member/kakao").permitAll()
-                        .requestMatchers("/api/products", "/api/products/**", "/api/me/likes").permitAll()
                         .requestMatchers("/api/user/login").permitAll()
                         .requestMatchers("/api/orders/**").permitAll()
                         .requestMatchers("/api/tosspay/**").permitAll()
+                        .requestMatchers("/api/products/*/like").authenticated()
+                        .requestMatchers("/api/me/**").authenticated()
 //                        .requestMatchers("/api/chat/**").permitAll()  // 채팅 API 허용
 //                        .requestMatchers("/ws/**", "/ws").permitAll()
 //                        .requestMatchers("/ws-info/**", "/ws-info").permitAll()
@@ -57,6 +61,7 @@ public class SecurityConfig {
 
                         .anyRequest().authenticated()
                 )
+                .anonymous(AbstractHttpConfigurer::disable)
                 .addFilterBefore(
                         new JWTCheckFilter(jwtUtil, memberRepository), UsernamePasswordAuthenticationFilter.class);
 

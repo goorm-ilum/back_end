@@ -8,6 +8,7 @@ import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import com.talktrip.talktrip.global.util.SortUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -31,7 +32,7 @@ public class ReviewController {
     @PostMapping("/orders/{orderId}/review")
     public ResponseEntity<Void> createReview(
             @PathVariable Long orderId,
-            @RequestBody ReviewRequest request,
+            @Valid @RequestBody ReviewRequest request,
             @AuthenticationPrincipal CustomMemberDetails memberDetails) {
 
         reviewService.createReview(orderId, memberDetails.getId(), request);
@@ -42,7 +43,7 @@ public class ReviewController {
     @PutMapping("/reviews/{reviewId}")
     public ResponseEntity<Void> updateReview(
             @PathVariable Long reviewId,
-            @RequestBody ReviewRequest request,
+            @Valid @RequestBody ReviewRequest request,
             @AuthenticationPrincipal CustomMemberDetails memberDetails) {
 
         reviewService.updateReview(reviewId, memberDetails.getId(), request);

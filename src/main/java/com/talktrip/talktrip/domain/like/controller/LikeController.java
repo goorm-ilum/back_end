@@ -5,6 +5,7 @@ import com.talktrip.talktrip.domain.product.dto.response.ProductSummaryResponse;
 import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,8 +28,9 @@ public class LikeController {
 
     @Operation(summary = "상품 좋아요 토글")
     @PostMapping("/products/{productId}/like")
-    public ResponseEntity<Void> toggleLike(@PathVariable Long productId,
+    public ResponseEntity<Void> toggleLike(@PathVariable @NotNull(message = "상품 ID는 필수입니다") Long productId,
                                            @AuthenticationPrincipal CustomMemberDetails memberDetails) {
+
         likeService.toggleLike(productId, memberDetails.getId());
         return ResponseEntity.ok().build();
     }
@@ -40,6 +42,7 @@ public class LikeController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "9") int size,
             @RequestParam(defaultValue = "updatedAt,desc") List<String> sort) {
+
         Pageable pageable = PageRequest.of(page, size, buildSort(sort));
         Page<ProductSummaryResponse> result = likeService.getLikedProducts(memberDetails.getId(), pageable);
         return ResponseEntity.ok(result);

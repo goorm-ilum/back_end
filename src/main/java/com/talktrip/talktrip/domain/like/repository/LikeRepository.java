@@ -15,7 +15,7 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
 
     Page<Like> findByMemberId(Long memberId, Pageable pageable);
 
-    @Query("select l.product.id from Like l where l.member.id = :memberId and l.product.id in :productIds")
+    @Query("select l.product.id from Like l where l.member.Id = :memberId and l.product.id in :productIds")
     List<Long> findLikedProductIdsRaw(Long memberId, List<Long> productIds);
 
     default Set<Long> findLikedProductIds(Long memberId, List<Long> productIds) {

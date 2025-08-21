@@ -123,11 +123,10 @@ public class JWTCheckFilter extends OncePerRequestFilter {
                 uri.startsWith("/swagger-resources") ||
                 uri.startsWith("/webjars") ||
 
-                // 상품 조회 및 AI 검색, 리뷰 목록은 비로그인 허용
+                // 상품 조회 및 AI 검색은 비로그인 허용 (좋아요 제외)
                 (uri.startsWith("/api/products") && !uri.contains("/like")) ||
                 uri.startsWith("/api/ai-search") ||
                 uri.startsWith("/api/reviews")||
-                uri.startsWith("/api/products") ||
                 uri.startsWith("/api/orders")||
                 uri.startsWith("/api/chat/") ||  // 채팅 API 제외
                 uri.startsWith("/api/alarm/")  // 알림 API 제외 (개발 단계)

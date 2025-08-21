@@ -8,6 +8,7 @@ import com.talktrip.talktrip.domain.product.service.AdminProductService;
 import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -34,7 +35,7 @@ public class AdminProductController {
     @Operation(summary = "판매자 상품 등록")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Void> createProduct(
-            @RequestPart("request") AdminProductCreateRequest request,
+            @Valid @RequestPart("request") AdminProductCreateRequest request,
             @RequestPart(value = "thumbnailImage", required = false) MultipartFile thumbnailImage,
             @RequestPart(value = "detailImages", required = false) List<MultipartFile> detailImages,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
@@ -70,7 +71,7 @@ public class AdminProductController {
     @PutMapping(value = "/{productId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Void> updateProduct(
             @PathVariable Long productId,
-            @RequestPart("request") AdminProductUpdateRequest request,
+            @Valid @RequestPart("request") AdminProductUpdateRequest request,
             @RequestPart(value = "thumbnailImage", required = false) MultipartFile thumbnailImage,
             @RequestPart(value = "detailImages", required = false) List<MultipartFile> detailImages,
             @RequestPart(value = "detailImageOrder", required = false) List<String> detailImageOrder,
