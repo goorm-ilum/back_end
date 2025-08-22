@@ -84,6 +84,9 @@ dependencies {
     // kafka
     implementation 'org.springframework.kafka:spring-kafka'
     testImplementation 'org.springframework.kafka:spring-kafka-test'
+
+    // mongodb
+    implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
 }
 
 // Querydsl 설정부

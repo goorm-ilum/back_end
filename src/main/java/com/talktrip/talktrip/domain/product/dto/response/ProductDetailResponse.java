@@ -6,6 +6,7 @@ import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductImage;
 import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
+import com.talktrip.talktrip.domain.review.dto.response.ReviewPolarityStatsDto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -27,12 +28,18 @@ public record ProductDetailResponse(
         List<ProductOptionResponse> stocks,
         float averageReviewStar,
         List<ReviewResponse> reviews,
+        ReviewPolarityStatsDto reviewStats,
         boolean isLiked,
         String sellerName,
         String email,
         String phoneNum
 ) {
-    public static ProductDetailResponse from(Product product, float avgStar, List<ReviewResponse> reviews, boolean isLiked) {
+    public static ProductDetailResponse from(
+            Product product,
+            float avgStar,
+            List<ReviewResponse> reviews,
+            ReviewPolarityStatsDto reviewStats,
+            boolean isLiked) {
         List<ProductOption> futureOptions = product.getProductOptions().stream()
                 .filter(option -> !option.getStartDate().isBefore(LocalDate.now()))
                 .toList();
@@ -56,6 +63,7 @@ public record ProductDetailResponse(
                 futureOptions.stream().map(ProductOptionResponse::from).toList(),
                 avgStar,
                 reviews,
+                reviewStats,
                 isLiked,
                 product.getMember().getName(),
                 product.getMember().getAccountEmail(),

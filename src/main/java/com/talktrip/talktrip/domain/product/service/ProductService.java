@@ -7,8 +7,10 @@ import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
+import com.talktrip.talktrip.domain.review.dto.response.ReviewPolarityStatsDto;
 import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.domain.review.repository.ReviewRepository;
+import com.talktrip.talktrip.domain.review.service.ReviewService;
 import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.ProductException;
 import com.talktrip.talktrip.global.security.CustomMemberDetails;
@@ -33,6 +35,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ReviewRepository reviewRepository;
     private final LikeRepository likeRepository;
+    private final ReviewService reviewService;
 
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -117,7 +120,10 @@ public class ProductService {
             isLiked = likeRepository.existsByProductIdAndMemberId(productId, memberDetails.getId());
         }
 
-        return ProductDetailResponse.from(product, avgStar, reviewResponses, isLiked);
+        ReviewPolarityStatsDto stats =
+                reviewService.calcPolarityStats(productId.intValue());
+
+        return ProductDetailResponse.from(product, avgStar, reviewResponses, stats, isLiked);
     }
 
 

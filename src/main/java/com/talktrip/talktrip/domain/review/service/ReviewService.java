@@ -11,9 +11,11 @@ import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.review.dto.request.ReviewRequest;
 import com.talktrip.talktrip.domain.review.dto.response.MyReviewFormResponse;
 import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
+import com.talktrip.talktrip.domain.review.dto.response.ReviewPolarityStatsDto;
 import com.talktrip.talktrip.domain.review.dto.event.ReviewEventDTO;
 import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.domain.review.repository.ReviewRepository;
+import com.talktrip.talktrip.domain.review.repository.ReviewKeywordRepository;
 import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.ReviewException;
 import com.talktrip.talktrip.global.kafka.ReviewProducer;
@@ -42,6 +44,7 @@ public class ReviewService {
     private final MemberRepository memberRepository;
     private final OrderRepository orderRepository;
     private final ReviewProducer reviewProducer;
+    private final ReviewKeywordRepository reviewKeywordRepository;
 
     private final ObjectMapper objectMapper;
 
@@ -202,5 +205,21 @@ public class ReviewService {
             }
         }
         return comparator;
+    }
+
+    public ReviewPolarityStatsDto calcPolarityStats(int productId) {
+        long pos = reviewKeywordRepository.countByProductIdAndPolarity(productId, 1);
+        long neu = reviewKeywordRepository.countByProductIdAndPolarity(productId, 0);
+        long neg = reviewKeywordRepository.countByProductIdAndPolarity(productId, -1);
+
+        long total = pos + neu + neg;
+        double posRate = total > 0 ? pos * 100.0 / total : 0;
+        double neuRate = total > 0 ? neu * 100.0 / total : 0;
+        double negRate = total > 0 ? neg * 100.0 / total : 0;
+
+        return new ReviewPolarityStatsDto(
+                total, pos, neg, neu,
+                posRate, negRate, neuRate
+        );
     }
 }
