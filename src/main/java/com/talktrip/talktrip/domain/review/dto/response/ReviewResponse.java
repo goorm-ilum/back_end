@@ -3,6 +3,8 @@ package com.talktrip.talktrip.domain.review.dto.response;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.review.entity.Review;
 
+import java.util.List;
+
 public record ReviewResponse(
         Long reviewId,
         String nickName,
@@ -25,5 +27,11 @@ public record ReviewResponse(
                 review.getReviewStar(),
                 review.getUpdatedAt() != null ? review.getUpdatedAt().toString() : null
         );
+    }
+
+    public static List<ReviewResponse> to(List<Review> reviews, Product product) {
+        return reviews.stream()
+                .map(review -> ReviewResponse.from(review, product))
+                .toList();
     }
 }

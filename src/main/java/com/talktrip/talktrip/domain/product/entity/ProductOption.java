@@ -13,6 +13,11 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Table(indexes = {
+    @Index(name = "idx_product_option_stock", columnList = "product_id, startDate, stock"),
+    @Index(name = "idx_product_option_price", columnList = "discountPrice ASC"),
+    @Index(name = "idx_product_option_date", columnList = "startDate ASC")
+})
 public class ProductOption {
 
     @Id

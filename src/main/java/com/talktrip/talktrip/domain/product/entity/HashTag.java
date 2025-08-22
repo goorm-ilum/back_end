@@ -7,10 +7,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Builder
 @Getter
+@Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@Table(indexes = {
+    @Index(name = "idx_hashtag_product", columnList = "product_id"),
+    @Index(name = "idx_hashtag_tag", columnList = "hashtag")
+})
 public class HashTag {
 
     @Id
@@ -23,4 +27,6 @@ public class HashTag {
 
     @Column(nullable = false)
     private String hashtag;
+
+
 }

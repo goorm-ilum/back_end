@@ -6,11 +6,13 @@ import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductImage;
 import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
+import lombok.Builder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Builder
 public record ProductDetailResponse(
         Long productId,
         String productName,
@@ -32,33 +34,49 @@ public record ProductDetailResponse(
         String phoneNum
 ) {
     public static ProductDetailResponse from(Product product, float avgStar, List<ReviewResponse> reviews, boolean isLiked) {
-        List<ProductOption> futureOptions = product.getProductOptions().stream()
-                .filter(option -> !option.getStartDate().isBefore(LocalDate.now()))
-                .toList();
-
+        List<ProductOption> futureOptions = getFutureOptions(product);
         ProductOption minPriceStock = product.getMinPriceOption();
 
-        int price = minPriceStock != null ? minPriceStock.getPrice() : 0;
-        int discountPrice = minPriceStock != null ? minPriceStock.getDiscountPrice() : 0;
+        return ProductDetailResponse.builder()
+                .productId(product.getId())
+                .productName(product.getProductName())
+                .shortDescription(product.getDescription())
+                .price(getPrice(minPriceStock))
+                .discountPrice(getDiscountPrice(minPriceStock))
+                .regDate(product.getUpdatedAt())
+                .thumbnailImageUrl(product.getThumbnailImageUrl())
+                .countryName(product.getCountry().getName())
+                .hashtags(getHashtagNames(product))
+                .images(getImageUrls(product))
+                .stocks(futureOptions.stream().map(ProductOptionResponse::from).toList())
+                .averageReviewStar(avgStar)
+                .reviews(reviews)
+                .isLiked(isLiked)
+                .sellerName(product.getMember().getName())
+                .email(product.getMember().getAccountEmail())
+                .phoneNum(product.getMember().getPhoneNum())
+                .build();
+    }
+    
+    private static List<ProductOption> getFutureOptions(Product product) {
+        return product.getProductOptions().stream()
+                .filter(option -> !option.getStartDate().isBefore(LocalDate.now()))
+                .toList();
+    }
 
-        return new ProductDetailResponse(
-                product.getId(),
-                product.getProductName(),
-                product.getDescription(),
-                price,
-                discountPrice,
-                product.getUpdatedAt(),
-                product.getThumbnailImageUrl(),
-                product.getCountry().getName(),
-                product.getHashtags().stream().map(HashTag::getHashtag).toList(),
-                product.getImages().stream().map(ProductImage::getImageUrl).toList(),
-                futureOptions.stream().map(ProductOptionResponse::from).toList(),
-                avgStar,
-                reviews,
-                isLiked,
-                product.getMember().getName(),
-                product.getMember().getAccountEmail(),
-                product.getMember().getPhoneNum()
-        );
+    private static int getPrice(ProductOption minPriceStock) {
+        return minPriceStock != null ? minPriceStock.getPrice() : 0;
+    }
+
+    private static int getDiscountPrice(ProductOption minPriceStock) {
+        return minPriceStock != null ? minPriceStock.getDiscountPrice() : 0;
+    }
+
+    private static List<String> getHashtagNames(Product product) {
+        return product.getHashtags().stream().map(HashTag::getHashtag).toList();
+    }
+
+    private static List<String> getImageUrls(Product product) {
+        return product.getImages().stream().map(ProductImage::getImageUrl).toList();
     }
 }

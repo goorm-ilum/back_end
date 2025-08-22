@@ -1,7 +1,5 @@
 package com.talktrip.talktrip.domain.like.entity;
 
-import com.talktrip.talktrip.domain.member.entity.Member;
-import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -14,18 +12,27 @@ import lombok.NoArgsConstructor;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "likes")
+@Table(name = "likes", 
+    uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"product_id", "member_id"})
+    },
+    indexes = {
+        @Index(name = "idx_like_member", columnList = "member_id"),
+        @Index(name = "idx_like_product", columnList = "product_id"),
+        @Index(name = "idx_like_member_product", columnList = "member_id, product_id")
+    }
+)
 public class Like extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "product_id")
-    private Product product;
+    @Column(name = "product_id", nullable = false)
+    private Long productId;
 
-    @ManyToOne
-    @JoinColumn(name = "member_id")
-    private Member member;
+    @Column(name = "member_id", nullable = false)
+    private Long memberId;
+
+
 }

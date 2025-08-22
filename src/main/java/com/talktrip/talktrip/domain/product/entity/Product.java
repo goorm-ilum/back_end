@@ -1,6 +1,5 @@
 package com.talktrip.talktrip.domain.product.entity;
 
-import com.talktrip.talktrip.domain.like.entity.Like;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.global.entity.BaseEntity;
@@ -18,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 @Entity
 @Builder
@@ -25,7 +25,13 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @SQLDelete(sql = "UPDATE product SET deleted = true, deleted_at = NOW() WHERE id = ?")
-@Where(clause = "deleted = false") // 기본 조회에서 삭제 제외
+@Where(clause = "deleted = false")
+@Table(indexes = {
+    @Index(name = "idx_product_search", columnList = "deleted, country_id, updatedAt"),
+    @Index(name = "idx_product_name_search", columnList = "productName"),
+    @Index(name = "idx_product_updated_at", columnList = "updatedAt DESC"),
+    @Index(name = "idx_product_seller", columnList = "seller_id, deleted")
+})
 public class Product extends BaseEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -56,10 +62,6 @@ public class Product extends BaseEntity {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC")
     private List<ProductImage> images = new ArrayList<>();
-
-    @Builder.Default
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Like> likes = new ArrayList<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -96,14 +98,28 @@ public class Product extends BaseEntity {
         this.country = country;
     }
 
-    public ProductOption getMinPriceOption() {
+    private static final int DAYS_TO_ADD = 1;
+
+    private Stream<ProductOption> getFutureOptions() {
+        LocalDate tomorrow = LocalDate.now().plusDays(DAYS_TO_ADD);
         return productOptions.stream()
-                .filter(option -> !option.getStartDate().isBefore(LocalDate.now()))
+                .filter(option -> !option.getStartDate().isBefore(tomorrow));
+    }
+
+    public ProductOption getMinPriceOption() {
+        return getFutureOptions()
                 .min(Comparator.comparingInt(ProductOption::getDiscountPrice))
                 .orElse(null);
     }
 
-    public int getTotalStock() {
-        return productOptions.stream().mapToInt(ProductOption::getStock).sum();
+    public String getCountryName() {
+        return country != null ? country.getName() : "";
+    }
+
+    public float getAverageReviewStar() {
+        return (float) reviews.stream()
+                .mapToDouble(Review::getReviewStar)
+                .average()
+                .orElse(0.0);
     }
 }

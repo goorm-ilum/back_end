@@ -1,16 +1,12 @@
 package com.talktrip.talktrip.domain.product.dto.request;
 
-import jakarta.validation.constraints.FutureOrPresent;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 
 import java.time.LocalDate;
 
 public record ProductOptionRequest(
         @NotNull(message = "시작일은 필수입니다")
-        @FutureOrPresent(message = "시작일은 오늘 또는 미래 날짜여야 합니다")
+        @Future(message = "시작일은 미래 날짜여야 합니다")
         LocalDate startDate,
         
         @NotBlank(message = "옵션명은 필수입니다")

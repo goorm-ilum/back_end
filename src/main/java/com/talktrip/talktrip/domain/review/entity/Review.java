@@ -15,6 +15,16 @@ import lombok.NoArgsConstructor;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
+@Table(indexes = {
+    // 상품별 리뷰 조회 최적화
+    @Index(name = "idx_review_product", columnList = "product_id"),
+    // 회원별 리뷰 조회 최적화
+    @Index(name = "idx_review_member", columnList = "member_id"),
+    // 별점 정렬 최적화
+    @Index(name = "idx_review_star", columnList = "reviewStar DESC"),
+    // 복합 인덱스: 상품별 평균 별점 계산 최적화
+    @Index(name = "idx_review_product_star", columnList = "product_id, reviewStar")
+})
 public class Review extends BaseEntity {
 
     @Id

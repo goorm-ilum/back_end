@@ -7,7 +7,6 @@ import com.talktrip.talktrip.global.security.CustomMemberDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -19,13 +18,11 @@ import java.util.List;
 
 import static com.talktrip.talktrip.global.util.SortUtil.buildSort;
 
-@Slf4j
 @Tag(name = "Product", description = "상품 관련 API")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/products")
 public class ProductController {
-
     private final ProductService productService;
 
     @Operation(summary = "상품 목록 검색")
@@ -39,7 +36,7 @@ public class ProductController {
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
         Pageable pageable = PageRequest.of(page, size, buildSort(sort));
-        Long memberId = (memberDetails != null) ? memberDetails.getId() : null;
+        Long memberId = extractMemberId(memberDetails);
         return ResponseEntity.ok(productService.searchProducts(keyword, countryName, memberId, pageable));
     }
 
@@ -53,7 +50,7 @@ public class ProductController {
             @RequestParam(defaultValue = "updatedAt,desc") List<String> sort
     ) {
         Pageable pageable = PageRequest.of(page, size, buildSort(sort));
-        Long memberId = (memberDetails != null) ? memberDetails.getId() : null;
+        Long memberId = extractMemberId(memberDetails);
         return ResponseEntity.ok(productService.getProductDetail(productId, memberId, pageable));
     }
 
@@ -63,8 +60,12 @@ public class ProductController {
             @RequestParam String question,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
-        Long memberId = (memberDetails != null) ? memberDetails.getId() : null;
+        Long memberId = extractMemberId(memberDetails);
         return ResponseEntity.ok(productService.aiSearchProducts(question, memberId));
+    }
+
+    private Long extractMemberId(CustomMemberDetails memberDetails) {
+        return (memberDetails != null) ? memberDetails.getId() : null;
     }
 
 }

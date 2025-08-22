@@ -45,7 +45,6 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
             "productName", "price", "discountPrice", "totalStock", "updatedAt"
     );
 
-    // 부분문자열 등장 횟수 >= req (lower/replace)
     private static BooleanExpression occGoe(Path<String> col, String kwLower, int req) {
         return Expressions.numberTemplate(Integer.class,
                 "((length(lower({0})) - length(function('replace', lower({0}), {1}, ''))) / length({1}))",

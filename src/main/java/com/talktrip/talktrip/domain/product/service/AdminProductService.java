@@ -33,6 +33,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AdminProductService {
 
+    private static final String DEFAULT_STATUS = "ACTIVE";
+    private static final String THUMBNAIL_PATH = "products/thumbnail";
+    private static final String DETAIL_PATH = "products/detail";
+    private static final String ID_PREFIX = "id:";
+    private static final String NEW_PREFIX = "new:";
+
     private final ProductRepository productRepository;
     private final CountryRepository countryRepository;
     private final MemberRepository memberRepository;
@@ -44,42 +50,54 @@ public class AdminProductService {
     @Transactional
     public void createProduct(AdminProductCreateRequest request, Long memberId,
                               MultipartFile thumbnailImage, List<MultipartFile> detailImages) {
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new MemberException(ErrorCode.ADMIN_NOT_FOUND));
-
-        Country country = countryRepository.findByName(request.countryName())
-                .orElseThrow(() -> new ProductException(ErrorCode.COUNTRY_NOT_FOUND));
-
+        Member member = findMember(memberId);
+        Country country = findCountry(request.countryName());
         Product product = request.to(member, country);
 
-        // 썸네일
+        processThumbnailImage(product, thumbnailImage);
+        processDetailImages(product, detailImages);
+        addProductData(product, request);
+
+        productRepository.save(product);
+    }
+
+    private Member findMember(Long memberId) {
+        return memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(ErrorCode.ADMIN_NOT_FOUND));
+    }
+
+    private Country findCountry(String countryName) {
+        return countryRepository.findByName(countryName)
+                .orElseThrow(() -> new ProductException(ErrorCode.COUNTRY_NOT_FOUND));
+    }
+
+    private void processThumbnailImage(Product product, MultipartFile thumbnailImage) {
         if (thumbnailImage != null && !thumbnailImage.isEmpty()) {
-            String thumbnailUrl = s3Uploader.upload(thumbnailImage, "products/thumbnail");
+            String thumbnailUrl = s3Uploader.upload(thumbnailImage, THUMBNAIL_PATH);
             String thumbnailHash = s3Uploader.calculateHash(thumbnailImage);
             product.updateThumbnailImage(thumbnailUrl, thumbnailHash);
         }
+    }
 
-        product.updateBasicInfo(request.productName(), request.description(), country);
-
-        // 상세 이미지: 들어온 순서대로 sortOrder 부여
+    private void processDetailImages(Product product, List<MultipartFile> detailImages) {
         if (detailImages != null && !detailImages.isEmpty()) {
-            int order = 0;
-            for (MultipartFile file : detailImages) {
-                String url = s3Uploader.upload(file, "products/detail");
+            for (int i = 0; i < detailImages.size(); i++) {
+                MultipartFile file = detailImages.get(i);
+                String url = s3Uploader.upload(file, DETAIL_PATH);
                 product.getImages().add(
                         ProductImage.builder()
                                 .product(product)
                                 .imageUrl(url)
-                                .sortOrder(order++)
+                                .sortOrder(i)
                                 .build()
                 );
             }
         }
+    }
 
+    private void addProductData(Product product, AdminProductCreateRequest request) {
         product.getHashtags().addAll(request.toHashTags(product));
         product.getProductOptions().addAll(request.toProductOptions(product));
-
-        productRepository.save(product);
     }
 
     @Transactional(readOnly = true)
@@ -89,27 +107,34 @@ public class AdminProductService {
             String status,
             Pageable pageable
     ) {
-        String st = (status == null || status.isBlank()) ? "ACTIVE" : status.trim();
-        Page<Product> page = productRepository.findSellerProducts(memberId, st, keyword, pageable);
+        String normalizedStatus = normalizeStatus(status);
+        Page<Product> page = productRepository.findSellerProducts(memberId, normalizedStatus, keyword, pageable);
 
         return page.map(AdminProductSummaryResponse::from);
     }
 
+    private String normalizeStatus(String status) {
+        return (status == null || status.isBlank()) ? DEFAULT_STATUS : status.trim();
+    }
+
     @Transactional
     public AdminProductEditResponse getMyProductEditForm(Long productId, Long memberId) {
+        Product product = findProductForEdit(productId, memberId);
+        return AdminProductEditResponse.from(product);
+    }
+
+    private Product findProductForEdit(Long productId, Long memberId) {
         Product product = productRepository.findByIdIncludingDeleted(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
 
         if (!product.getMember().getId().equals(memberId)) {
             throw new ProductException(ErrorCode.ACCESS_DENIED);
         }
-        return AdminProductEditResponse.from(product);
+        
+        return product;
     }
 
 
-    // detailImageOrder 예: ["id:12","new:0","id:15","new:1"]
-    // id:X  : 기존 이미지 X를 유지하며 새 sortOrder로 재생성(파일은 유지, 엔티티만 새로)
-    // new:N : 신규 파일 리스트(detailImages)의 N번 파일 업로드하여 해당 위치에 배치
     @Transactional
     public void updateProduct(Long productId,
                               AdminProductUpdateRequest request,
@@ -118,6 +143,17 @@ public class AdminProductService {
                               List<MultipartFile> detailImages,
                               List<String> detailImageOrder) {
 
+        Product product = findProductForUpdate(productId, memberId);
+        Country country = findCountry(request.countryName());
+
+        updateThumbnailImage(product, thumbnailImage, request.existingThumbnailHash());
+        updateDetailImages(product, detailImages, detailImageOrder, request.existingDetailImageIds());
+
+        product.updateBasicInfo(request.productName(), request.description(), country);
+        updateProductData(product, request);
+    }
+
+    private Product findProductForUpdate(Long productId, Long memberId) {
         Product product = productRepository.findByIdIncludingDeleted(productId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
 
@@ -125,126 +161,163 @@ public class AdminProductService {
             throw new ProductException(ErrorCode.ACCESS_DENIED);
         }
 
-        Country country = countryRepository.findByName(request.countryName())
-                .orElseThrow(() -> new ProductException(ErrorCode.COUNTRY_NOT_FOUND));
+        return product;
+    }
 
-        // 썸네일
-        boolean thumbnailDeleted = (thumbnailImage == null && request.existingThumbnailHash() == null);
+    private void updateThumbnailImage(Product product, MultipartFile thumbnailImage, String existingThumbnailHash) {
+        boolean thumbnailDeleted = (thumbnailImage == null && existingThumbnailHash == null);
+        
         if (thumbnailDeleted) {
+            deleteThumbnailImage(product);
+        } else if (thumbnailImage != null && !thumbnailImage.isEmpty()) {
+            updateThumbnailImageWithNewFile(product, thumbnailImage);
+        }
+    }
+
+    private void deleteThumbnailImage(Product product) {
+        if (product.getThumbnailImageUrl() != null) {
+            s3Uploader.deleteFile(product.getThumbnailImageUrl());
+        }
+        product.updateThumbnailImage(null, null);
+    }
+
+    private void updateThumbnailImageWithNewFile(Product product, MultipartFile thumbnailImage) {
+        String newHash = s3Uploader.calculateHash(thumbnailImage);
+        if (!newHash.equals(product.getThumbnailImageHash())) {
             if (product.getThumbnailImageUrl() != null) {
                 s3Uploader.deleteFile(product.getThumbnailImageUrl());
             }
-            product.updateThumbnailImage(null, null);
-        } else if (thumbnailImage != null && !thumbnailImage.isEmpty()) {
-            String newHash = s3Uploader.calculateHash(thumbnailImage);
-            if (!newHash.equals(product.getThumbnailImageHash())) {
-                if (product.getThumbnailImageUrl() != null) s3Uploader.deleteFile(product.getThumbnailImageUrl());
-                String uploadedUrl = s3Uploader.upload(thumbnailImage, "products/thumbnail");
-                product.updateThumbnailImage(uploadedUrl, newHash);
-            }
+            String uploadedUrl = s3Uploader.upload(thumbnailImage, THUMBNAIL_PATH);
+            product.updateThumbnailImage(uploadedUrl, newHash);
         }
+    }
 
-        // 현재 이미지 맵
+    private void updateDetailImages(Product product, List<MultipartFile> detailImages, 
+                                   List<String> detailImageOrder, List<Long> existingDetailImageIds) {
         List<ProductImage> current = productImageRepository.findAllByProduct(product);
         Map<Long, ProductImage> byId = current.stream()
                 .collect(Collectors.toMap(ProductImage::getId, Function.identity()));
 
-        // 신규 파일 리스트
         List<MultipartFile> newFiles = (detailImages != null) ? detailImages : List.of();
 
-        // detailImageOrder 없으면: 기존 로직(fallback) - 기존 유지 ID 순서 + 신규 뒤에
         if (detailImageOrder == null || detailImageOrder.isEmpty()) {
-            // 기존 요청 DTO의 existingDetailImageIds를 사용(없으면 빈 리스트)
-            List<Long> keepOrder = Optional.ofNullable(request.existingDetailImageIds()).orElse(List.of());
-            Set<Long> keepSet = new HashSet<>(keepOrder);
-
-            // 제거 대상: keep 밖의 기존 → S3 삭제 + DB 삭제
-            for (ProductImage img : current) {
-                if (!keepSet.contains(img.getId())) {
-                    s3Uploader.deleteFile(img.getImageUrl());
-                    productImageRepository.delete(img);
-                }
-            }
-            product.getImages().clear();
-
-            // 최종 순서대로 재생성
-            int ord = 0;
-            // 1) 기존 유지분(요청 순서)
-            for (Long id : keepOrder) {
-                ProductImage exist = byId.get(id);
-                if (exist != null) {
-                    product.getImages().add(ProductImage.builder()
-                            .product(product)
-                            .imageUrl(exist.getImageUrl())
-                            .sortOrder(ord++)
-                            .build());
-                }
-            }
-            // 2) 신규 이미지(업로드 순서)
-            for (MultipartFile file : newFiles) {
-                String url = s3Uploader.upload(file, "products/detail");
-                product.getImages().add(ProductImage.builder()
-                        .product(product)
-                        .imageUrl(url)
-                        .sortOrder(ord++)
-                        .build());
-            }
-
+            updateDetailImagesFallback(product, current, byId, newFiles, existingDetailImageIds);
         } else {
-            // 메인 시나리오: 최종 순서 토큰 처리
-            // 1) 이번 요청에서 참조되지 않은 기존 이미지는 제거(S3+DB)
-            Set<Long> referencedIds = detailImageOrder.stream()
-                    .filter(tok -> tok.startsWith("id:"))
-                    .map(tok -> Long.parseLong(tok.substring(3)))
-                    .collect(Collectors.toSet());
+            updateDetailImagesWithOrder(product, current, byId, newFiles, detailImageOrder);
+        }
+    }
 
-            for (ProductImage img : current) {
-                if (!referencedIds.contains(img.getId())) {
-                    s3Uploader.deleteFile(img.getImageUrl());
-                    productImageRepository.delete(img);
-                }
-            }
-            product.getImages().clear(); // 나머지는 재생성할 것이므로 비움
+    private void updateDetailImagesFallback(Product product, List<ProductImage> current, 
+                                           Map<Long, ProductImage> byId, List<MultipartFile> newFiles, 
+                                           List<Long> existingDetailImageIds) {
+        List<Long> keepOrder = Optional.ofNullable(existingDetailImageIds).orElse(List.of());
+        Set<Long> keepSet = new HashSet<>(keepOrder);
 
-            // 2) 토큰 순서대로 최종 리스트 재생성
-            boolean[] newUsed = new boolean[newFiles.size()];
-            int ord = 0;
+        deleteUnusedImages(current, keepSet);
+        product.getImages().clear();
 
-            for (String token : detailImageOrder) {
-                if (token.startsWith("id:")) {
-                    Long id = Long.parseLong(token.substring(3));
-                    ProductImage exist = byId.get(id);
-                    if (exist != null) {
-                        product.getImages().add(ProductImage.builder()
-                                .product(product)
-                                .imageUrl(exist.getImageUrl()) // 파일은 유지
-                                .sortOrder(ord++)
-                                .build());
-                    }
-                } else if (token.startsWith("new:")) {
-                    int idx = Integer.parseInt(token.substring(4));
-                    if (idx < 0 || idx >= newFiles.size() || newUsed[idx]) {
-                        throw new ProductException(ErrorCode.IMAGE_UPLOAD_FAILED);
-                    }
-                    newUsed[idx] = true;
-                    MultipartFile file = newFiles.get(idx);
-                    if (file == null || file.isEmpty()) {
-                        throw new ProductException(ErrorCode.IMAGE_UPLOAD_FAILED);
-                    }
-                    String url = s3Uploader.upload(file, "products/detail");
-                    product.getImages().add(ProductImage.builder()
-                            .product(product)
-                            .imageUrl(url)
-                            .sortOrder(ord++)
-                            .build());
-                } else {
-                    throw new ProductException(ErrorCode.IMAGE_UPLOAD_FAILED);
-                }
+        int order = 0;
+        addExistingImagesInOrder(product, byId, keepOrder, order);
+        addNewImages(product, newFiles, order);
+    }
+
+    private void updateDetailImagesWithOrder(Product product, List<ProductImage> current, 
+                                            Map<Long, ProductImage> byId, List<MultipartFile> newFiles, 
+                                            List<String> detailImageOrder) {
+        Set<Long> referencedIds = extractReferencedIds(detailImageOrder);
+        deleteUnusedImages(current, referencedIds);
+        product.getImages().clear();
+
+        boolean[] newUsed = new boolean[newFiles.size()];
+        int order = 0;
+
+        for (String token : detailImageOrder) {
+            if (token.startsWith(ID_PREFIX)) {
+                addExistingImageFromToken(product, byId, token, order++);
+            } else if (token.startsWith(NEW_PREFIX)) {
+                addNewImageFromToken(product, newFiles, token, newUsed, order++);
+            } else {
+                throw new ProductException(ErrorCode.IMAGE_UPLOAD_FAILED);
             }
         }
+    }
 
-        product.updateBasicInfo(request.productName(), request.description(), country);
+    private Set<Long> extractReferencedIds(List<String> detailImageOrder) {
+        return detailImageOrder.stream()
+                .filter(token -> token.startsWith(ID_PREFIX))
+                .map(token -> Long.parseLong(token.substring(ID_PREFIX.length())))
+                .collect(Collectors.toSet());
+    }
 
+    private void deleteUnusedImages(List<ProductImage> current, Set<Long> keepIds) {
+        for (ProductImage img : current) {
+            if (!keepIds.contains(img.getId())) {
+                s3Uploader.deleteFile(img.getImageUrl());
+                productImageRepository.delete(img);
+            }
+        }
+    }
+
+    private void addExistingImagesInOrder(Product product, Map<Long, ProductImage> byId, 
+                                         List<Long> keepOrder, int startOrder) {
+        int order = startOrder;
+        for (Long id : keepOrder) {
+            ProductImage exist = byId.get(id);
+            if (exist != null) {
+                product.getImages().add(ProductImage.builder()
+                        .product(product)
+                        .imageUrl(exist.getImageUrl())
+                        .sortOrder(order++)
+                        .build());
+            }
+        }
+    }
+
+    private void addNewImages(Product product, List<MultipartFile> newFiles, int startOrder) {
+        int order = startOrder;
+        for (MultipartFile file : newFiles) {
+            String url = s3Uploader.upload(file, DETAIL_PATH);
+            product.getImages().add(ProductImage.builder()
+                    .product(product)
+                    .imageUrl(url)
+                    .sortOrder(order++)
+                    .build());
+        }
+    }
+
+    private void addExistingImageFromToken(Product product, Map<Long, ProductImage> byId, 
+                                          String token, int order) {
+        Long id = Long.parseLong(token.substring(ID_PREFIX.length()));
+        ProductImage exist = byId.get(id);
+        if (exist != null) {
+            product.getImages().add(ProductImage.builder()
+                    .product(product)
+                    .imageUrl(exist.getImageUrl())
+                    .sortOrder(order)
+                    .build());
+        }
+    }
+
+    private void addNewImageFromToken(Product product, List<MultipartFile> newFiles, 
+                                     String token, boolean[] newUsed, int order) {
+        int idx = Integer.parseInt(token.substring(NEW_PREFIX.length()));
+        if (idx < 0 || idx >= newFiles.size() || newUsed[idx]) {
+            throw new ProductException(ErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+        newUsed[idx] = true;
+        MultipartFile file = newFiles.get(idx);
+        if (file == null || file.isEmpty()) {
+            throw new ProductException(ErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+        String url = s3Uploader.upload(file, DETAIL_PATH);
+        product.getImages().add(ProductImage.builder()
+                .product(product)
+                .imageUrl(url)
+                .sortOrder(order)
+                .build());
+    }
+
+    private void updateProductData(Product product, AdminProductUpdateRequest request) {
         productHashTagRepository.deleteAllByProduct(product);
         product.getHashtags().clear();
         product.getHashtags().addAll(request.toHashTags(product));
@@ -256,25 +329,13 @@ public class AdminProductService {
 
     @Transactional
     public void deleteProduct(Long productId, Long memberId) {
-        Product product = productRepository.findByIdIncludingDeleted(productId)
-                .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
-
-        if (!product.getMember().getId().equals(memberId)) {
-            throw new ProductException(ErrorCode.ACCESS_DENIED);
-        }
-
+        Product product = findProductForUpdate(productId, memberId);
         product.markDeleted();
     }
 
     @Transactional
     public void restoreProduct(Long productId, Long memberId) {
-        Product product = productRepository.findByIdIncludingDeleted(productId)
-                .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
-
-        if (!product.getMember().getId().equals(memberId)) {
-            throw new ProductException(ErrorCode.ACCESS_DENIED);
-        }
-
+        Product product = findProductForUpdate(productId, memberId);
         product.restore();
     }
 }
