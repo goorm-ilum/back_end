@@ -2,6 +2,7 @@ package com.talktrip.talktrip.domain.chat.service;
 
 import com.talktrip.talktrip.domain.chat.dto.request.ChatMessageRequestDto;
 import com.talktrip.talktrip.domain.chat.dto.request.ChatRoomRequestDto;
+import com.talktrip.talktrip.domain.chat.dto.response.ChatMessageResponseDto;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDTO;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomResponseDto;
 import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
@@ -17,6 +18,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -31,8 +33,7 @@ public class ChatService {
 
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
-    private final RedisPublisher redisPublisher;
-
+    private final SimpMessagingTemplate messagingTemplate;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final ChannelTopic topic;//Spring Data Redis에서 Pub/Sub 구조에서 사용하는 "채널 이름"
     private final ChannelTopic roomUpdateTopic;
@@ -45,15 +46,15 @@ public class ChatService {
         String accountEmail = principal.getName();
         ChatMessage entity = chatMessageRepository.save(dto.toEntity());
         String receiverAccountEmail = chatMessageRepository.getOtherMemberIdByRoomIdandUserId(accountEmail, dto.getRoomId());
-        int unreadCount = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(dto.getRoomId(), accountEmail);//수정하기....
+        int unreadCount = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(dto.getRoomId(), accountEmail,LocalDateTime.of(1970, 1, 1, 0, 0));//수정하기....
 
 
         // 3) 사용자별 안읽음 수 계산
         int unreadCountForReceiver = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(
-                dto.getRoomId(), receiverAccountEmail
+                dto.getRoomId(), receiverAccountEmail,LocalDateTime.of(1970, 1, 1, 0, 0)
         );
         int unreadCountForSender = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(
-                dto.getRoomId(), accountEmail
+                dto.getRoomId(), accountEmail,LocalDateTime.of(1970, 1, 1, 0, 0)
         );
 
 
@@ -68,13 +69,14 @@ public class ChatService {
                 .updatedAt(Timestamp.valueOf(LocalDateTime.now()))
                 .build();
 
-        redisPublisher.publish(topic, updateMessage);
-
+        //redisPublisher.publish(topic, updateMessage);
+        //String destination = "/topic/chat/room/" +dto.getRoomId();
+        messagingTemplate.convertAndSend("/topic/chat/room/", updateMessage);
 
         // 5) 실시간 전송: 단건 메시지 이벤트(채팅창 append 용)
-        //var messagePayload = ChatMessageResponseDto.from(entity);
-        redisPublisher.publish(roomUpdateTopic, updateMessage); //"/topic/chat/room/{roomId}/update"로 전달됨
-
+        var messagePayload = ChatMessageResponseDto.from(entity);
+        //redisPublisher.publish(roomUpdateTopic, updateMessage); //"/topic/chat/room/{roomId}/update"로 전달됨
+        messagingTemplate.convertAndSend("/topic/chat/room/" +dto.getRoomId()+ "/update", updateMessage);
 
     chatRoomMemberRepository.resetIsDelByRoomId(dto.getRoomId());
 
