@@ -1,5 +1,6 @@
 package com.talktrip.talktrip.domain.chat.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -10,7 +11,9 @@ import java.time.LocalDateTime;
 public class ChatRoomDTO {
     private String roomId;
     private String roomAccountId;
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime updatedAt;
     private String title;
     private String lastMessage;
