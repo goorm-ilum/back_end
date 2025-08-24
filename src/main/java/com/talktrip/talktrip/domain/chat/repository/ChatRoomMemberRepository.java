@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -47,7 +48,30 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomAccount,
     void resetIsDelByRoomId(@Param("roomId") String roomId);
 
 
+    @Query("""
+        select m.lastMemberReadTime
+        from ChatRoomAccount m
+        where m.roomId = :roomId and m.accountEmail = :email
+    """)
+    Optional<java.time.LocalDateTime> findMyLastReadAt(
+            @Param("roomId") String roomId,
+            @Param("email") String email
+    );
 
+    @Query("""
+        select count(m)
+        from ChatRoomAccount m
+        where m.roomId = :roomId
+    """)
+    int countMembers(@Param("roomId") String roomId);
+
+    @Query("""
+        select m.accountEmail
+        from ChatRoomAccount m
+        where m.roomId = :roomId
+        order by m.accountEmail asc
+    """)
+    List<String> findParticipantEmails(@Param("roomId") String roomId);
 }
 
 

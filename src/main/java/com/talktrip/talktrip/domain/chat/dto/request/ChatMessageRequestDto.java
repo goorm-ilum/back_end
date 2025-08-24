@@ -6,6 +6,7 @@ import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -31,16 +32,16 @@ public class ChatMessageRequestDto {
 
     }
 
-    public ChatMessage toEntity() {
+    public ChatMessage toEntity(String accountEmail) {
         String uuid = UUID.randomUUID().toString().replace("-", "");
         String messageId = "mgs" + uuid.substring(0, 7);
 
         return new ChatMessage(
                 messageId,
                 this.roomId,
-                this.accountEmail,
+                accountEmail,
                 this.message,
-                null
+                LocalDateTime.now()
         );
     }
 }

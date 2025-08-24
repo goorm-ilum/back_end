@@ -1,12 +1,14 @@
 package com.talktrip.talktrip.domain.chat.repository;
 
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDTO;
+import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDetailScalar;
 import com.talktrip.talktrip.domain.chat.entity.ChatRoom;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
 
@@ -54,4 +56,27 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
     List<ChatRoomDTO> findRoomsWithLastMessageByMemberId(
             @Param("memberId") String memberId
     );
+
+
+    @Query("""
+        select r
+        from ChatRoom r
+        where r.roomId = :roomId
+    """)
+    Optional<ChatRoom> findRoom(@Param("roomId") String roomId);
+
+
+    // (선택) 필요하면 DTO 바로 뽑는 방식도 가능
+    @Query("""
+        select new com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDetailScalar(
+            r.roomId, r.title, r.productId
+        )
+        from ChatRoom r
+        where r.roomId = :roomId
+    """)
+    Optional<ChatRoomDetailScalar> findRoomScalar(@Param("roomId") String roomId);
 }
+
+
+
+

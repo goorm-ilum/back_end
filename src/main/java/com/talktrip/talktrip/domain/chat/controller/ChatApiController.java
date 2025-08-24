@@ -1,10 +1,10 @@
 package com.talktrip.talktrip.domain.chat.controller;
 
 import com.talktrip.talktrip.domain.chat.dto.request.ChatRoomRequestDto;
-import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDTO;
-import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomResponseDto;
+import com.talktrip.talktrip.domain.chat.dto.response.*;
 import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
 import com.talktrip.talktrip.domain.chat.service.ChatService;
+import com.talktrip.talktrip.global.dto.SliceResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -36,21 +36,41 @@ public class ChatApiController {
          List<ChatRoomDTO> rooms = chatService.getRooms(accountEmail);
          return rooms;
     }
-    @Operation(summary = "채팅방 상세 조회")
+    @Operation(summary = "채팅방 메타 + (옵션) 첫 페이지 메시지")
     @GetMapping("/me/chatRooms/{roomId}")
-    public List<ChatMessage> getChatRoom(@PathVariable String roomId,Principal principal) {
-        String accountEmail = principal.getName();
-        return chatService.getRoomChattingHistoryAndMarkAsRead(roomId,accountEmail);
+    public ChatRoomWithMessagesDto getChatRoom(
+            @PathVariable String roomId,
+            @RequestParam(defaultValue = "false") boolean includeMessages,
+            @RequestParam(required = false) Integer limit,
+            Principal principal
+    ) {
+        String email = principal.getName();
+
+        ChatRoomDetailDto room = chatService.getRoomDetail(roomId, email);
+
+        if (!includeMessages) {
+            return new ChatRoomWithMessagesDto(room, null);
+        }
+
+        int size = (limit == null || limit <= 0 || limit > 200) ? 50 : limit;
+        var slice = chatService.getRoomChattingHistoryAndMarkAsRead(roomId, email, size, null);
+
+        return new ChatRoomWithMessagesDto(room, slice);
     }
-
-    @Operation(summary = "안읽은 채팅방 갯수")
-    @GetMapping("/countALLUnreadMessagesRooms")
-    public int getCountALLUnreadMessagesRooms(String userId,Principal principal) {
-        String accountEmail = principal.getName();
-        return chatService.getCountALLUnreadMessagesRooms(accountEmail);
+    @GetMapping("/me/chatRooms/{roomId}/messages")
+    public SliceResponse<ChatMessageDto> getRoomMessages(
+            @PathVariable String roomId,
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) String cursor,
+            Principal principal
+    ) {
+        return chatService.getRoomChattingHistoryAndMarkAsRead(
+                roomId,
+                principal.getName(), // 로그인 유저 이메일
+                limit,
+                cursor
+        );
     }
-
-
     @Operation(summary = "안읽은 모든 채팅갯수")
     @GetMapping("/countALLUnreadMessages")
     public Map<String, Integer> getCountAllUnreadMessages(Principal principal) {

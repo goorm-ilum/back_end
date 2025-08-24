@@ -1,11 +1,14 @@
 package com.talktrip.talktrip.domain.chat.repository;
 
+import com.talktrip.talktrip.domain.chat.dto.response.ChatMessageDto;
 import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -68,7 +71,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, String
     int countUnreadMessages(
             @Param("userId") String userId
     );
-    List<ChatMessage> findByRoomIdOrderByCreatedAt(String userId);
+    List<ChatMessageDto> findByRoomIdOrderByCreatedAt(String userId);
 
     @Query(value = """
       SELECT COUNT(*)
@@ -102,5 +105,33 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, String
     );
 
 
+    // 첫 페이지(커서 없음): 최신 50개
+    @Query("""
+        select m
+        from ChatMessage m
+        where m.roomId = :roomId
+        order by m.createdAt desc, m.messageId desc
+    """)
+    List<ChatMessage> findFirstPage(
+            @Param("roomId") String roomId,
+            PageRequest pageable
+    );
 
+    // 커서 이전(더 과거) 50개: (createdAt, messageId) 복합 비교
+    @Query("""
+    select m
+    from ChatMessage m
+    where m.roomId = :roomId
+      and (
+            m.createdAt < :cursorCreatedAt
+         or (m.createdAt = :cursorCreatedAt and m.messageId < :cursorMessageId)
+      )
+    order by m.createdAt desc, m.messageId desc
+""")
+    List<ChatMessage> findSliceBefore(
+            @Param("roomId") String roomId,
+            @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
+            @Param("cursorMessageId") String cursorMessageId, // ✅ String으로 변경
+            PageRequest pageable
+    );
 }
