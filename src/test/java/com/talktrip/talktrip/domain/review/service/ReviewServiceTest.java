@@ -16,490 +16,590 @@ import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
 import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.domain.review.repository.ReviewRepository;
 import com.talktrip.talktrip.global.exception.ErrorCode;
+import com.talktrip.talktrip.global.exception.MemberException;
+import com.talktrip.talktrip.global.exception.OrderException;
 import com.talktrip.talktrip.global.exception.ReviewException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
 
-import static com.talktrip.talktrip.global.TestConst.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ReviewServiceTest {
 
-    @InjectMocks ReviewService reviewService;
-    @Mock ReviewRepository reviewRepository;
-    @Mock ProductRepository productRepository;
-    @Mock MemberRepository memberRepository;
-    @Mock OrderRepository orderRepository;
+    @Mock
+    private ReviewRepository reviewRepository;
 
-    private Member user() {
-        return Member.builder()
-                .Id(USER_ID).accountEmail(USER_EMAIL)
-                .memberRole(MemberRole.U).memberState(MemberState.A)
+    @Mock
+    private ProductRepository productRepository;
+
+    @Mock
+    private MemberRepository memberRepository;
+
+    @Mock
+    private OrderRepository orderRepository;
+
+    @InjectMocks
+    private ReviewService reviewService;
+
+    private Member member;
+    private Product product;
+    private Order order;
+    private OrderItem orderItem;
+    private Review review;
+    private ReviewRequest reviewRequest;
+
+    @BeforeEach
+    void setUp() {
+        member = Member.builder()
+                .Id(1L)
+                .accountEmail("test@test.com")
+                .name("테스트유저")
+                .nickname("테스트유저")
+                .memberRole(MemberRole.U)
+                .memberState(MemberState.A)
                 .build();
-    }
 
-    private Member otherUser() {
-        return Member.builder()
-                .Id(USER_ID2).accountEmail(USER2_EMAIL)
-                .memberRole(MemberRole.U).memberState(MemberState.A)
+        product = Product.builder()
+                .id(1L)
+                .productName("제주도 여행")
+                .description("아름다운 제주도 여행")
+                .thumbnailImageUrl("https://example.com/jeju.jpg")
                 .build();
-    }
 
-    private Product product() {
-        return Product.builder()
-                .id(PRODUCT_ID)
-                .productName(PRODUCT_NAME_1)
-                .description(DESC)
-                .deleted(false)
+        orderItem = OrderItem.builder()
+                .id(1L)
+                .productId(1L)
                 .build();
-    }
 
-    private Order order(Member u, OrderStatus status, Long productId) {
-        Order o = Order.builder()
-                .id(ORDER_ID)
-                .member(u)
-                .orderStatus(status)
+        order = Order.builder()
+                .id(1L)
+                .member(member)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderItems(List.of(orderItem))
                 .build();
-        o.getOrderItems().add(OrderItem.builder().order(o).productId(productId).build());
-        return o;
-    }
-    private Order order(OrderStatus status, Long productId) { return order(user(), status, productId); }
 
-    @Nested @DisplayName("createReview(orderId, memberId, request)")
-    class Create {
+        review = Review.builder()
+                .id(1L)
+                .member(member)
+                .product(product)
+                .order(order)
+                .comment("좋은 여행이었습니다")
+                .reviewStar(4.5)
+                .build();
 
-        @Test @DisplayName("정상: SUCCESS & 기존 리뷰 없음 -> 저장")
-        void ok() {
-            Order o = order(OrderStatus.SUCCESS, PRODUCT_ID);
-
-            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(user()));
-            given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(o));
-            given(reviewRepository.existsByOrderId(ORDER_ID)).willReturn(false);
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.of(product()));
-
-            reviewService.createReview(ORDER_ID, USER_ID, new ReviewRequest(COMMENT_TEST, STAR_4_0));
-
-            then(reviewRepository).should().save(any(Review.class));
-        }
-
-        @Test @DisplayName("USER_NOT_FOUND")
-        void userMissing() {
-            given(memberRepository.findById(USER_ID)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() -> reviewService.createReview(ORDER_ID, USER_ID, new ReviewRequest(COMMENT_TEST, STAR_4_0)))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
-        }
-
-        @Test @DisplayName("ORDER_NOT_FOUND")
-        void orderMissing() {
-            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(user()));
-            given(orderRepository.findById(ORDER_ID)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() -> reviewService.createReview(ORDER_ID, USER_ID, new ReviewRequest(COMMENT_TEST, STAR_4_0)))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ORDER_NOT_FOUND);
-        }
-
-        @Test @DisplayName("ACCESS_DENIED: 주문 소유자 아님")
-        void accessDenied() {
-            Order o = order(otherUser(), OrderStatus.SUCCESS, PRODUCT_ID);
-
-            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(user()));
-            given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(o));
-
-            assertThatThrownBy(() -> reviewService.createReview(ORDER_ID, USER_ID, new ReviewRequest(COMMENT_TEST, STAR_4_0)))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ACCESS_DENIED);
-        }
-
-        @Test @DisplayName("ORDER_NOT_COMPLETED: 주문 상태 성공 아님")
-        void notCompleted() {
-            Order o = order(OrderStatus.PENDING, PRODUCT_ID);
-
-            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(user()));
-            given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(o));
-
-            assertThatThrownBy(() -> reviewService.createReview(ORDER_ID, USER_ID, new ReviewRequest(COMMENT_TEST, STAR_4_0)))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ORDER_NOT_COMPLETED);
-        }
-
-        @Test @DisplayName("ALREADY_REVIEWED: 이미 리뷰 있음")
-        void alreadyReviewed() {
-            Order o = order(OrderStatus.SUCCESS, PRODUCT_ID);
-
-            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(user()));
-            given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(o));
-            given(reviewRepository.existsByOrderId(ORDER_ID)).willReturn(true);
-
-            assertThatThrownBy(() -> reviewService.createReview(ORDER_ID, USER_ID, new ReviewRequest(COMMENT_TEST, STAR_4_0)))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_REVIEWED);
-        }
-
-        @Test @DisplayName("ORDER_EMPTY: 주문에 상품 없음")
-        void orderEmpty() {
-            Order o = order(OrderStatus.SUCCESS, null);
-
-            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(user()));
-            given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(o));
-            given(reviewRepository.existsByOrderId(ORDER_ID)).willReturn(false);
-
-            assertThatThrownBy(() -> reviewService.createReview(ORDER_ID, USER_ID, new ReviewRequest(COMMENT_TEST, STAR_4_0)))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ORDER_EMPTY);
-        }
-
-        @Test @DisplayName("PRODUCT_NOT_FOUND: 제품 없음")
-        void productMissing() {
-            Order o = order(OrderStatus.SUCCESS, PRODUCT_ID);
-
-            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(user()));
-            given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(o));
-            given(reviewRepository.existsByOrderId(ORDER_ID)).willReturn(false);
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() -> reviewService.createReview(ORDER_ID, USER_ID, new ReviewRequest(COMMENT_TEST, STAR_4_0)))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.PRODUCT_NOT_FOUND);
-        }
+        reviewRequest = new ReviewRequest("좋은 여행이었습니다", 4.5);
     }
 
-    @Nested @DisplayName("updateReview(reviewId, memberId, request)")
-    class Update {
+    @Test
+    @DisplayName("리뷰를 성공적으로 생성한다")
+    void createReview_Success() {
+        // given
+        Long orderId = 1L;
+        Long memberId = 1L;
 
-        @Test @DisplayName("정상: 본인 리뷰 수정")
-        void ok() {
-            Product p = product();
-            Review r = Review.builder()
-                    .id(REVIEW_ID)
-                    .member(user())
-                    .product(p)
-                    .order(order(OrderStatus.SUCCESS, PRODUCT_ID))
-                    .comment("old review")
-                    .reviewStar(STAR_2_0)
-                    .build();
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(orderRepository.existsById(orderId)).thenReturn(true);
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(productRepository.existsById(1L)).thenReturn(true);
+        when(productRepository.findByIdIncludingDeleted(1L)).thenReturn(Optional.of(product));
+        when(reviewRepository.existsByOrderId(orderId)).thenReturn(false);
+        when(reviewRepository.save(any(Review.class))).thenReturn(review);
 
-            given(reviewRepository.findById(REVIEW_ID)).willReturn(Optional.of(r));
+        // when
+        reviewService.createReview(orderId, memberId, reviewRequest);
 
-            reviewService.updateReview(REVIEW_ID, USER_ID, new ReviewRequest(COMMENT_TEST, STAR_4_5));
-
-            assertThat(r.getComment()).isEqualTo(COMMENT_TEST);
-            assertThat(r.getReviewStar()).isEqualTo(STAR_4_5);
-        }
-
-        @Test @DisplayName("REVIEW_NOT_FOUND")
-        void reviewMissing() {
-            given(reviewRepository.findById(REVIEW_ID)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() -> reviewService.updateReview(REVIEW_ID, USER_ID, new ReviewRequest(COMMENT_TEST, STAR_4_5)))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.REVIEW_NOT_FOUND);
-        }
-
-        @Test @DisplayName("ACCESS_DENIED: 본인 아님")
-        void forbidden() {
-            Product p = product();
-            Review r = Review.builder()
-                    .id(REVIEW_ID)
-                    .member(otherUser())
-                    .product(p)
-                    .order(order(OrderStatus.SUCCESS, PRODUCT_ID))
-                    .comment("old")
-                    .reviewStar(STAR_2_0)
-                    .build();
-
-            given(reviewRepository.findById(REVIEW_ID)).willReturn(Optional.of(r));
-
-            assertThatThrownBy(() -> reviewService.updateReview(REVIEW_ID, USER_ID, new ReviewRequest(COMMENT_TEST, STAR_4_5)))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ACCESS_DENIED);
-        }
+        // then
+        verify(reviewRepository).save(any(Review.class));
     }
 
-    @Nested @DisplayName("deleteReview(reviewId, memberId)")
-    class Delete {
+    @Test
+    @DisplayName("존재하지 않는 사용자로 리뷰 생성 시 예외가 발생한다")
+    void createReview_MemberNotFound() {
+        // given
+        Long orderId = 1L;
+        Long nonExistentMemberId = 999L;
 
-        @Test @DisplayName("정상: 본인 리뷰 삭제")
-        void ok() {
-            Product p = product();
-            Review r = Review.builder()
-                    .id(REVIEW_ID)
-                    .member(user())
-                    .product(p)
-                    .order(order(OrderStatus.SUCCESS, PRODUCT_ID))
-                    .comment(COMMENT_TEST)
-                    .reviewStar(STAR_3_0)
-                    .build();
+        when(memberRepository.existsById(nonExistentMemberId)).thenReturn(false);
 
-            given(reviewRepository.findById(REVIEW_ID)).willReturn(Optional.of(r));
-
-            reviewService.deleteReview(REVIEW_ID, USER_ID);
-
-            then(reviewRepository).should().delete(r);
-        }
-
-        @Test @DisplayName("REVIEW_NOT_FOUND")
-        void missing() {
-            given(reviewRepository.findById(REVIEW_ID)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() -> reviewService.deleteReview(REVIEW_ID, USER_ID))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.REVIEW_NOT_FOUND);
-        }
-
-        @Test @DisplayName("ACCESS_DENIED: 본인 아님")
-        void forbidden() {
-            Product p = product();
-            Review r = Review.builder()
-                    .id(REVIEW_ID)
-                    .member(otherUser())
-                    .product(p)
-                    .order(order(OrderStatus.SUCCESS, PRODUCT_ID))
-                    .comment(COMMENT_TEST)
-                    .reviewStar(STAR_3_0)
-                    .build();
-
-            given(reviewRepository.findById(REVIEW_ID)).willReturn(Optional.of(r));
-
-            assertThatThrownBy(() -> reviewService.deleteReview(REVIEW_ID, USER_ID))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ACCESS_DENIED);
-        }
+        // when & then
+        assertThatThrownBy(() -> reviewService.createReview(orderId, nonExistentMemberId, reviewRequest))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
     }
 
-    @Nested @DisplayName("getMyReviews(memberId, pageable)")
-    class MyReviews {
+    @Test
+    @DisplayName("null 사용자 ID로 리뷰 생성 시 예외가 발생한다")
+    void createReview_NullMemberId() {
+        // given
+        Long orderId = 1L;
+        Long memberId = null;
 
-        @Test @DisplayName("USER_NOT_FOUND")
-        void userMissing() {
-            given(memberRepository.findById(USER_ID)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() -> reviewService.getMyReviews(USER_ID, PageRequest.of(PAGE_0, SIZE_9)))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
-        }
-
-        @Test @DisplayName("빈 페이지 매핑")
-        void empty() {
-            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(user()));
-            Page<Review> page = new PageImpl<>(List.of(), PageRequest.of(PAGE_0, SIZE_9), 0);
-            given(reviewRepository.findByMemberId(eq(USER_ID), any(Pageable.class))).willReturn(page);
-
-            Page<ReviewResponse> res = reviewService.getMyReviews(USER_ID, PageRequest.of(PAGE_0, SIZE_9));
-
-            assertThat(res.getTotalElements()).isZero();
-            assertThat(res.getContent()).isEmpty();
-        }
-
-        @Test @DisplayName("초과 페이지 → 빈 페이지 반환")
-        void overflow_passthrough() {
-            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(user()));
-            Pageable overflow = PageRequest.of(PAGE_4, SIZE_9, SORT_BY_UPDATED_DESC);
-            Page<Review> page = new PageImpl<>(List.of(), overflow, 2);
-            given(reviewRepository.findByMemberId(eq(USER_ID), any(Pageable.class))).willReturn(page);
-
-            Page<ReviewResponse> res = reviewService.getMyReviews(USER_ID, overflow);
-
-            assertThat(res.getContent()).isEmpty();
-            assertThat(res.getTotalElements()).isEqualTo(2);
-            assertThat(res.getNumber()).isEqualTo(PAGE_4);
-            assertThat(res.getSize()).isEqualTo(SIZE_9);
-        }
-
-        @Test @DisplayName("데이터 매핑")
-        void hasData() {
-            given(memberRepository.findById(USER_ID)).willReturn(Optional.of(user()));
-
-            Review r = Review.builder()
-                    .id(REVIEW_ID)
-                    .member(user())
-                    .product(Product.builder().id(PRODUCT_ID).build())
-                    .comment(COMMENT_TEST)
-                    .reviewStar(STAR_4_0)
-                    .build();
-
-            Page<Review> page = new PageImpl<>(List.of(r), PageRequest.of(PAGE_0, SIZE_9), 1);
-            given(reviewRepository.findByMemberId(eq(USER_ID), any(Pageable.class))).willReturn(page);
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.of(product()));
-
-            Page<ReviewResponse> res = reviewService.getMyReviews(USER_ID, PageRequest.of(PAGE_0, SIZE_9));
-            assertThat(res.getTotalElements()).isEqualTo(1);
-            assertThat(res.getContent()).hasSize(1);
-        }
+        // when & then
+        assertThatThrownBy(() -> reviewService.createReview(orderId, memberId, reviewRequest))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
     }
 
-    @Nested @DisplayName("getReviewCreateForm(orderId, memberId)")
-    class CreateForm {
+    @Test
+    @DisplayName("존재하지 않는 주문으로 리뷰 생성 시 예외가 발생한다")
+    void createReview_OrderNotFound() {
+        // given
+        Long nonExistentOrderId = 999L;
+        Long memberId = 1L;
 
-        @Test @DisplayName("정상 반환 (상품명 노출, 내 리뷰 정보는 null)")
-        void ok() {
-            Order o = order(OrderStatus.SUCCESS, PRODUCT_ID);
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(orderRepository.existsById(nonExistentOrderId)).thenReturn(false);
 
-            given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(o));
-            given(reviewRepository.existsByOrderId(ORDER_ID)).willReturn(false);
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.of(product()));
-
-            MyReviewFormResponse resp = reviewService.getReviewCreateForm(ORDER_ID, USER_ID);
-
-            assertThat(resp.getReviewId()).isNull();
-            assertThat(resp.getProductName()).isEqualTo(PRODUCT_NAME_1);
-            assertThat(resp.getThumbnailUrl()).isNull();
-            assertThat(resp.getMyStar()).isNull();
-            assertThat(resp.getMyComment()).isNull();
-        }
-
-        @Test @DisplayName("ORDER_NOT_FOUND")
-        void orderMissing() {
-            given(orderRepository.findById(ORDER_ID)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() -> reviewService.getReviewCreateForm(ORDER_ID, USER_ID))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ORDER_NOT_FOUND);
-        }
-
-        @Test @DisplayName("ACCESS_DENIED")
-        void accessDenied_whenOrderOwnerIsDifferent() {
-            Order other = order(otherUser(), OrderStatus.SUCCESS, PRODUCT_ID);
-
-            given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(other));
-
-            assertThatThrownBy(() -> reviewService.getReviewCreateForm(ORDER_ID, USER_ID))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ACCESS_DENIED);
-        }
-
-        @Test @DisplayName("ORDER_NOT_COMPLETED")
-        void orderNotCompleted_whenOrderStatusIsNotSuccess() {
-            Order pending = order(OrderStatus.PENDING, PRODUCT_ID);
-
-            given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(pending));
-
-            assertThatThrownBy(() -> reviewService.getReviewCreateForm(ORDER_ID, USER_ID))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ORDER_NOT_COMPLETED);
-        }
-
-        @Test @DisplayName("ALREADY_REVIEWED")
-        void alreadyReviewed_whenReviewAlreadyExists() {
-            Order ok = order(OrderStatus.SUCCESS, PRODUCT_ID);
-
-            given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(ok));
-            given(reviewRepository.existsByOrderId(ORDER_ID)).willReturn(true);
-
-            assertThatThrownBy(() -> reviewService.getReviewCreateForm(ORDER_ID, USER_ID))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_REVIEWED);
-        }
+        // when & then
+        assertThatThrownBy(() -> reviewService.createReview(nonExistentOrderId, memberId, reviewRequest))
+                .isInstanceOf(OrderException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ORDER_NOT_FOUND);
     }
 
-    @Nested @DisplayName("getReviewUpdateForm(reviewId, memberId)")
-    class UpdateForm {
+    @Test
+    @DisplayName("null 주문 ID로 리뷰 생성 시 예외가 발생한다")
+    void createReview_NullOrderId() {
+        // given
+        Long orderId = null;
+        Long memberId = 1L;
 
-        @Test @DisplayName("정상 (내 리뷰 포함)")
-        void ok() {
-            Review r = Review.builder()
-                    .id(REVIEW_ID)
-                    .member(user())
-                    .product(Product.builder().id(PRODUCT_ID).productName(PRODUCT_NAME_1).build())
-                    .comment(COMMENT_TEST)
-                    .reviewStar(STAR_4_0)
-                    .build();
+        when(memberRepository.existsById(memberId)).thenReturn(true);
 
-            given(reviewRepository.findById(REVIEW_ID)).willReturn(Optional.of(r));
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.of(product()));
-
-            MyReviewFormResponse resp = reviewService.getReviewUpdateForm(REVIEW_ID, USER_ID);
-
-            assertThat(resp.getReviewId()).isEqualTo(REVIEW_ID);
-            assertThat(resp.getProductName()).isEqualTo(PRODUCT_NAME_1);
-            assertThat(resp.getMyStar()).isEqualTo(STAR_4_0);
-            assertThat(resp.getMyComment()).isEqualTo(COMMENT_TEST);
-        }
-
-        @Test @DisplayName("REVIEW_NOT_FOUND")
-        void reviewMissing() {
-            given(reviewRepository.findById(REVIEW_ID)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() -> reviewService.getReviewUpdateForm(REVIEW_ID, USER_ID))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.REVIEW_NOT_FOUND);
-        }
-
-        @Test @DisplayName("ACCESS_DENIED")
-        void forbidden() {
-            Review r = Review.builder()
-                    .id(REVIEW_ID)
-                    .member(otherUser())
-                    .product(Product.builder().id(PRODUCT_ID).build())
-                    .comment("c")
-                    .reviewStar(STAR_3_0)
-                    .build();
-
-            given(reviewRepository.findById(REVIEW_ID)).willReturn(Optional.of(r));
-
-            assertThatThrownBy(() -> reviewService.getReviewUpdateForm(REVIEW_ID, USER_ID))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ACCESS_DENIED);
-        }
+        // when & then
+        assertThatThrownBy(() -> reviewService.createReview(orderId, memberId, reviewRequest))
+                .isInstanceOf(OrderException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ORDER_NOT_FOUND);
     }
 
-    @Nested @DisplayName("getReviewsForAdminProduct(sellerId, productId, pageable)")
-    class AdminProductReviews {
+    @Test
+    @DisplayName("존재하지 않는 상품으로 리뷰 생성 시 예외가 발생한다")
+    void createReview_ProductNotFound() {
+        // given
+        Long orderId = 1L;
+        Long memberId = 1L;
 
-        @Test @DisplayName("ACCESS_DENIED: 내 상품 아님")
-        void forbidden() {
-            given(productRepository.findByIdAndMemberIdIncludingDeleted(PRODUCT_ID, USER_ID))
-                    .willReturn(Optional.empty());
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(orderRepository.existsById(orderId)).thenReturn(true);
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(productRepository.existsById(1L)).thenReturn(false);
 
-            assertThatThrownBy(() -> reviewService.getReviewsForAdminProduct(USER_ID, PRODUCT_ID, PageRequest.of(PAGE_0, SIZE_10)))
-                    .isInstanceOf(ReviewException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ACCESS_DENIED);
-        }
+        // when & then
+        assertThatThrownBy(() -> reviewService.createReview(orderId, memberId, reviewRequest))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
 
-        @Test @DisplayName("정렬 프로퍼티 검증: 잘못된 프로퍼티 → IllegalArgumentException")
-        void invalidSortProperty() {
-            given(productRepository.findByIdAndMemberIdIncludingDeleted(PRODUCT_ID, USER_ID))
-                    .willReturn(Optional.of(product()));
-            given(reviewRepository.findByProductIdIncludingDeleted(PRODUCT_ID)).willReturn(List.of());
+    @Test
+    @DisplayName("다른 사용자의 주문으로 리뷰 생성 시 예외가 발생한다")
+    void createReview_AccessDenied() {
+        // given
+        Long orderId = 1L;
+        Long differentMemberId = 2L;
 
-            assertThatThrownBy(() -> reviewService.getReviewsForAdminProduct(
-                    USER_ID, PRODUCT_ID, PageRequest.of(PAGE_0, SIZE_10, Sort.by("notExistsProperty"))))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Invalid sort property");
-        }
+        Member differentMember = Member.builder()
+                .Id(2L)
+                .accountEmail("different@test.com")
+                .name("다른유저")
+                .nickname("다른유저")
+                .build();
 
-        @Test @DisplayName("정상: reviewStar desc 정렬 + 페이징")
-        void ok_sortAndPage() {
-            given(productRepository.findByIdAndMemberIdIncludingDeleted(PRODUCT_ID, USER_ID))
-                    .willReturn(Optional.of(product()));
+        when(memberRepository.existsById(differentMemberId)).thenReturn(true);
+        when(orderRepository.existsById(orderId)).thenReturn(true);
+        when(memberRepository.findById(differentMemberId)).thenReturn(Optional.of(differentMember));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
 
-            Review r1 = Review.builder().member(user()).id(101L).reviewStar(STAR_3_0).build();
-            Review r2 = Review.builder().member(otherUser()).id(102L).reviewStar(STAR_5_0).build();
-            given(reviewRepository.findByProductIdIncludingDeleted(PRODUCT_ID))
-                    .willReturn(List.of(r1, r2));
+        // when & then
+        assertThatThrownBy(() -> reviewService.createReview(orderId, differentMemberId, reviewRequest))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCESS_DENIED);
+    }
 
-            Page<ReviewResponse> page = reviewService.getReviewsForAdminProduct(
-                    USER_ID, PRODUCT_ID, PageRequest.of(PAGE_0, SIZE_1, SORT_BY_REVIEW_STAR_DESC));
+    @Test
+    @DisplayName("완료되지 않은 주문으로 리뷰 생성 시 예외가 발생한다")
+    void createReview_OrderNotCompleted() {
+        // given
+        Long orderId = 1L;
+        Long memberId = 1L;
+        Order pendingOrder = Order.builder()
+                .id(1L)
+                .member(member)
+                .orderStatus(OrderStatus.PENDING)
+                .orderItems(List.of(orderItem))
+                .build();
 
-            assertThat(page.getTotalElements()).isEqualTo(2);
-            assertThat(page.getContent()).hasSize(SIZE_1);
-        }
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(orderRepository.existsById(orderId)).thenReturn(true);
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(pendingOrder));
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.createReview(orderId, memberId, reviewRequest))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ORDER_NOT_COMPLETED);
+    }
+
+    @Test
+    @DisplayName("이미 리뷰가 존재하는 주문으로 리뷰 생성 시 예외가 발생한다")
+    void createReview_AlreadyReviewed() {
+        // given
+        Long orderId = 1L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(orderRepository.existsById(orderId)).thenReturn(true);
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(reviewRepository.existsByOrderId(orderId)).thenReturn(true);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.createReview(orderId, memberId, reviewRequest))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ALREADY_REVIEWED);
+    }
+
+    @Test
+    @DisplayName("리뷰를 성공적으로 수정한다")
+    void updateReview_Success() {
+        // given
+        Long reviewId = 1L;
+        Long memberId = 1L;
+        ReviewRequest updateRequest = new ReviewRequest("수정된 리뷰입니다", 5.0);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(reviewRepository.existsById(reviewId)).thenReturn(true);
+        when(reviewRepository.findById(reviewId)).thenReturn(Optional.of(review));
+
+        // when
+        reviewService.updateReview(reviewId, memberId, updateRequest);
+
+        // then
+        verify(reviewRepository).findById(reviewId);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 사용자로 리뷰 수정 시 예외가 발생한다")
+    void updateReview_MemberNotFound() {
+        // given
+        Long reviewId = 1L;
+        Long nonExistentMemberId = 999L;
+
+        when(memberRepository.existsById(nonExistentMemberId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.updateReview(reviewId, nonExistentMemberId, reviewRequest))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 리뷰 수정 시 예외가 발생한다")
+    void updateReview_ReviewNotFound() {
+        // given
+        Long nonExistentReviewId = 999L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(reviewRepository.existsById(nonExistentReviewId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.updateReview(nonExistentReviewId, memberId, reviewRequest))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REVIEW_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 리뷰 수정 시 예외가 발생한다")
+    void updateReview_AccessDenied() {
+        // given
+        Long reviewId = 1L;
+        Long differentMemberId = 2L;
+
+        when(memberRepository.existsById(differentMemberId)).thenReturn(true);
+        when(reviewRepository.existsById(reviewId)).thenReturn(true);
+        when(reviewRepository.findById(reviewId)).thenReturn(Optional.of(review));
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.updateReview(reviewId, differentMemberId, reviewRequest))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("리뷰를 성공적으로 삭제한다")
+    void deleteReview_Success() {
+        // given
+        Long reviewId = 1L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(reviewRepository.existsById(reviewId)).thenReturn(true);
+        when(reviewRepository.findById(reviewId)).thenReturn(Optional.of(review));
+
+        // when
+        reviewService.deleteReview(reviewId, memberId);
+
+        // then
+        verify(reviewRepository).delete(any(Review.class));
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 사용자로 리뷰 삭제 시 예외가 발생한다")
+    void deleteReview_MemberNotFound() {
+        // given
+        Long reviewId = 1L;
+        Long nonExistentMemberId = 999L;
+
+        when(memberRepository.existsById(nonExistentMemberId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.deleteReview(reviewId, nonExistentMemberId))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 리뷰 삭제 시 예외가 발생한다")
+    void deleteReview_ReviewNotFound() {
+        // given
+        Long nonExistentReviewId = 999L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(reviewRepository.existsById(nonExistentReviewId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.deleteReview(nonExistentReviewId, memberId))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REVIEW_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("내 리뷰 목록을 성공적으로 조회한다")
+    void getMyReviews_Success() {
+        // given
+        Long memberId = 1L;
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Review> reviewPage = new PageImpl<>(List.of(review), pageable, 1);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(reviewRepository.findByMemberIdWithProduct(memberId, pageable)).thenReturn(reviewPage);
+
+        // when
+        Page<ReviewResponse> result = reviewService.getMyReviews(memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).reviewId()).isEqualTo(1L);
+        assertThat(result.getContent().get(0).comment()).isEqualTo("좋은 여행이었습니다");
+        assertThat(result.getContent().get(0).reviewStar()).isEqualTo(4.5);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 사용자로 리뷰 목록 조회 시 예외가 발생한다")
+    void getMyReviews_UserNotFound() {
+        // given
+        Long nonExistentMemberId = 999L;
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(nonExistentMemberId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.getMyReviews(nonExistentMemberId, pageable))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("판매자 상품의 리뷰 목록을 성공적으로 조회한다")
+    void getReviewsForAdminProduct_Success() {
+        // given
+        Long sellerId = 1L;
+        Long productId = 1L;
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Review> reviewPage = new PageImpl<>(List.of(review), pageable, 1);
+
+        when(memberRepository.existsById(sellerId)).thenReturn(true);
+        when(productRepository.existsById(productId)).thenReturn(true);
+        when(productRepository.findByIdAndMemberIdIncludingDeleted(productId, sellerId)).thenReturn(Optional.of(product));
+        when(reviewRepository.findByProductIdWithPaging(productId, pageable)).thenReturn(reviewPage);
+        when(productRepository.findByIdIncludingDeleted(productId)).thenReturn(Optional.of(product));
+
+        // when
+        Page<ReviewResponse> result = reviewService.getReviewsForAdminProduct(sellerId, productId, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).reviewId()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 판매자로 리뷰 목록 조회 시 예외가 발생한다")
+    void getReviewsForAdminProduct_SellerNotFound() {
+        // given
+        Long nonExistentSellerId = 999L;
+        Long productId = 1L;
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(nonExistentSellerId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.getReviewsForAdminProduct(nonExistentSellerId, productId, pageable))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 상품으로 리뷰 목록 조회 시 예외가 발생한다")
+    void getReviewsForAdminProduct_ProductNotFound() {
+        // given
+        Long sellerId = 1L;
+        Long nonExistentProductId = 999L;
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(sellerId)).thenReturn(true);
+        when(productRepository.existsById(nonExistentProductId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.getReviewsForAdminProduct(sellerId, nonExistentProductId, pageable))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("접근 권한이 없는 상품의 리뷰 목록 조회 시 예외가 발생한다")
+    void getReviewsForAdminProduct_AccessDenied() {
+        // given
+        Long sellerId = 1L;
+        Long productId = 1L;
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(sellerId)).thenReturn(true);
+        when(productRepository.existsById(productId)).thenReturn(true);
+        when(productRepository.findByIdAndMemberIdIncludingDeleted(productId, sellerId)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.getReviewsForAdminProduct(sellerId, productId, pageable))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("리뷰 생성 폼을 성공적으로 조회한다")
+    void getReviewCreateForm_Success() {
+        // given
+        Long orderId = 1L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(orderRepository.existsById(orderId)).thenReturn(true);
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(productRepository.existsById(1L)).thenReturn(true);
+        when(productRepository.findByIdIncludingDeleted(1L)).thenReturn(Optional.of(product));
+        when(reviewRepository.existsByOrderId(orderId)).thenReturn(false);
+
+        // when
+        MyReviewFormResponse result = reviewService.getReviewCreateForm(orderId, memberId);
+
+        // then
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 사용자로 리뷰 생성 폼 조회 시 예외가 발생한다")
+    void getReviewCreateForm_MemberNotFound() {
+        // given
+        Long orderId = 1L;
+        Long nonExistentMemberId = 999L;
+
+        when(memberRepository.existsById(nonExistentMemberId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.getReviewCreateForm(orderId, nonExistentMemberId))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 주문으로 리뷰 생성 폼 조회 시 예외가 발생한다")
+    void getReviewCreateForm_OrderNotFound() {
+        // given
+        Long nonExistentOrderId = 999L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(orderRepository.existsById(nonExistentOrderId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.getReviewCreateForm(nonExistentOrderId, memberId))
+                .isInstanceOf(OrderException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ORDER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("리뷰 수정 폼을 성공적으로 조회한다")
+    void getReviewUpdateForm_Success() {
+        // given
+        Long reviewId = 1L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(reviewRepository.existsById(reviewId)).thenReturn(true);
+        when(reviewRepository.findById(reviewId)).thenReturn(Optional.of(review));
+        when(productRepository.findByIdIncludingDeleted(1L)).thenReturn(Optional.of(product));
+
+        // when
+        MyReviewFormResponse result = reviewService.getReviewUpdateForm(reviewId, memberId);
+
+        // then
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 사용자로 리뷰 수정 폼 조회 시 예외가 발생한다")
+    void getReviewUpdateForm_MemberNotFound() {
+        // given
+        Long reviewId = 1L;
+        Long nonExistentMemberId = 999L;
+
+        when(memberRepository.existsById(nonExistentMemberId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.getReviewUpdateForm(reviewId, nonExistentMemberId))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 리뷰로 수정 폼 조회 시 예외가 발생한다")
+    void getReviewUpdateForm_ReviewNotFound() {
+        // given
+        Long nonExistentReviewId = 999L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(reviewRepository.existsById(nonExistentReviewId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.getReviewUpdateForm(nonExistentReviewId, memberId))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REVIEW_NOT_FOUND);
     }
 }

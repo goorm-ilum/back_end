@@ -203,3 +203,4 @@ application-secret.yaml
 application-local.yaml
 application-prod.yaml
 application-test.yaml
+application-integration-test.yaml

@@ -41,8 +41,6 @@ public class QProduct extends EntityPathBase<Product> {
 
     public final ListPath<ProductImage, QProductImage> images = this.<ProductImage, QProductImage>createList("images", ProductImage.class, QProductImage.class, PathInits.DIRECT2);
 
-    public final ListPath<com.talktrip.talktrip.domain.like.entity.Like, com.talktrip.talktrip.domain.like.entity.QLike> likes = this.<com.talktrip.talktrip.domain.like.entity.Like, com.talktrip.talktrip.domain.like.entity.QLike>createList("likes", com.talktrip.talktrip.domain.like.entity.Like.class, com.talktrip.talktrip.domain.like.entity.QLike.class, PathInits.DIRECT2);
-
     public final com.talktrip.talktrip.domain.member.entity.QMember member;
 
     public final StringPath productName = createString("productName");

@@ -1,16 +1,22 @@
 package com.talktrip.talktrip.domain.like.service;
 
+import com.talktrip.talktrip.domain.like.dto.ProductWithAvgStar;
 import com.talktrip.talktrip.domain.like.entity.Like;
 import com.talktrip.talktrip.domain.like.repository.LikeRepository;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.product.dto.response.ProductSummaryResponse;
+import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.MemberException;
 import com.talktrip.talktrip.global.exception.ProductException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,7 +78,17 @@ public class LikeService {
     @Transactional(readOnly = true)
     public Page<ProductSummaryResponse> getLikedProducts(Long memberId, Pageable pageable) {
         validateMember(memberId);
-
-        return likeRepository.findLikedProductSummaries(memberId, pageable);
+        
+        Page<ProductWithAvgStar> likedProducts = likeRepository.findLikedProductsWithAvgStar(memberId, pageable);
+        
+        List<ProductSummaryResponse> productResponses = likedProducts.getContent().stream()
+                .map(result -> {
+                    Product product = result.getProduct();
+                    Double avgStar = result.getAvgStar();
+                    return ProductSummaryResponse.from(product, avgStar, true);
+                })
+                .toList();
+        
+        return new PageImpl<>(productResponses, pageable, likedProducts.getTotalElements());
     }
 }

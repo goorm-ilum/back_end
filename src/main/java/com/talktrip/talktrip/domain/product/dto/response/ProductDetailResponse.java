@@ -26,14 +26,14 @@ public record ProductDetailResponse(
         List<String> hashtags,
         List<String> images,
         List<ProductOptionResponse> stocks,
-        float averageReviewStar,
+        Double averageReviewStar,
         List<ReviewResponse> reviews,
         boolean isLiked,
         String sellerName,
         String email,
         String phoneNum
 ) {
-    public static ProductDetailResponse from(Product product, float avgStar, List<ReviewResponse> reviews, boolean isLiked) {
+    public static ProductDetailResponse from(Product product, Double avgStar, List<ReviewResponse> reviews, boolean isLiked) {
         List<ProductOption> futureOptions = getFutureOptions(product);
         ProductOption minPriceStock = product.getMinPriceOption();
 

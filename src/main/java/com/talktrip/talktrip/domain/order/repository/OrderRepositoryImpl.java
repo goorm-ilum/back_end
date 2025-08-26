@@ -7,11 +7,9 @@ import com.talktrip.talktrip.domain.order.entity.QCardPayment;
 import com.talktrip.talktrip.domain.order.entity.QOrder;
 import com.talktrip.talktrip.domain.order.entity.QPayment;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
-@Repository
 @RequiredArgsConstructor
 public class OrderRepositoryImpl implements OrderRepositoryCustom {
 

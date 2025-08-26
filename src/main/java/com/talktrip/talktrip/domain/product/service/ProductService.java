@@ -1,6 +1,8 @@
 package com.talktrip.talktrip.domain.product.service;
 
 import com.talktrip.talktrip.domain.like.repository.LikeRepository;
+import com.talktrip.talktrip.domain.member.repository.MemberRepository;
+import com.talktrip.talktrip.domain.product.dto.ProductWithAvgStarAndLike;
 import com.talktrip.talktrip.domain.product.dto.response.ProductDetailResponse;
 import com.talktrip.talktrip.domain.product.dto.response.ProductSummaryResponse;
 import com.talktrip.talktrip.domain.product.entity.Product;
@@ -9,18 +11,24 @@ import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
 import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.domain.review.repository.ReviewRepository;
 import com.talktrip.talktrip.global.exception.ErrorCode;
+import com.talktrip.talktrip.global.exception.MemberException;
 import com.talktrip.talktrip.global.exception.ProductException;
+import com.talktrip.talktrip.global.repository.CountryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
-import java.util.*;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -31,8 +39,9 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final ReviewRepository reviewRepository;
-    private final LikeRepository likeRepository;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final MemberRepository memberRepository;
+    private final CountryRepository countryRepository;
+    private final RestTemplate restTemplate;
 
     @Value("${fastapi.base-url}")
     private String fastApiBaseUrl;
@@ -44,19 +53,28 @@ public class ProductService {
             Long memberId,
             Pageable pageable
     ) {
+        validateMember(memberId);
+        validateCountry(countryName);
         LocalDate tomorrow = getTomorrow();
-        String searchKeyword = normalizeKeyword(keyword);
-        String searchCountry = normalizeCountryName(countryName);
 
-        Page<ProductSummaryResponse> searchResults = productRepository.searchProductsWithStock(
-                searchKeyword, searchCountry, tomorrow, pageable
+        Page<ProductWithAvgStarAndLike> searchResults = productRepository.searchProductsWithAvgStarAndLike(
+                keyword, countryName, tomorrow, memberId, pageable
         );
         
         if (searchResults.isEmpty()) {
-            return searchResults;
+            return new PageImpl<>(List.of(), pageable, 0);
         }
 
-        return updateLikeInfo(searchResults, memberId);
+        List<ProductSummaryResponse> productResponses = searchResults.getContent().stream()
+                .map(result -> {
+                    Product product = result.getProduct();
+                    Double avgStar = result.getAvgStar();
+                    Boolean isLiked = result.getIsLiked();
+                    return ProductSummaryResponse.from(product, avgStar, isLiked);
+                })
+                .toList();
+
+        return new PageImpl<>(productResponses, pageable, searchResults.getTotalElements());
     }
 
     @Transactional(readOnly = true)
@@ -65,33 +83,48 @@ public class ProductService {
             Long memberId,
             Pageable pageable
     ) {
+        validateMember(memberId);
+        validateProduct(productId);
         LocalDate tomorrow = getTomorrow();
-        Product product = findProductWithDetailsAndStock(productId, tomorrow);
+        
+        ProductWithAvgStarAndLike productWithDetails = findProductWithDetailsAndAvgStarAndLike(productId, tomorrow, memberId);
+
+        Double avgStar = productWithDetails.getAvgStar();
+        boolean isLiked = productWithDetails.getIsLiked();
 
         Page<Review> reviewPage = reviewRepository.findByProductId(productId, pageable);
-        float avgStar = product.getAverageReviewStar();
-        List<ReviewResponse> reviewResponses = ReviewResponse.to(reviewPage.getContent(), product);
-        boolean isLiked = checkLikeStatus(productId, memberId);
+        List<ReviewResponse> reviewResponses = ReviewResponse.to(reviewPage.getContent(), productWithDetails.getProduct());
 
-        return ProductDetailResponse.from(product, avgStar, reviewResponses, isLiked);
+        return ProductDetailResponse.from(productWithDetails.getProduct(), avgStar, reviewResponses, isLiked);
     }
 
-    @Transactional(readOnly = true)
-    public List<ProductSummaryResponse> aiSearchProducts(String query, Long memberId) {
-        try {
-            List<Long> productIds = callAiSearchApi(query);
-            
-            if (productIds.isEmpty()) {
-                return List.of();
-            }
+    private void validateMember(Long memberId) {
+        if (memberId == null) {
+            throw new MemberException(ErrorCode.USER_NOT_FOUND);
+        }
 
-            List<ProductSummaryResponse> products = productRepository.findProductSummariesByIds(productIds);
-            Set<Long> likedProductIds = getLikedProductIds(memberId, productIds);
+        if (!memberRepository.existsById(memberId)) {
+            throw new MemberException(ErrorCode.USER_NOT_FOUND);
+        }
+    }
 
-            return updateLikeInfoWithOrder(products, productIds, likedProductIds);
-
-        } catch (Exception e) {
+    private void validateProduct(Long productId) {
+        if (productId == null) {
             throw new ProductException(ErrorCode.PRODUCT_NOT_FOUND);
+        }
+        
+        if (!productRepository.existsById(productId)) {
+            throw new ProductException(ErrorCode.PRODUCT_NOT_FOUND);
+        }
+    }
+
+    private void validateCountry(String countryName) {
+        if (countryName == null || countryName.isBlank() || ALL_COUNTRIES.equals(countryName)) {
+            return;
+        }
+
+        if (!countryRepository.existsByName(countryName.trim())) {
+            throw new ProductException(ErrorCode.COUNTRY_NOT_FOUND);
         }
     }
 
@@ -99,82 +132,69 @@ public class ProductService {
         return LocalDate.now().plusDays(DAYS_TO_ADD);
     }
 
-    private String normalizeKeyword(String keyword) {
-        return (keyword == null || keyword.isBlank()) ? null : keyword.trim();
-    }
-
-    private String normalizeCountryName(String countryName) {
-        return (ALL_COUNTRIES.equals(countryName) || countryName == null || countryName.isBlank()) ? null : countryName;
-    }
-
-    private Page<ProductSummaryResponse> updateLikeInfo(Page<ProductSummaryResponse> searchResults, Long memberId) {
-        if (memberId == null) {
-            return searchResults;
-        }
-
-        List<Long> productIds = extractProductIds(searchResults);
-        Set<Long> likedProductIds = getLikedProductIds(memberId, productIds);
-        List<ProductSummaryResponse> updatedContent = updateLikeStatus(searchResults.getContent(), likedProductIds);
-
-        return new PageImpl<>(updatedContent, searchResults.getPageable(), searchResults.getTotalElements());
-    }
-
-    private List<Long> extractProductIds(Page<ProductSummaryResponse> searchResults) {
-        return searchResults.getContent().stream()
-                .map(ProductSummaryResponse::productId)
-                .toList();
-    }
-
-    private List<ProductSummaryResponse> updateLikeStatus(List<ProductSummaryResponse> products, Set<Long> likedProductIds) {
-        return products.stream()
-                .map(response -> ProductSummaryResponse.from(response, likedProductIds.contains(response.productId())))
-                .toList();
-    }
-
-    private Set<Long> getLikedProductIds(Long memberId, List<Long> productIds) {
-        if (memberId == null || productIds == null || productIds.isEmpty()) {
-            return Set.of();
-        }
-        return likeRepository.findLikedProductIds(memberId, productIds);
-    }
-
-    private Product findProductWithDetailsAndStock(Long productId, LocalDate tomorrow) {
-        return productRepository.findByIdWithDetailsAndStock(productId, tomorrow)
+    private ProductWithAvgStarAndLike findProductWithDetailsAndAvgStarAndLike(Long productId, LocalDate tomorrow, Long memberId) {
+        return productRepository.findByIdWithDetailsAndAvgStarAndLike(productId, tomorrow, memberId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
     }
 
-    private boolean checkLikeStatus(Long productId, Long memberId) {
-        if (memberId == null) {
-            return false;
-        }
-        return likeRepository.existsByProductIdAndMemberId(productId, memberId);
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Long> callAiSearchApi(String query) {
-        String fastApiUrl = fastApiBaseUrl + "/query";
-        Map<String, String> requestBody = Map.of("query", query);
-
-        Map<String, Object> responses = restTemplate.postForObject(fastApiUrl, requestBody, Map.class);
-
-        if (responses == null || !responses.containsKey("product_ids")) {
-            return List.of();
-        }
-
-        return (List<Long>) responses.get("product_ids");
-    }
-
-    private List<ProductSummaryResponse> updateLikeInfoWithOrder(
-            List<ProductSummaryResponse> products, 
-            List<Long> productIds, 
-            Set<Long> likedProductIds
+    @Transactional(readOnly = true)
+    public Page<ProductSummaryResponse> aiSearchProducts(
+            String query,
+            Long memberId,
+            Pageable pageable
     ) {
+        validateMember(memberId);
+        validateQuery(query);
+        
+        List<Long> productIds = fetchProductIdsFromAI(query);
+        
+        if (productIds.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, 0);
+        }
+
+        // 모든 데이터를 한 번에 조회 (단일 쿼리 + 페이징)
+        Page<ProductWithAvgStarAndLike> productsWithDetails = productRepository.findProductsWithAvgStarAndLikeByIds(productIds, memberId, pageable);
+
+        // AI 응답 순서 유지를 위한 인덱스 맵
         Map<Long, Integer> idOrder = createIdOrderMap(productIds);
 
-        return products.stream()
-                .sorted(Comparator.comparing(p -> idOrder.getOrDefault(p.productId(), Integer.MAX_VALUE)))
-                .map(response -> ProductSummaryResponse.from(response, likedProductIds.contains(response.productId())))
+        List<ProductSummaryResponse> content = productsWithDetails.getContent().stream()
+                .sorted(Comparator.comparing(result -> idOrder.getOrDefault(result.getProduct().getId(), Integer.MAX_VALUE)))
+                .map(this::createProductSummaryResponseFromDetails)
                 .toList();
+
+        return new PageImpl<>(content, pageable, productsWithDetails.getTotalElements());
+    }
+
+    private List<Long> fetchProductIdsFromAI(String query) {
+        try {
+            String fastApiUrl = fastApiBaseUrl + "/query";
+            Map<String, String> requestBody = Map.of("query", query);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = restTemplate.postForObject(
+                    fastApiUrl,
+                    requestBody,
+                    Map.class
+            );
+
+            if (response == null || !response.containsKey("product_ids")) {
+                return List.of();
+            }
+
+            Object productIdsObj = response.get("product_ids");
+            if (!(productIdsObj instanceof List<?>)) {
+                return List.of();
+            }
+
+            return ((List<?>) productIdsObj).stream()
+                    .map(Object::toString)
+                    .map(Long::parseLong)
+                    .toList();
+
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     private Map<Long, Integer> createIdOrderMap(List<Long> productIds) {
@@ -183,5 +203,15 @@ public class ProductService {
             idOrder.put(productIds.get(i), i);
         }
         return idOrder;
+    }
+
+    private ProductSummaryResponse createProductSummaryResponseFromDetails(ProductWithAvgStarAndLike details) {
+        return ProductSummaryResponse.from(details.getProduct(), details.getAvgStar(), details.getIsLiked());
+    }
+
+    private void validateQuery(String query) {
+        if (query == null || query.isBlank()) {
+            throw new ProductException(ErrorCode.PRODUCT_NOT_FOUND);
+        }
     }
 }

@@ -1,17 +1,20 @@
 package com.talktrip.talktrip.domain.product.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.talktrip.talktrip.domain.member.entity.Member;
+import com.talktrip.talktrip.domain.member.enums.MemberRole;
+import com.talktrip.talktrip.domain.member.enums.MemberState;
 import com.talktrip.talktrip.domain.product.dto.response.ProductDetailResponse;
-import com.talktrip.talktrip.domain.product.dto.response.ProductOptionResponse;
 import com.talktrip.talktrip.domain.product.dto.response.ProductSummaryResponse;
 import com.talktrip.talktrip.domain.product.service.ProductService;
+import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
 import com.talktrip.talktrip.global.exception.ErrorCode;
 import com.talktrip.talktrip.global.exception.ProductException;
 import com.talktrip.talktrip.global.security.CustomMemberDetails;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -22,245 +25,530 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
-import static com.talktrip.talktrip.global.TestConst.*;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.BDDMockito.*;
-import static org.mockito.Mockito.mock;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.hamcrest.Matchers.hasSize;
 
-@ActiveProfiles("test")
 @WebMvcTest(controllers = ProductController.class)
-@Import({ProductControllerTest.TestConfig.class, ProductControllerTest.SecurityPermitAllTestConfig.class})
+@Import(ProductControllerTest.TestSecurityConfig.class)
 class ProductControllerTest {
 
-    @Autowired MockMvc mockMvc;
-    @Autowired ProductService productService;
-
     @TestConfiguration
-    static class TestConfig {
-        @Bean ProductService productService() { return mock(ProductService.class); }
-    }
-
-    @TestConfiguration
-    static class SecurityPermitAllTestConfig {
+    static class TestSecurityConfig {
         @Bean
-        SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        SecurityFilterChain filter(HttpSecurity http) throws Exception {
             return http
                     .csrf(AbstractHttpConfigurer::disable)
-                    .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                    .authorizeHttpRequests(auth -> auth
+                            .requestMatchers("/api/products/**").permitAll()
+                            .anyRequest().authenticated()
+                    )
                     .build();
         }
     }
 
-    private UsernamePasswordAuthenticationToken auth() {
-        CustomMemberDetails md = mock(CustomMemberDetails.class);
-        given(md.getId()).willReturn(USER_ID);
-        return new UsernamePasswordAuthenticationToken(md, null,
-                List.of(new SimpleGrantedAuthority(ROLE_USER)));
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
+    private ProductService productService;
+
+    private ProductSummaryResponse productSummaryResponse;
+    private ProductDetailResponse productDetailResponse;
+    private CustomMemberDetails memberDetails;
+
+    @BeforeEach
+    void setUp() {
+        productSummaryResponse = ProductSummaryResponse.builder()
+                .productId(1L)
+                .productName("제주도 여행")
+                .productDescription("아름다운 제주도 여행")
+                .thumbnailImageUrl("https://example.com/jeju.jpg")
+                .averageReviewStar(4.5)
+                .isLiked(true)
+                .build();
+
+        productDetailResponse = ProductDetailResponse.builder()
+                .productId(1L)
+                .productName("제주도 여행")
+                .shortDescription("아름다운 제주도 여행")
+                .thumbnailImageUrl("https://example.com/jeju.jpg")
+                .countryName("대한민국")
+                .averageReviewStar(4.5)
+                .isLiked(true)
+                .reviews(List.of(ReviewResponse.builder()
+                        .reviewId(1L)
+                        .comment("좋은 여행이었습니다")
+                        .reviewStar(4.5)
+                        .build()))
+                .build();
+
+        Member member = Member.builder()
+                .Id(1L)
+                .accountEmail("test@test.com")
+                .phoneNum("010-1234-5678")
+                .name("테스트유저")
+                .nickname("테스트유저")
+                .memberRole(MemberRole.U)
+                .memberState(MemberState.A)
+                .build();
+
+        memberDetails = new CustomMemberDetails(member);
     }
 
-    private ProductDetailResponse detailDto(boolean liked) {
-        return new ProductDetailResponse(
-                PRODUCT_ID, PRODUCT_NAME_1, DESC,
-                PRICE_12000, DISC_9000,
-                LocalDateTime.parse(TIME),
-                THUMBNAIL_URL, COUNTRY_KOREA,
-                List.of(HASHTAG_SEA, HASHTAG_FOOD),
-                List.of(IMAGE_URL_1, IMAGE_URL_2),
-                List.of(new ProductOptionResponse(OPTION_ID_1, OPTION_NAME, LocalDate.now(), STOCK_5, PRICE_12000, DISC_9000)),
-                STAR_4_5,
-                List.of(),
-                liked,
-                SELLER_NAME, SELLER_EMAIL, PHONE_NUMBER
+    @Test
+    @DisplayName("상품 검색을 성공적으로 수행한다")
+    void searchProducts_Success() throws Exception {
+        // given
+        String keyword = "제주도";
+        String countryName = "전체";
+        Long memberId = 1L;
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<ProductSummaryResponse> productPage = new PageImpl<>(List.of(productSummaryResponse), pageable, 1);
+
+        when(productService.searchProducts(eq(keyword), eq(countryName), eq(memberId), any(Pageable.class)))
+                .thenReturn(productPage);
+
+        // when & then
+        mockMvc.perform(get("/api/products")
+                        .with(user(memberDetails))
+                        .param("keyword", keyword)
+                        .param("countryName", countryName)
+                        .param("memberId", memberId.toString())
+                        .param("page", "0")
+                        .param("size", "10")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].productId").value(1L))
+                .andExpect(jsonPath("$.content[0].productName").value("제주도 여행"))
+                .andExpect(jsonPath("$.content[0].averageReviewStar").value(4.5))
+                .andExpect(jsonPath("$.content[0].isLiked").value(true));
+    }
+
+    @Test
+    @DisplayName("상품 상세 정보를 성공적으로 조회한다")
+    void getProductDetail_Success() throws Exception {
+        // given
+        Long productId = 1L;
+        Long memberId = 1L;
+
+        when(productService.getProductDetail(eq(productId), eq(memberId), any(Pageable.class)))
+                .thenReturn(productDetailResponse);
+
+        // when & then
+        mockMvc.perform(get("/api/products/{productId}", productId)
+                        .with(user(memberDetails))
+                        .param("page", "0")
+                        .param("size", "10")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productId").value(1L))
+                .andExpect(jsonPath("$.productName").value("제주도 여행"))
+                .andExpect(jsonPath("$.averageReviewStar").value(4.5))
+                .andExpect(jsonPath("$.isLiked").value(true))
+                .andExpect(jsonPath("$.reviews").isArray())
+                .andExpect(jsonPath("$.reviews[0].reviewId").value(1L));
+    }
+
+    @Test
+    @DisplayName("상품 상세 조회 시 리뷰 페이징이 올바르게 적용된다")
+    void getProductDetail_WithReviewPaging() throws Exception {
+        // given
+        Long productId = 1L;
+        Long memberId = 1L;
+
+        // 두 번째 페이지의 리뷰 응답 생성 (page=1, size=3)
+        ProductDetailResponse productDetailResponseWithPaging = ProductDetailResponse.builder()
+                .productId(1L)
+                .productName("제주도 여행")
+                .shortDescription("아름다운 제주도 여행")
+                .thumbnailImageUrl("https://example.com/jeju.jpg")
+                .countryName("대한민국")
+                .averageReviewStar(4.5)
+                .isLiked(true)
+                .reviews(List.of(
+                        ReviewResponse.builder()
+                                .reviewId(4L) // 두 번째 페이지의 첫 번째 리뷰
+                                .comment("두 번째 페이지 리뷰 1")
+                                .reviewStar(4.0)
+                                .build(),
+                        ReviewResponse.builder()
+                                .reviewId(5L) // 두 번째 페이지의 두 번째 리뷰
+                                .comment("두 번째 페이지 리뷰 2")
+                                .reviewStar(5.0)
+                                .build(),
+                        ReviewResponse.builder()
+                                .reviewId(6L) // 두 번째 페이지의 세 번째 리뷰
+                                .comment("두 번째 페이지 리뷰 3")
+                                .reviewStar(3.5)
+                                .build()
+                ))
+                .build();
+
+        when(productService.getProductDetail(eq(productId), eq(memberId), any(Pageable.class)))
+                .thenReturn(productDetailResponseWithPaging);
+
+        // when & then
+        mockMvc.perform(get("/api/products/{productId}", productId)
+                        .with(user(memberDetails))
+                        .param("page", "1")
+                        .param("size", "3")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productId").value(1L))
+                .andExpect(jsonPath("$.reviews").isArray())
+                .andExpect(jsonPath("$.reviews", hasSize(3)))
+                .andExpect(jsonPath("$.reviews[0].reviewId").value(4L))
+                .andExpect(jsonPath("$.reviews[0].comment").value("두 번째 페이지 리뷰 1"))
+                .andExpect(jsonPath("$.reviews[1].reviewId").value(5L))
+                .andExpect(jsonPath("$.reviews[1].comment").value("두 번째 페이지 리뷰 2"))
+                .andExpect(jsonPath("$.reviews[2].reviewId").value(6L))
+                .andExpect(jsonPath("$.reviews[2].comment").value("두 번째 페이지 리뷰 3"));
+    }
+
+    @Test
+    @DisplayName("상품 상세 조회 시 리뷰 정렬이 올바르게 적용된다")
+    void getProductDetail_WithReviewSorting() throws Exception {
+        // given
+        Long productId = 1L;
+        Long memberId = 1L;
+
+        // 정렬된 리뷰 리스트 생성 (별점 내림차순)
+        List<ReviewResponse> sortedReviews = List.of(
+                ReviewResponse.builder()
+                        .reviewId(1L)
+                        .comment("최고의 여행이었습니다!")
+                        .reviewStar(5.0)
+                        .build(),
+                ReviewResponse.builder()
+                        .reviewId(2L)
+                        .comment("좋은 여행이었습니다")
+                        .reviewStar(4.0)
+                        .build(),
+                ReviewResponse.builder()
+                        .reviewId(3L)
+                        .comment("괜찮은 여행이었습니다")
+                        .reviewStar(3.0)
+                        .build()
         );
+
+        ProductDetailResponse productDetailResponseWithSortedReviews = ProductDetailResponse.builder()
+                .productId(1L)
+                .productName("제주도 여행")
+                .shortDescription("아름다운 제주도 여행")
+                .thumbnailImageUrl("https://example.com/jeju.jpg")
+                .countryName("대한민국")
+                .averageReviewStar(4.0)
+                .isLiked(true)
+                .reviews(sortedReviews)
+                .build();
+
+        when(productService.getProductDetail(eq(productId), eq(memberId), any(Pageable.class)))
+                .thenReturn(productDetailResponseWithSortedReviews);
+
+        // when & then
+        mockMvc.perform(get("/api/products/{productId}", productId)
+                        .with(user(memberDetails))
+                        .param("page", "0")
+                        .param("size", "10")
+                        .param("sort", "reviewStar,desc")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productId").value(1L))
+                .andExpect(jsonPath("$.reviews").isArray())
+                .andExpect(jsonPath("$.reviews", hasSize(3)))
+                // 별점 내림차순 정렬 검증
+                .andExpect(jsonPath("$.reviews[0].reviewId").value(1L))
+                .andExpect(jsonPath("$.reviews[0].reviewStar").value(5.0))
+                .andExpect(jsonPath("$.reviews[0].comment").value("최고의 여행이었습니다!"))
+                .andExpect(jsonPath("$.reviews[1].reviewId").value(2L))
+                .andExpect(jsonPath("$.reviews[1].reviewStar").value(4.0))
+                .andExpect(jsonPath("$.reviews[1].comment").value("좋은 여행이었습니다"))
+                .andExpect(jsonPath("$.reviews[2].reviewId").value(3L))
+                .andExpect(jsonPath("$.reviews[2].reviewStar").value(3.0))
+                .andExpect(jsonPath("$.reviews[2].comment").value("괜찮은 여행이었습니다"));
     }
 
-    @AfterEach
-    void resetMocks() { reset(productService); }
+    @Test
+    @DisplayName("상품 상세 조회 시 리뷰 별점 오름차순 정렬이 올바르게 적용된다")
+    void getProductDetail_WithReviewSortingAsc() throws Exception {
+        // given
+        Long productId = 1L;
+        Long memberId = 1L;
 
-    @Nested
-    @DisplayName("GET " + EP_GET_PRODUCT_DETAIL + " (상품 상세)")
-    class GetDetail {
+        // 정렬된 리뷰 리스트 생성 (별점 오름차순)
+        List<ReviewResponse> sortedReviewsAsc = List.of(
+                ReviewResponse.builder()
+                        .reviewId(3L)
+                        .comment("괜찮은 여행이었습니다")
+                        .reviewStar(3.0)
+                        .build(),
+                ReviewResponse.builder()
+                        .reviewId(2L)
+                        .comment("좋은 여행이었습니다")
+                        .reviewStar(4.5)
+                        .build(),
+                ReviewResponse.builder()
+                        .reviewId(1L)
+                        .comment("최고의 여행이었습니다!")
+                        .reviewStar(5.0)
+                        .build()
+        );
 
-        @Test @DisplayName("200 OK (비로그인 isLiked=false)")
-        void ok_guest() throws Exception {
-            given(productService.getProductDetail(eq(PRODUCT_ID), isNull(), any(Pageable.class)))
-                    .willReturn(detailDto(false));
+        ProductDetailResponse productDetailResponseWithSortedReviewsAsc = ProductDetailResponse.builder()
+                .productId(1L)
+                .productName("제주도 여행")
+                .shortDescription("아름다운 제주도 여행")
+                .thumbnailImageUrl("https://example.com/jeju.jpg")
+                .countryName("대한민국")
+                .averageReviewStar(4.2)
+                .isLiked(true)
+                .reviews(sortedReviewsAsc)
+                .build();
 
-            mockMvc.perform(get(EP_GET_PRODUCT_DETAIL, PRODUCT_ID))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath(JSON_PRODUCT_ID).value(PRODUCT_ID))
-                    .andExpect(jsonPath(JSON_IS_LIKED).value(false));
-        }
+        when(productService.getProductDetail(eq(productId), eq(memberId), any(Pageable.class)))
+                .thenReturn(productDetailResponseWithSortedReviewsAsc);
 
-        @Test @DisplayName("200 OK (로그인 isLiked=true)")
-        void ok_authed() throws Exception {
-            given(productService.getProductDetail(eq(PRODUCT_ID), eq(USER_ID), any(Pageable.class)))
-                    .willReturn(detailDto(true));
-
-            mockMvc.perform(get(EP_GET_PRODUCT_DETAIL, PRODUCT_ID)
-                            .with(authentication(auth())))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath(JSON_PRODUCT_ID).value(PRODUCT_ID))
-                    .andExpect(jsonPath(JSON_IS_LIKED).value(true));
-        }
-
-        @Test @DisplayName("404 PRODUCT_NOT_FOUND")
-        void notFound() throws Exception {
-            willThrow(new ProductException(ErrorCode.PRODUCT_NOT_FOUND))
-                    .given(productService).getProductDetail(eq(PRODUCT_ID), any(), any(Pageable.class));
-
-            mockMvc.perform(get(EP_GET_PRODUCT_DETAIL, PRODUCT_ID))
-                    .andExpect(status().isNotFound())
-                    .andExpect(jsonPath(JSON_ERROR_CODE).value(ERR_PRODUCT_NOT_FOUND));
-        }
-
-        @Test @DisplayName("404 PRODUCT_NOT_FOUND (재고 합=0)")
-        void futureStockZero() throws Exception {
-            willThrow(new ProductException(ErrorCode.PRODUCT_NOT_FOUND))
-                    .given(productService).getProductDetail(eq(PRODUCT_ID), any(), any(Pageable.class));
-
-            mockMvc.perform(get(EP_GET_PRODUCT_DETAIL, PRODUCT_ID))
-                    .andExpect(status().isNotFound())
-                    .andExpect(jsonPath(JSON_ERROR_CODE).value(ERR_PRODUCT_NOT_FOUND));
-        }
+        // when & then
+        mockMvc.perform(get("/api/products/{productId}", productId)
+                        .with(user(memberDetails))
+                        .param("page", "0")
+                        .param("size", "10")
+                        .param("sort", "reviewStar,asc")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productId").value(1L))
+                .andExpect(jsonPath("$.reviews").isArray())
+                .andExpect(jsonPath("$.reviews", hasSize(3)))
+                // 별점 오름차순 정렬 검증
+                .andExpect(jsonPath("$.reviews[0].reviewId").value(3L))
+                .andExpect(jsonPath("$.reviews[0].reviewStar").value(3.0))
+                .andExpect(jsonPath("$.reviews[0].comment").value("괜찮은 여행이었습니다"))
+                .andExpect(jsonPath("$.reviews[1].reviewId").value(2L))
+                .andExpect(jsonPath("$.reviews[1].reviewStar").value(4.5))
+                .andExpect(jsonPath("$.reviews[1].comment").value("좋은 여행이었습니다"))
+                .andExpect(jsonPath("$.reviews[2].reviewId").value(1L))
+                .andExpect(jsonPath("$.reviews[2].reviewStar").value(5.0))
+                .andExpect(jsonPath("$.reviews[2].comment").value("최고의 여행이었습니다!"));
     }
 
-    @Nested
-    @DisplayName("GET " + EP_SEARCH_PRODUCTS + " (상품 검색)")
-    class Search {
+    @Test
+    @DisplayName("상품 상세 조회 시 리뷰가 없는 경우 빈 배열을 반환한다")
+    void getProductDetail_NoReviews() throws Exception {
+        // given
+        Long productId = 1L;
+        Long memberId = 1L;
 
-        @Test @DisplayName("기본 page=0,size=10,sort=updatedAt,desc (빈 페이지)")
-        void defaultEmpty() throws Exception {
-            Page<ProductSummaryResponse> stub = new PageImpl<>(List.of(), PAGE_0_SIZE_10, 0);
-            given(productService.searchProducts(isNull(), anyString(), isNull(), any(Pageable.class)))
-                    .willReturn(stub);
+        // 리뷰가 없는 상품 상세 응답 생성
+        ProductDetailResponse productDetailResponseWithoutReviews = ProductDetailResponse.builder()
+                .productId(1L)
+                .productName("제주도 여행")
+                .shortDescription("아름다운 제주도 여행")
+                .thumbnailImageUrl("https://example.com/jeju.jpg")
+                .countryName("대한민국")
+                .averageReviewStar(0.0)
+                .isLiked(true)
+                .reviews(List.of()) // 빈 리뷰 리스트
+                .build();
 
-            mockMvc.perform(get(EP_SEARCH_PRODUCTS)
-                            .param("countryName", COUNTRY_KOREA))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath(JSON_CONTENT_LEN).value(0))
-                    .andExpect(jsonPath(JSON_NUMBER).value(PAGE_0))
-                    .andExpect(jsonPath(JSON_SIZE).value(SIZE_10));
-        }
+        when(productService.getProductDetail(eq(productId), eq(memberId), any(Pageable.class)))
+                .thenReturn(productDetailResponseWithoutReviews);
 
-        @Test @DisplayName("커스텀 page/size + sort (데이터 반환)")
-        void custom_hasData() throws Exception {
-            ProductSummaryResponse dto = new ProductSummaryResponse(
-                    PRODUCT_ID, PRODUCT_NAME_1, DESC, THUMBNAIL_URL,
-                    PRICE_12000, DISC_9000, STAR_4_0, false
-            );
+        // when & then
+        mockMvc.perform(get("/api/products/{productId}", productId)
+                        .with(user(memberDetails))
+                        .param("page", "0")
+                        .param("size", "10")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productId").value(1L))
+                .andExpect(jsonPath("$.reviews").isArray())
+                .andExpect(jsonPath("$.reviews").isEmpty())
+                .andExpect(jsonPath("$.averageReviewStar").value(0.0));
+    }
 
-            Pageable expected = PageRequest.of(PAGE_2, SIZE_5, SORT_BY_PRODUCT_NAME_DESC);
-            Page<ProductSummaryResponse> stub = new PageImpl<>(List.of(dto), expected, 11);
+    @Test
+    @DisplayName("존재하지 않는 상품 ID로 상세 조회 시 404 오류를 반환한다")
+    void getProductDetail_ProductNotFound() throws Exception {
+        // given
+        Long nonExistentProductId = 999L;
+        Long memberId = 1L;
+        Pageable pageable = PageRequest.of(0, 10);
 
-            given(productService.searchProducts(eq(PRODUCT_NAME_1), eq(COUNTRY_KOREA), isNull(), any(Pageable.class)))
-                    .willReturn(stub);
+        when(productService.getProductDetail(eq(nonExistentProductId), eq(memberId), any(Pageable.class)))
+                .thenThrow(new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
 
-            mockMvc.perform(get(EP_SEARCH_PRODUCTS)
-                            .param("keyword", PRODUCT_NAME_1)
-                            .param("countryName", COUNTRY_KOREA)
-                            .param("page", String.valueOf(PAGE_2))
-                            .param("size", String.valueOf(SIZE_5))
-                            .param("sort", SORT_PRODUCT_NAME + ",desc")
-                            .accept(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath(JSON_CONTENT_0_PRODUCT_ID).value(PRODUCT_ID))
-                    .andExpect(jsonPath(JSON_CONTENT_0_PRODUCT_NAME).value(PRODUCT_NAME_1))
-                    .andExpect(jsonPath(JSON_NUMBER).value(PAGE_2))
-                    .andExpect(jsonPath(JSON_SIZE).value(SIZE_5))
-                    .andExpect(jsonPath(JSON_TOTAL_ELEMENTS).value(11));
-        }
+        // when & then
+        mockMvc.perform(get("/api/products/{productId}", nonExistentProductId)
+                        .with(user(memberDetails))
+                        .param("page", "0")
+                        .param("size", "10")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("PRODUCT_NOT_FOUND"));
+    }
 
-        @Test @DisplayName("로그인 시 memberId 전달")
-        void passMemberIdWhenAuthed() throws Exception {
-            Page<ProductSummaryResponse> stub = new PageImpl<>(
-                    List.of(new ProductSummaryResponse(PRODUCT_ID, PRODUCT_NAME_1, DESC, THUMBNAIL_URL,
-                            PRICE_12000, DISC_9000, STAR_4_0, true)),
-                    PAGE_0_SIZE_10, 1);
-            given(productService.searchProducts(eq(PRODUCT_NAME_1), eq(COUNTRY_KOREA), eq(USER_ID), any(Pageable.class)))
-                    .willReturn(stub);
+    @Test
+    @DisplayName("비로그인 사용자로 상품 검색을 수행한다")
+    void searchProducts_NonLoggedInUser() throws Exception {
+        // given
+        String keyword = "제주도";
+        String countryName = "전체";
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<ProductSummaryResponse> productPage = new PageImpl<>(List.of(productSummaryResponse), pageable, 1);
 
-            mockMvc.perform(get(EP_SEARCH_PRODUCTS)
-                            .param("keyword", PRODUCT_NAME_1)
-                            .param("countryName", COUNTRY_KOREA)
-                            .with(authentication(auth())))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath(JSON_CONTENT_0_PRODUCT_NAME).value(PRODUCT_NAME_1));
-        }
+        when(productService.searchProducts(eq(keyword), eq(countryName), eq(null), any(Pageable.class)))
+                .thenReturn(productPage);
 
-        @Test @DisplayName("keyword 미제공 → null로 서비스에 전달")
-        void keyword_absent_pass_null() throws Exception {
-            Page<ProductSummaryResponse> stub = new PageImpl<>(List.of(), PAGE_0_SIZE_10, 0);
-            given(productService.searchProducts(isNull(), eq(COUNTRY_KOREA), isNull(), any(Pageable.class)))
-                    .willReturn(stub);
+        // when & then
+        mockMvc.perform(get("/api/products")
+                        .param("keyword", keyword)
+                        .param("countryName", countryName)
+                        .param("page", "0")
+                        .param("size", "10")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray());
+    }
 
-            mockMvc.perform(get(EP_SEARCH_PRODUCTS)
-                            .param("countryName", COUNTRY_KOREA))
-                    .andExpect(status().isOk());
+    @Test
+    @DisplayName("비로그인 사용자로 상품 상세 조회를 수행한다")
+    void getProductDetail_NonLoggedInUser() throws Exception {
+        // given
+        Long productId = 1L;
+        Pageable pageable = PageRequest.of(0, 10);
 
-            ArgumentCaptor<String> kwCap = ArgumentCaptor.forClass(String.class);
-            then(productService).should()
-                    .searchProducts(kwCap.capture(), eq(COUNTRY_KOREA), isNull(), any(Pageable.class));
-            assertThat(kwCap.getValue()).isNull();
-        }
+        when(productService.getProductDetail(eq(productId), eq(null), any(Pageable.class)))
+                .thenReturn(productDetailResponse);
 
-        @Test @DisplayName("keyword 공백 문자열 → 그대로 서비스에 전달(트림/토크나이즈는 서비스 책임)")
-        void keyword_blank_string_passed_as_is() throws Exception {
-            Page<ProductSummaryResponse> stub = new PageImpl<>(List.of(), PAGE_0_SIZE_10, 0);
-            given(productService.searchProducts(eq(BLANK), eq(COUNTRY_KOREA), isNull(), any(Pageable.class)))
-                    .willReturn(stub);
+        // when & then
+        mockMvc.perform(get("/api/products/{productId}", productId)
+                        .param("page", "0")
+                        .param("size", "10")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productId").value(1L));
+    }
 
-            mockMvc.perform(get(EP_SEARCH_PRODUCTS)
-                            .param("keyword", BLANK)
-                            .param("countryName", COUNTRY_KOREA))
-                    .andExpect(status().isOk());
+    // AI 검색 API 테스트
+    @Test
+    @DisplayName("AI 상품 검색을 성공적으로 수행한다")
+    void aiSearchProducts_Success() throws Exception {
+        // given
+        String question = "제주도 여행";
+        Long memberId = 1L;
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<ProductSummaryResponse> productPage = new PageImpl<>(List.of(productSummaryResponse), pageable, 1);
 
-            ArgumentCaptor<String> kwCap = ArgumentCaptor.forClass(String.class);
-            then(productService).should()
-                    .searchProducts(kwCap.capture(), eq(COUNTRY_KOREA), isNull(), any(Pageable.class));
-            assertThat(kwCap.getValue()).isEqualTo(BLANK);
-        }
+        when(productService.aiSearchProducts(eq(question), eq(memberId), any(Pageable.class)))
+                .thenReturn(productPage);
 
-        @Test @DisplayName("keyword 다중 단어 문자열 → 그대로 서비스에 전달(분리는 서비스에서 수행)")
-        void keyword_multi_word_passed_as_is() throws Exception {
-            String multi = PRODUCT_NAME_1 + " " + HASHTAG_SEA;
+        // when & then
+        mockMvc.perform(get("/api/products/aisearch")
+                        .with(user(memberDetails))
+                        .param("question", question)
+                        .param("page", "0")
+                        .param("size", "10")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].productId").value(1L))
+                .andExpect(jsonPath("$.content[0].productName").value("제주도 여행"))
+                .andExpect(jsonPath("$.content[0].averageReviewStar").value(4.5))
+                .andExpect(jsonPath("$.content[0].isLiked").value(true));
+    }
 
-            Page<ProductSummaryResponse> stub = new PageImpl<>(List.of(), PAGE_0_SIZE_10, 0);
-            given(productService.searchProducts(eq(multi), eq(COUNTRY_KOREA), isNull(), any(Pageable.class)))
-                    .willReturn(stub);
+    @Test
+    @DisplayName("AI 상품 검색 시 페이징 파라미터가 올바르게 적용된다")
+    void aiSearchProducts_WithPaging() throws Exception {
+        // given
+        String question = "제주도 여행";
+        Long memberId = 1L;
+        Pageable pageable = PageRequest.of(1, 5); // 두 번째 페이지, 크기 5
+        Page<ProductSummaryResponse> productPage = new PageImpl<>(List.of(productSummaryResponse), pageable, 10);
 
-            mockMvc.perform(get(EP_SEARCH_PRODUCTS)
-                            .param("keyword", multi)
-                            .param("countryName", COUNTRY_KOREA))
-                    .andExpect(status().isOk());
+        when(productService.aiSearchProducts(eq(question), eq(memberId), any(Pageable.class)))
+                .thenReturn(productPage);
 
-            ArgumentCaptor<String> kwCap = ArgumentCaptor.forClass(String.class);
-            ArgumentCaptor<Pageable> pageableCap = ArgumentCaptor.forClass(Pageable.class);
-            then(productService).should()
-                    .searchProducts(kwCap.capture(), eq(COUNTRY_KOREA), isNull(), pageableCap.capture());
+        // when & then
+        mockMvc.perform(get("/api/products/aisearch")
+                        .with(user(memberDetails))
+                        .param("question", question)
+                        .param("page", "1")
+                        .param("size", "5")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.totalElements").value(10))
+                .andExpect(jsonPath("$.totalPages").value(2));
+    }
 
-            assertThat(kwCap.getValue()).isEqualTo(multi);
-            Pageable sent = pageableCap.getValue();
-            assertThat(sent.getPageNumber()).isEqualTo(PAGE_0);
-            assertThat(sent.getPageSize()).isEqualTo(SIZE_10);
-            assertThat(sent.getSort()).isEqualTo(DEFAULT_SORT_UPDATED_DESC);
-        }
+    @Test
+    @DisplayName("AI 상품 검색 시 정렬 파라미터가 올바르게 적용된다")
+    void aiSearchProducts_WithSorting() throws Exception {
+        // given
+        String question = "제주도 여행";
+        Long memberId = 1L;
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<ProductSummaryResponse> productPage = new PageImpl<>(List.of(productSummaryResponse), pageable, 1);
+
+        when(productService.aiSearchProducts(eq(question), eq(memberId), any(Pageable.class)))
+                .thenReturn(productPage);
+
+        // when & then
+        mockMvc.perform(get("/api/products/aisearch")
+                        .with(user(memberDetails))
+                        .param("question", question)
+                        .param("page", "0")
+                        .param("size", "10")
+                        .param("sort", "productName,asc")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray());
+    }
+
+    @Test
+    @DisplayName("AI 상품 검색 시 필수 파라미터가 없으면 400 오류를 반환한다")
+    void aiSearchProducts_MissingRequiredParameter() throws Exception {
+        // when & then
+        mockMvc.perform(get("/api/products/aisearch")
+                        .with(user(memberDetails))
+                        .param("page", "0")
+                        .param("size", "10")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("비로그인 사용자로 AI 상품 검색을 수행한다")
+    void aiSearchProducts_NonLoggedInUser() throws Exception {
+        // given
+        String question = "제주도 여행";
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<ProductSummaryResponse> productPage = new PageImpl<>(List.of(productSummaryResponse), pageable, 1);
+
+        when(productService.aiSearchProducts(eq(question), eq(null), any(Pageable.class)))
+                .thenReturn(productPage);
+
+        // when & then
+        mockMvc.perform(get("/api/products/aisearch")
+                        .param("question", question)
+                        .param("page", "0")
+                        .param("size", "10")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray());
     }
 }

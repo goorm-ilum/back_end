@@ -3,6 +3,7 @@ package com.talktrip.talktrip.domain.review.entity;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.order.entity.Order;
 import com.talktrip.talktrip.domain.product.entity.Product;
+import com.talktrip.talktrip.domain.review.dto.request.ReviewRequest;
 import com.talktrip.talktrip.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -16,13 +17,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(indexes = {
-    // 상품별 리뷰 조회 최적화
     @Index(name = "idx_review_product", columnList = "product_id"),
-    // 회원별 리뷰 조회 최적화
     @Index(name = "idx_review_member", columnList = "member_id"),
-    // 별점 정렬 최적화
     @Index(name = "idx_review_star", columnList = "reviewStar DESC"),
-    // 복합 인덱스: 상품별 평균 별점 계산 최적화
     @Index(name = "idx_review_product_star", columnList = "product_id, reviewStar")
 })
 public class Review extends BaseEntity {
@@ -45,11 +42,25 @@ public class Review extends BaseEntity {
 
     private String comment;
 
-    private float reviewStar;
+    private Double reviewStar;
 
-    public void update(String comment, float reviewStar) {
+    public void update(String comment, Double reviewStar) {
         this.comment = comment;
         this.reviewStar = reviewStar;
+    }
+
+    public boolean isWrittenBy(Long memberId) {
+        return this.member.getId().equals(memberId);
+    }
+
+    public static Review to(Order order, Product product, Member member, ReviewRequest request) {
+        return Review.builder()
+                .order(order)
+                .product(product)
+                .member(member)
+                .comment(request.comment())
+                .reviewStar(request.reviewStar())
+                .build();
     }
 
 }

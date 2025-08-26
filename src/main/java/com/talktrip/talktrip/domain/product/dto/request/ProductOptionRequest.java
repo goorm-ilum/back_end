@@ -1,9 +1,11 @@
 package com.talktrip.talktrip.domain.product.dto.request;
 
 import jakarta.validation.constraints.*;
+import lombok.Builder;
 
 import java.time.LocalDate;
 
+@Builder
 public record ProductOptionRequest(
         @NotNull(message = "시작일은 필수입니다")
         @Future(message = "시작일은 미래 날짜여야 합니다")

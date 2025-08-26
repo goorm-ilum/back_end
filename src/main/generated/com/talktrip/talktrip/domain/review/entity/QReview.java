@@ -37,7 +37,7 @@ public class QReview extends EntityPathBase<Review> {
 
     public final com.talktrip.talktrip.domain.product.entity.QProduct product;
 
-    public final NumberPath<Float> reviewStar = createNumber("reviewStar", Float.class);
+    public final NumberPath<Double> reviewStar = createNumber("reviewStar", Double.class);
 
     //inherited
     public final DateTimePath<java.time.LocalDateTime> updatedAt = _super.updatedAt;

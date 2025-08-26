@@ -56,12 +56,16 @@ public class ProductController {
 
     @Operation(summary = "AI 상품 검색")
     @GetMapping("/aisearch")
-    public ResponseEntity<List<ProductSummaryResponse>> aiSearchProducts(
+    public ResponseEntity<Page<ProductSummaryResponse>> aiSearchProducts(
             @RequestParam String question,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "updatedAt,desc") List<String> sort,
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
+        Pageable pageable = PageRequest.of(page, size, buildSort(sort));
         Long memberId = extractMemberId(memberDetails);
-        return ResponseEntity.ok(productService.aiSearchProducts(question, memberId));
+        return ResponseEntity.ok(productService.aiSearchProducts(question, memberId, pageable));
     }
 
     private Long extractMemberId(CustomMemberDetails memberDetails) {

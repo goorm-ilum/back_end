@@ -25,7 +25,6 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("/api")
 public class ReviewController {
-
     private final ReviewService reviewService;
 
     @Operation(summary = "리뷰 작성")
@@ -97,7 +96,7 @@ public class ReviewController {
     @GetMapping("/admin/products/{productId}/reviews")
     public ResponseEntity<Page<ReviewResponse>> getReviewsForSellerProduct(
             @PathVariable Long productId,
-            @AuthenticationPrincipal CustomMemberDetails memberDetails, // seller
+            @AuthenticationPrincipal CustomMemberDetails memberDetails,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "updatedAt,desc") List<String> sort

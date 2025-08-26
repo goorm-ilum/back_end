@@ -1,6 +1,7 @@
 package com.talktrip.talktrip.domain.product.service;
 
 import com.talktrip.talktrip.domain.member.entity.Member;
+import com.talktrip.talktrip.domain.member.enums.MemberRole;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.product.dto.request.AdminProductCreateRequest;
 import com.talktrip.talktrip.domain.product.dto.request.AdminProductUpdateRequest;
@@ -33,7 +34,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AdminProductService {
 
-    private static final String DEFAULT_STATUS = "ACTIVE";
     private static final String THUMBNAIL_PATH = "products/thumbnail";
     private static final String DETAIL_PATH = "products/detail";
     private static final String ID_PREFIX = "id:";
@@ -50,7 +50,7 @@ public class AdminProductService {
     @Transactional
     public void createProduct(AdminProductCreateRequest request, Long memberId,
                               MultipartFile thumbnailImage, List<MultipartFile> detailImages) {
-        Member member = findMember(memberId);
+        Member member = findAdminMember(memberId);
         Country country = findCountry(request.countryName());
         Product product = request.to(member, country);
 
@@ -61,9 +61,96 @@ public class AdminProductService {
         productRepository.save(product);
     }
 
-    private Member findMember(Long memberId) {
-        return memberRepository.findById(memberId)
-                .orElseThrow(() -> new MemberException(ErrorCode.ADMIN_NOT_FOUND));
+    @Transactional(readOnly = true)
+    public Page<AdminProductSummaryResponse> getMyProducts(
+            Long memberId,
+            String keyword,
+            String status,
+            Pageable pageable
+    ) {
+        validateAdminMember(memberId);
+        Page<Product> page = productRepository.findSellerProducts(memberId, status, keyword, pageable);
+
+        return page.map(AdminProductSummaryResponse::from);
+    }
+
+    @Transactional
+    public AdminProductEditResponse getMyProductEditForm(Long productId, Long memberId) {
+        validateAdminMember(memberId);
+        Product product = findProduct(productId, memberId);
+        return AdminProductEditResponse.from(product);
+    }
+
+    @Transactional
+    public void updateProduct(Long productId,
+                              AdminProductUpdateRequest request,
+                              Long memberId,
+                              MultipartFile thumbnailImage,
+                              List<MultipartFile> detailImages,
+                              List<String> detailImageOrder) {
+
+        validateAdminMember(memberId);
+        Product product = findProduct(productId, memberId);
+        Country country = findCountry(request.countryName());
+
+        updateThumbnailImage(product, thumbnailImage, request.existingThumbnailHash());
+        updateDetailImages(product, detailImages, detailImageOrder, request.existingDetailImageIds());
+
+        product.updateBasicInfo(request.productName(), request.description(), country);
+        updateProductData(product, request);
+    }
+
+    @Transactional
+    public void deleteProduct(Long productId, Long memberId) {
+        validateAdminMember(memberId);
+        Product product = findProduct(productId, memberId);
+        
+        if (product.isDeleted()) {
+            throw new ProductException(ErrorCode.PRODUCT_NOT_FOUND);
+        }
+        
+        product.markDeleted();
+    }
+
+    @Transactional
+    public void restoreProduct(Long productId, Long memberId) {
+        validateAdminMember(memberId);
+        Product product = findProduct(productId, memberId);
+        
+        if (!product.isDeleted()) {
+            throw new ProductException(ErrorCode.PRODUCT_NOT_FOUND);
+        }
+        
+        product.restore();
+    }
+
+    // 공통 검증 메서드들
+    private void validateAdminMember(Long memberId) {
+        if (memberId == null) {
+            throw new MemberException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(ErrorCode.USER_NOT_FOUND));
+        
+        if (!member.getMemberRole().equals(MemberRole.A)) {
+            throw new MemberException(ErrorCode.ACCESS_DENIED);
+        }
+    }
+
+    private Member findAdminMember(Long memberId) {
+        if (memberId == null) {
+            throw new MemberException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new MemberException(ErrorCode.USER_NOT_FOUND));
+        
+        if (!member.getMemberRole().equals(MemberRole.A)) {
+            throw new MemberException(ErrorCode.ACCESS_DENIED);
+        }
+        
+        return member;
     }
 
     private Country findCountry(String countryName) {
@@ -71,6 +158,27 @@ public class AdminProductService {
                 .orElseThrow(() -> new ProductException(ErrorCode.COUNTRY_NOT_FOUND));
     }
 
+    private Product findProduct(Long productId, Long memberId) {
+        Product product = findProductById(productId);
+        validateProductOwnership(product, memberId);
+        return product;
+    }
+
+    private Product findProductById(Long productId) {
+        Product product = productRepository.findProductWithAllDetailsById(productId);
+        if (product == null) {
+            throw new ProductException(ErrorCode.PRODUCT_NOT_FOUND);
+        }
+        return product;
+    }
+
+    private void validateProductOwnership(Product product, Long memberId) {
+        if (!product.getMember().getId().equals(memberId)) {
+            throw new MemberException(ErrorCode.ACCESS_DENIED);
+        }
+    }
+
+    // 이미지 처리 메서드들
     private void processThumbnailImage(Product product, MultipartFile thumbnailImage) {
         if (thumbnailImage != null && !thumbnailImage.isEmpty()) {
             String thumbnailUrl = s3Uploader.upload(thumbnailImage, THUMBNAIL_PATH);
@@ -98,70 +206,6 @@ public class AdminProductService {
     private void addProductData(Product product, AdminProductCreateRequest request) {
         product.getHashtags().addAll(request.toHashTags(product));
         product.getProductOptions().addAll(request.toProductOptions(product));
-    }
-
-    @Transactional(readOnly = true)
-    public Page<AdminProductSummaryResponse> getMyProducts(
-            Long memberId,
-            String keyword,
-            String status,
-            Pageable pageable
-    ) {
-        String normalizedStatus = normalizeStatus(status);
-        Page<Product> page = productRepository.findSellerProducts(memberId, normalizedStatus, keyword, pageable);
-
-        return page.map(AdminProductSummaryResponse::from);
-    }
-
-    private String normalizeStatus(String status) {
-        return (status == null || status.isBlank()) ? DEFAULT_STATUS : status.trim();
-    }
-
-    @Transactional
-    public AdminProductEditResponse getMyProductEditForm(Long productId, Long memberId) {
-        Product product = findProductForEdit(productId, memberId);
-        return AdminProductEditResponse.from(product);
-    }
-
-    private Product findProductForEdit(Long productId, Long memberId) {
-        Product product = productRepository.findByIdIncludingDeleted(productId)
-                .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
-
-        if (!product.getMember().getId().equals(memberId)) {
-            throw new ProductException(ErrorCode.ACCESS_DENIED);
-        }
-        
-        return product;
-    }
-
-
-    @Transactional
-    public void updateProduct(Long productId,
-                              AdminProductUpdateRequest request,
-                              Long memberId,
-                              MultipartFile thumbnailImage,
-                              List<MultipartFile> detailImages,
-                              List<String> detailImageOrder) {
-
-        Product product = findProductForUpdate(productId, memberId);
-        Country country = findCountry(request.countryName());
-
-        updateThumbnailImage(product, thumbnailImage, request.existingThumbnailHash());
-        updateDetailImages(product, detailImages, detailImageOrder, request.existingDetailImageIds());
-
-        product.updateBasicInfo(request.productName(), request.description(), country);
-        updateProductData(product, request);
-    }
-
-    private Product findProductForUpdate(Long productId, Long memberId) {
-        Product product = productRepository.findByIdIncludingDeleted(productId)
-                .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
-
-        if (!product.getMember().getId().equals(memberId)) {
-            throw new ProductException(ErrorCode.ACCESS_DENIED);
-        }
-
-        return product;
     }
 
     private void updateThumbnailImage(Product product, MultipartFile thumbnailImage, String existingThumbnailHash) {
@@ -325,17 +369,5 @@ public class AdminProductService {
         productOptionRepository.deleteAllByProduct(product);
         product.getProductOptions().clear();
         product.getProductOptions().addAll(request.toProductOptions(product));
-    }
-
-    @Transactional
-    public void deleteProduct(Long productId, Long memberId) {
-        Product product = findProductForUpdate(productId, memberId);
-        product.markDeleted();
-    }
-
-    @Transactional
-    public void restoreProduct(Long productId, Long memberId) {
-        Product product = findProductForUpdate(productId, memberId);
-        product.restore();
     }
 }

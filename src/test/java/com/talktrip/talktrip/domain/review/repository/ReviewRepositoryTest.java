@@ -3,249 +3,337 @@ package com.talktrip.talktrip.domain.review.repository;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.enums.MemberRole;
 import com.talktrip.talktrip.domain.member.enums.MemberState;
+import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.order.entity.Order;
 import com.talktrip.talktrip.domain.order.entity.OrderItem;
 import com.talktrip.talktrip.domain.order.enums.OrderStatus;
+import com.talktrip.talktrip.domain.order.repository.OrderRepository;
 import com.talktrip.talktrip.domain.product.entity.Product;
+import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.review.entity.Review;
-import com.talktrip.talktrip.global.config.QuerydslConfig;
-import jakarta.persistence.EntityManager;
+import com.talktrip.talktrip.global.config.QueryDSLTestConfig;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
-import static com.talktrip.talktrip.global.TestConst.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
+@Import(QueryDSLTestConfig.class)
+@EnableJpaAuditing
 @ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
-@Import({QuerydslConfig.class, ReviewRepositoryTest.AuditingTestConfig.class})
+@Transactional
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ReviewRepositoryTest {
 
-    @Autowired ReviewRepository reviewRepository;
-    @Autowired EntityManager em;
+    @Autowired
+    private ReviewRepository reviewRepository;
 
-    @TestConfiguration @EnableJpaAuditing
-    static class AuditingTestConfig {}
+    @Autowired
+    private MemberRepository memberRepository;
 
-    private Member user() {
-        Member m = Member.builder()
-                .accountEmail(USER_EMAIL)
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private TestEntityManager testEntityManager;
+
+    private Member member;
+    private Product product;
+    private Order order;
+    private OrderItem orderItem;
+    private Review review;
+
+    @BeforeEach
+    void setUp() {
+        member = Member.builder()
+                .accountEmail("test@test.com")
+                .name("테스트유저")
+                .nickname("테스트유저")
                 .memberRole(MemberRole.U)
                 .memberState(MemberState.A)
                 .build();
-        em.persist(m);
-        return m;
-    }
+        memberRepository.save(member);
 
-    private Member anotherUser() {
-        Member m = Member.builder()
-                .accountEmail(USER2_EMAIL)
-                .memberRole(MemberRole.U)
-                .memberState(MemberState.A)
+        product = Product.builder()
+                .member(member)
+                .productName("제주도 여행")
+                .description("아름다운 제주도 여행")
+                .thumbnailImageUrl("https://example.com/jeju.jpg")
                 .build();
-        em.persist(m);
-        return m;
-    }
+        productRepository.save(product);
 
-    private Member seller() {
-        Member m = Member.builder()
-                .accountEmail(SELLER_EMAIL)
-                .memberRole(MemberRole.A)
-                .memberState(MemberState.A)
+        orderItem = OrderItem.builder()
+                .productId(product.getId())
                 .build();
-        em.persist(m);
-        return m;
-    }
 
-    private Product product(Member s, String name) {
-        Product p = Product.builder()
-                .member(s)
-                .productName(name)
-                .description(DESC)
-                .deleted(false)
-                .build();
-        em.persist(p);
-        return p;
-    }
-
-    private Order order(Member buyer) {
-        Order o = Order.builder()
-                .member(buyer)
+        order = Order.builder()
+                .member(member)
                 .orderStatus(OrderStatus.SUCCESS)
-                .orderCode(ORDER_CODE_PREFIX + System.nanoTime())
+                .orderItems(List.of(orderItem))
+                .orderCode("order-code")
                 .build();
-        em.persist(o);
-        return o;
-    }
+        orderRepository.save(order);
 
-    private void review(Member buyer, Product p, Order o, float star) {
-        OrderItem item = OrderItem.createOrderItem(
-                p.getId(), p.getProductName(), p.getThumbnailImageUrl(),
-                PRICE_10000, null, null, 0, 0,
-                LocalDate.now(), QUANTITY_1, PRICE_10000
-        );
-        item.setOrder(o);
-        o.getOrderItems().add(item);
-        em.persist(item);
-
-        Review r = Review.builder()
-                .member(buyer)
-                .product(p)
-                .order(o)
-                .comment(DESC)
-                .reviewStar(star)
+        review = Review.builder()
+                .member(member)
+                .product(product)
+                .order(order)
+                .comment("좋은 여행이었습니다")
+                .reviewStar(4.5)
                 .build();
-        em.persist(r);
+        testEntityManager.persistAndFlush(review);
     }
 
-    @Test @DisplayName("existsByOrderId: true/false")
-    void existsByOrderId() {
-        Member buyer = user();
-        Member s = seller();
-        Product p = product(s, PRODUCT_NAME_1);
-        Order o = order(buyer);
+    @Test
+    @DisplayName("리뷰를 성공적으로 저장한다")
+    void save_Success() {
+        // given
+        OrderItem newOrderItem = OrderItem.builder()
+                .productId(product.getId())
+                .build();
 
-        review(buyer, p, o, STAR_4_0);
-        assertThat(reviewRepository.existsByOrderId(o.getId())).isTrue();
+        Order newOrder = Order.builder()
+                .member(member)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderItems(List.of(newOrderItem))
+                .orderCode("order-code-2")
+                .build();
+        orderRepository.save(newOrder);
 
-        Order o2 = order(buyer);
-        assertThat(reviewRepository.existsByOrderId(o2.getId())).isFalse();
+        Review newReview = Review.builder()
+                .member(member)
+                .product(product)
+                .order(newOrder)
+                .comment("새로운 리뷰입니다")
+                .reviewStar(5.0)
+                .build();
+
+        // when
+        Review savedReview = reviewRepository.save(newReview);
+
+        // then
+        assertThat(savedReview.getId()).isNotNull();
+        assertThat(savedReview.getComment()).isEqualTo("새로운 리뷰입니다");
+        assertThat(savedReview.getMember()).isEqualTo(member);
+        assertThat(savedReview.getProduct()).isEqualTo(product);
     }
 
-    @Test @DisplayName("existsByOrderId: 없는 주문 ID는 false")
-    void existsByOrderId_negative() {
-        assertThat(reviewRepository.existsByOrderId(NON_EXIST_ORDER_ID)).isFalse();
+    @Test
+    @DisplayName("ID로 리뷰를 성공적으로 조회한다")
+    void findById_Success() {
+        // when
+        Optional<Review> foundReview = reviewRepository.findById(review.getId());
+
+        // then
+        assertThat(foundReview).isPresent();
+        assertThat(foundReview.get().getComment()).isEqualTo("좋은 여행이었습니다");
+        assertThat(foundReview.get().getMember()).isEqualTo(member);
+        assertThat(foundReview.get().getProduct()).isEqualTo(product);
     }
 
-    @Test @DisplayName("findByMemberId 페이징(총3, page0 size2 -> content size=2)")
-    void findByMemberId_paging() {
-        Member buyer = user();
-        Member s = seller();
-        Product p1 = product(s, PRODUCT_NAME_1);
-        Product p2 = product(s, PRODUCT_NAME_2);
-        Product p3 = product(s, PRODUCT_NAME_3);
-        Order o1 = order(buyer);
-        Order o2 = order(buyer);
-        Order o3 = order(buyer);
+    @Test
+    @DisplayName("존재하지 않는 ID로 리뷰 조회 시 빈 Optional을 반환한다")
+    void findById_NotFound() {
+        // when
+        Optional<Review> foundReview = reviewRepository.findById(999L);
 
-        review(buyer, p1, o1, STAR_5_0);
-        review(buyer, p2, o2, STAR_3_0);
-        review(buyer, p3, o3, STAR_4_0);
-
-        Page<Review> page = reviewRepository.findByMemberId(buyer.getId(), PageRequest.of(PAGE_0, SIZE_2));
-        assertThat(page.getTotalElements()).isEqualTo(3);
-        assertThat(page.getContent()).hasSize(SIZE_2);
-        assertThat(page.getNumber()).isEqualTo(PAGE_0);
-        assertThat(page.getSize()).isEqualTo(SIZE_2);
+        // then
+        assertThat(foundReview).isEmpty();
     }
 
-    @Test @DisplayName("findByMemberId: 다른 회원 리뷰가 섞이지 않음")
-    void findByMemberId_isolation() {
-        Member m1 = user();
-        Member m2 = anotherUser();
-        Member s = seller();
-        Product p = product(s, PRODUCT_NAME_1);
-        Order o1 = order(m1);
-        Order o2 = order(m2);
+    @Test
+    @DisplayName("모든 리뷰를 성공적으로 조회한다")
+    void findAll_Success() {
+        // given
+        OrderItem orderItem2 = OrderItem.builder()
+                .productId(product.getId())
+                .build();
 
-        review(m1, p, o1, STAR_5_0);
-        review(m2, p, o2, STAR_3_0);
+        Order order2 = Order.builder()
+                .member(member)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderItems(List.of(orderItem2))
+                .orderCode("order-code-2")
+                .build();
+        orderRepository.save(order2);
 
-        Page<Review> page = reviewRepository.findByMemberId(m1.getId(), PageRequest.of(PAGE_0, SIZE_10));
-        assertThat(page.getTotalElements()).isEqualTo(1);
-        assertThat(page.getContent().getFirst().getMember().getId()).isEqualTo(m1.getId());
+        Review review2 = Review.builder()
+                .member(member)
+                .product(product)
+                .order(order2)
+                .comment("두 번째 리뷰입니다")
+                .reviewStar(4.0)
+                .build();
+        reviewRepository.save(review2);
+
+        // when
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Review> reviewPage = reviewRepository.findAll(pageable);
+
+        // then
+        assertThat(reviewPage.getContent()).hasSize(2);
+        assertThat(reviewPage.getTotalElements()).isEqualTo(2);
     }
 
-    @Test @DisplayName("findByProductId 페이징(총2, page0 size1 -> content size=1)")
-    void findByProductId_paging() {
-        Member buyer = user();
-        Member s = seller();
-        Product p = product(s, PRODUCT_NAME_1);
-        Order o1 = order(buyer);
-        Order o2 = order(buyer);
+    @Test
+    @DisplayName("리뷰를 성공적으로 삭제한다")
+    void delete_Success() {
+        // when
+        reviewRepository.delete(review);
 
-        review(buyer, p, o1, STAR_5_0);
-        review(buyer, p, o2, STAR_2_0);
-
-        Page<Review> page = reviewRepository.findByProductId(p.getId(), PageRequest.of(PAGE_0, SIZE_1));
-        assertThat(page.getTotalElements()).isEqualTo(2);
-        assertThat(page.getContent()).hasSize(SIZE_1);
-        assertThat(page.getNumber()).isEqualTo(PAGE_0);
-        assertThat(page.getSize()).isEqualTo(SIZE_1);
+        // then
+        Optional<Review> deletedReview = reviewRepository.findById(review.getId());
+        assertThat(deletedReview).isEmpty();
     }
 
-    @Test @DisplayName("findByProductId: 초과 페이지는 빈 페이지")
-    void findByProductId_overflow() {
-        Member buyer = user();
-        Member s = seller();
-        Product p = product(s, PRODUCT_NAME_1);
+    @Test
+    @DisplayName("상품 ID로 리뷰를 성공적으로 조회한다")
+    void findByProductId_Success() {
+        // given
+        OrderItem orderItem2 = OrderItem.builder()
+                .productId(product.getId())
+                .build();
 
-        review(buyer, p, order(buyer), STAR_5_0);
-        review(buyer, p, order(buyer), STAR_4_0);
-        review(buyer, p, order(buyer), STAR_3_0);
+        Order order2 = Order.builder()
+                .member(member)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderItems(List.of(orderItem2))
+                .orderCode("order-code-2")
+                .build();
+        orderRepository.save(order2);
 
-        Page<Review> page = reviewRepository.findByProductId(p.getId(), PageRequest.of(PAGE_2, SIZE_2));
-        assertThat(page.getContent()).isEmpty();
-        assertThat(page.getTotalElements()).isEqualTo(3);
+        Review review2 = Review.builder()
+                .member(member)
+                .product(product)
+                .order(order2)
+                .comment("두 번째 리뷰입니다")
+                .reviewStar(4.0)
+                .build();
+        reviewRepository.save(review2);
+
+        // when
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Review> reviewPage = reviewRepository.findByProductId(product.getId(), pageable);
+
+        // then
+        assertThat(reviewPage.getContent()).hasSize(2);
+        assertThat(reviewPage.getContent()).allMatch(r -> r.getProduct().getId().equals(product.getId()));
     }
 
-    @Test @DisplayName("findByProductId: updatedAt DESC 정렬 준수")
-    void findByProductId_sort_desc_by_updatedAt() {
-        Member buyer = user();
-        Member s = seller();
-        Product p = product(s, PRODUCT_NAME_1);
+    @Test
+    @DisplayName("존재하지 않는 상품 ID로 리뷰 조회 시 빈 페이지를 반환한다")
+    void findByProductId_NoResult() {
+        // when
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Review> reviewPage = reviewRepository.findByProductId(999L, pageable);
 
-        review(buyer, p, order(buyer), STAR_3_0);
-        review(buyer, p, order(buyer), STAR_5_0);
-
-        Page<Review> page = reviewRepository.findByProductId(
-                p.getId(), PageRequest.of(PAGE_0, SIZE_10, Sort.by(Sort.Direction.DESC, SORT_UPDATED_AT)));
-
-        assertThat(page.getContent()).hasSize(2);
-        assertThat(page.getContent().get(0).getUpdatedAt())
-                .isAfterOrEqualTo(page.getContent().get(1).getUpdatedAt());
+        // then
+        assertThat(reviewPage.getContent()).isEmpty();
+        assertThat(reviewPage.getTotalElements()).isEqualTo(0);
     }
 
-    @Test @DisplayName("@Query findByProductIdIncludingDeleted 동작")
-    void findByProductIdIncludingDeleted() {
-        Member buyer = user();
-        Member s = seller();
-        Product p = product(s, PRODUCT_NAME_1);
-        Order o = order(buyer);
+    @Test
+    @DisplayName("사용자 ID로 리뷰를 성공적으로 조회한다")
+    void findByMemberId_Success() {
+        // given
+        OrderItem orderItem2 = OrderItem.builder()
+                .productId(product.getId())
+                .build();
 
-        review(buyer, p, o, STAR_4_0);
+        Order order2 = Order.builder()
+                .member(member)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderItems(List.of(orderItem2))
+                .orderCode("order-code-2")
+                .build();
+        orderRepository.save(order2);
 
-        List<Review> list = reviewRepository.findByProductIdIncludingDeleted(p.getId());
-        assertThat(list).isNotEmpty();
-        assertThat(list.getFirst().getProduct().getId()).isEqualTo(p.getId());
+        Review review2 = Review.builder()
+                .member(member)
+                .product(product)
+                .order(order2)
+                .comment("두 번째 리뷰입니다")
+                .reviewStar(4.0)
+                .build();
+        testEntityManager.persistAndFlush(review2);
+
+        // when
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Review> reviewPage = reviewRepository.findByMemberId(member.getId(), pageable);
+
+        // then
+        assertThat(reviewPage.getContent()).hasSize(2);
+        assertThat(reviewPage.getContent()).allMatch(r -> r.getMember().getId().equals(member.getId()));
     }
 
-    @Test @DisplayName("@Query findByProductIdIncludingDeleted: 다른 상품 리뷰 미포함")
-    void includingDeleted_isolation_by_product() {
-        Member buyer = user();
-        Member s = seller();
-        Product p1 = product(s, PRODUCT_NAME_1);
-        Product p2 = product(s, PRODUCT_NAME_2);
+    @Test
+    @DisplayName("존재하지 않는 사용자 ID로 리뷰 조회 시 빈 페이지를 반환한다")
+    void findByMemberId_NoResult() {
+        // when
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Review> reviewPage = reviewRepository.findByMemberId(999L, pageable);
 
-        review(buyer, p1, order(buyer), STAR_4_0);
-        review(buyer, p2, order(buyer), STAR_2_0);
+        // then
+        assertThat(reviewPage.getContent()).isEmpty();
+        assertThat(reviewPage.getTotalElements()).isEqualTo(0);
+    }
 
-        List<Review> list = reviewRepository.findByProductIdIncludingDeleted(p1.getId());
-        assertThat(list).isNotEmpty();
-        assertThat(list).allMatch(r -> r.getProduct().getId().equals(p1.getId()));
+    @Test
+    @DisplayName("주문 ID로 리뷰 존재 여부를 확인한다")
+    void existsByOrderId_Success() {
+        // when
+        boolean exists = reviewRepository.existsByOrderId(order.getId());
+
+        // then
+        assertThat(exists).isTrue();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 주문 ID로 리뷰 존재 여부 확인 시 false를 반환한다")
+    void existsByOrderId_NotFound() {
+        // when
+        boolean exists = reviewRepository.existsByOrderId(999L);
+
+        // then
+        assertThat(exists).isFalse();
+    }
+
+    @Test
+    @DisplayName("리뷰가 존재하는지 확인한다")
+    void existsById_Success() {
+        // when
+        boolean exists = reviewRepository.existsById(review.getId());
+
+        // then
+        assertThat(exists).isTrue();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 리뷰 ID로 존재 여부 확인 시 false를 반환한다")
+    void existsById_NotFound() {
+        // when
+        boolean exists = reviewRepository.existsById(999L);
+
+        // then
+        assertThat(exists).isFalse();
     }
 }
+

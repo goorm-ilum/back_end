@@ -3,117 +3,255 @@ package com.talktrip.talktrip.domain.product.repository;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.enums.MemberRole;
 import com.talktrip.talktrip.domain.member.enums.MemberState;
+import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.product.entity.Product;
-import com.talktrip.talktrip.global.config.QuerydslConfig;
-import jakarta.persistence.EntityManager;
+import com.talktrip.talktrip.global.config.QueryDSLTestConfig;
+import com.talktrip.talktrip.global.entity.Country;
+import com.talktrip.talktrip.global.repository.CountryRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 
-import static com.talktrip.talktrip.global.TestConst.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
+@Import(QueryDSLTestConfig.class)
+@EnableJpaAuditing
 @ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
-@Import({QuerydslConfig.class, ProductRepositoryTest.AuditingTestConfig.class})
+@Transactional
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ProductRepositoryTest {
 
-    @Autowired ProductRepository productRepository;
-    @Autowired EntityManager em;
+    @Autowired
+    private ProductRepository productRepository;
 
-    @TestConfiguration @EnableJpaAuditing
-    static class AuditingTestConfig { }
+    @Autowired
+    private MemberRepository memberRepository;
 
-    private Member seller() {
-        Member seller = Member.builder()
-                .name(SELLER_NAME)
-                .accountEmail(SELLER_EMAIL)
-                .phoneNum(PHONE_NUMBER)
+    @Autowired
+    private CountryRepository countryRepository;
+
+    private Member member;
+    private Country country;
+    private Product product;
+
+    @BeforeEach
+    void setUp() {
+        member = Member.builder()
+                .accountEmail("test@test.com")
+                .name("테스트유저")
+                .nickname("테스트유저")
                 .memberRole(MemberRole.A)
                 .memberState(MemberState.A)
                 .build();
-        em.persist(seller);
-        return seller;
+        memberRepository.save(member);
+
+        country = Country.builder()
+                .id(1L)
+                .name("대한민국")
+                .continent("아시아")
+                .build();
+        countryRepository.save(country);
+
+        product = Product.builder()
+                .member(member)
+                .productName("제주도 여행")
+                .description("아름다운 제주도 여행")
+                .thumbnailImageUrl("https://example.com/jeju.jpg")
+                .country(country)
+                .build();
+        productRepository.save(product);
     }
 
-    private Member other() {
-        Member other = Member.builder()
-                .name("other")
-                .accountEmail(USER_EMAIL)
-                .phoneNum(PHONE_NUMBER)
-                .memberRole(MemberRole.U)
+    @Test
+    @DisplayName("상품을 성공적으로 저장한다")
+    void save_Success() {
+        // given
+        Product newProduct = Product.builder()
+                .member(member)
+                .productName("부산 여행")
+                .description("아름다운 부산 여행")
+                .thumbnailImageUrl("https://example.com/busan.jpg")
+                .country(country)
+                .build();
+
+        // when
+        Product savedProduct = productRepository.save(newProduct);
+
+        // then
+        assertThat(savedProduct.getId()).isNotNull();
+        assertThat(savedProduct.getProductName()).isEqualTo("부산 여행");
+        assertThat(savedProduct.getMember()).isEqualTo(member);
+    }
+
+    @Test
+    @DisplayName("ID로 상품을 성공적으로 조회한다")
+    void findById_Success() {
+        // when
+        Optional<Product> foundProduct = productRepository.findById(product.getId());
+
+        // then
+        assertThat(foundProduct).isPresent();
+        assertThat(foundProduct.get().getProductName()).isEqualTo("제주도 여행");
+        assertThat(foundProduct.get().getMember()).isEqualTo(member);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 ID로 상품 조회 시 빈 Optional을 반환한다")
+    void findById_NotFound() {
+        // when
+        Optional<Product> foundProduct = productRepository.findById(999L);
+
+        // then
+        assertThat(foundProduct).isEmpty();
+    }
+
+    @Test
+    @DisplayName("모든 상품을 성공적으로 조회한다")
+    void findAll_Success() {
+        // given
+        Product product2 = Product.builder()
+                .member(member)
+                .productName("부산 여행")
+                .description("아름다운 부산 여행")
+                .thumbnailImageUrl("https://example.com/busan.jpg")
+                .country(country)
+                .build();
+        productRepository.save(product2);
+
+        // when
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Product> productPage = productRepository.findAll(pageable);
+
+        // then
+        assertThat(productPage.getContent()).hasSize(2);
+        assertThat(productPage.getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("상품을 성공적으로 삭제한다")
+    void delete_Success() {
+        // when
+        productRepository.delete(product);
+
+        // then
+        Optional<Product> deletedProduct = productRepository.findById(product.getId());
+        assertThat(deletedProduct).isEmpty();
+    }
+
+    @Test
+    @DisplayName("삭제된 상품을 포함하여 ID로 조회한다")
+    void findByIdIncludingDeleted_Success() {
+        // given
+        product.markDeleted();
+
+        // when
+        Optional<Product> foundProduct = productRepository.findByIdIncludingDeleted(product.getId());
+
+        // then
+        assertThat(foundProduct).isPresent();
+        assertThat(foundProduct.get().getProductName()).isEqualTo("제주도 여행");
+        assertThat(foundProduct.get().isDeleted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 ID로 삭제된 상품 조회 시 빈 Optional을 반환한다")
+    void findByIdIncludingDeleted_NotFound() {
+        // when
+        Optional<Product> foundProduct = productRepository.findByIdIncludingDeleted(999L);
+
+        // then
+        assertThat(foundProduct).isEmpty();
+    }
+
+    @Test
+    @DisplayName("판매자 ID와 함께 상품을 조회한다")
+    void findByIdAndMemberIdIncludingDeleted_Success() {
+        // when
+        Optional<Product> foundProduct = productRepository.findByIdAndMemberIdIncludingDeleted(
+                product.getId(), member.getId());
+
+        // then
+        assertThat(foundProduct).isPresent();
+        assertThat(foundProduct.get().getProductName()).isEqualTo("제주도 여행");
+        assertThat(foundProduct.get().getMember().getId()).isEqualTo(member.getId());
+    }
+
+    @Test
+    @DisplayName("다른 판매자의 상품 조회 시 빈 Optional을 반환한다")
+    void findByIdAndMemberIdIncludingDeleted_DifferentSeller() {
+        // given
+        Member differentMember = Member.builder()
+                .accountEmail("different@test.com")
+                .name("다른판매자")
+                .nickname("다른판매자")
+                .memberRole(MemberRole.A)
                 .memberState(MemberState.A)
                 .build();
-        em.persist(other);
-        return other;
+        memberRepository.save(differentMember);
+
+        // when
+        Optional<Product> foundProduct = productRepository.findByIdAndMemberIdIncludingDeleted(
+                product.getId(), differentMember.getId());
+
+        // then
+        assertThat(foundProduct).isEmpty();
     }
 
-
-
-    private Product product(Member seller, boolean deleted) {
-        return Product.builder()
-                .member(seller)
-                .productName(PRODUCT_NAME_1)
-                .description(DESC)
-                .thumbnailImageUrl(THUMBNAIL_URL)
-                .deleted(deleted)
-                .deletedAt(deleted ? LocalDateTime.now() : null)
+    @Test
+    @DisplayName("상품 ID 목록으로 상품 요약 정보를 조회한다")
+    void findProductSummariesByIds_Success() {
+        // given
+        Product product2 = Product.builder()
+                .member(member)
+                .productName("부산 여행")
+                .description("아름다운 부산 여행")
+                .thumbnailImageUrl("https://example.com/busan.jpg")
+                .country(country)
                 .build();
+        productRepository.save(product2);
+
+        List<Long> productIds = List.of(product.getId(), product2.getId());
+
+        // when
+        List<Product> result = productRepository.findProductSummariesByIds(productIds);
+
+        // then
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getProductName()).isEqualTo("제주도 여행");
+        assertThat(result.get(1).getProductName()).isEqualTo("부산 여행");
     }
 
     @Test
-    @DisplayName("@Where로 삭제 제외: findById는 deleted=false만 반환")
-    void findById_excludesDeleted() {
-        Member seller = seller();
-        Product active = product(seller, false);
-        Product deleted = product(seller, true);
+    @DisplayName("상품이 존재하는지 확인한다")
+    void existsById_Success() {
+        // when
+        boolean exists = productRepository.existsById(product.getId());
 
-        productRepository.save(active);
-        productRepository.save(deleted);
-
-        // 1차 캐시를 비워서 실제 쿼리가 나가게 함
-        em.flush();
-        em.clear();
-
-        assertThat(productRepository.findById(active.getId())).isPresent();
-        assertThat(productRepository.findById(deleted.getId())).isEmpty(); // @Where 적용
+        // then
+        assertThat(exists).isTrue();
     }
 
     @Test
-    @DisplayName("findByIdIncludingDeleted: 삭제 포함")
-    void findByIdIncludingDeleted() {
-        Member seller = seller();
-        Product del = product(seller, true);
-        productRepository.save(del);
+    @DisplayName("존재하지 않는 상품 ID로 존재 여부 확인 시 false를 반환한다")
+    void existsById_NotFound() {
+        // when
+        boolean exists = productRepository.existsById(999L);
 
-        em.flush();
-        em.clear();
-
-        assertThat(productRepository.findByIdIncludingDeleted(del.getId())).isPresent();
-    }
-
-    @Test
-    @DisplayName("findByIdAndMemberIdIncludingDeleted: 소유자 일치 시 반환, 불일치 시 빈 값")
-    void ownerMatch() {
-        Member owner = seller();
-        Member other = other();
-
-        Product p = product(owner, false);
-        productRepository.save(p);
-
-        em.flush();
-        em.clear();
-
-        assertThat(productRepository.findByIdAndMemberIdIncludingDeleted(p.getId(), owner.getId())).isPresent();
-        assertThat(productRepository.findByIdAndMemberIdIncludingDeleted(p.getId(), other.getId())).isEmpty();
+        // then
+        assertThat(exists).isFalse();
     }
 }

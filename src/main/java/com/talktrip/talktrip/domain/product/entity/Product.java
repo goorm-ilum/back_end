@@ -25,7 +25,6 @@ import java.util.stream.Stream;
 @AllArgsConstructor
 @NoArgsConstructor
 @SQLDelete(sql = "UPDATE product SET deleted = true, deleted_at = NOW() WHERE id = ?")
-@Where(clause = "deleted = false")
 @Table(indexes = {
     @Index(name = "idx_product_search", columnList = "deleted, country_id, updatedAt"),
     @Index(name = "idx_product_name_search", columnList = "productName"),
@@ -87,6 +86,8 @@ public class Product extends BaseEntity {
         this.deletedAt = null;
     }
 
+
+
     public void updateThumbnailImage(String url, String hash) {
         this.thumbnailImageUrl = url;
         this.thumbnailImageHash = hash;
@@ -116,8 +117,8 @@ public class Product extends BaseEntity {
         return country != null ? country.getName() : "";
     }
 
-    public float getAverageReviewStar() {
-        return (float) reviews.stream()
+    public Double getAverageReviewStar() {
+        return reviews.stream()
                 .mapToDouble(Review::getReviewStar)
                 .average()
                 .orElse(0.0);

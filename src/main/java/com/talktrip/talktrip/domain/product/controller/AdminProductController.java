@@ -74,13 +74,14 @@ public class AdminProductController {
             @Valid @RequestPart("request") AdminProductUpdateRequest request,
             @RequestPart(value = "thumbnailImage", required = false) MultipartFile thumbnailImage,
             @RequestPart(value = "detailImages", required = false) List<MultipartFile> detailImages,
-            @RequestPart(value = "detailImageOrder", required = false) List<String> detailImageOrder,
+            @RequestParam(value = "detailImageOrder", required = false) List<String> detailImageOrder, // ← 변경
             @AuthenticationPrincipal CustomMemberDetails memberDetails
     ) {
         adminProductService.updateProduct(productId, request, memberDetails.getId(),
                 thumbnailImage, detailImages, detailImageOrder);
         return ResponseEntity.ok().build();
     }
+
 
     @Operation(summary = "판매자 상품 삭제")
     @DeleteMapping("/{productId}")

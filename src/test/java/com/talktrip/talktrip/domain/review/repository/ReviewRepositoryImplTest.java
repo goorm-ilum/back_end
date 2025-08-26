@@ -1,283 +1,399 @@
 package com.talktrip.talktrip.domain.review.repository;
 
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.enums.MemberRole;
 import com.talktrip.talktrip.domain.member.enums.MemberState;
+import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.order.entity.Order;
 import com.talktrip.talktrip.domain.order.entity.OrderItem;
 import com.talktrip.talktrip.domain.order.enums.OrderStatus;
+import com.talktrip.talktrip.domain.order.repository.OrderRepository;
 import com.talktrip.talktrip.domain.product.entity.Product;
+import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.review.entity.Review;
-import com.talktrip.talktrip.global.config.QuerydslConfig;
-import jakarta.persistence.EntityManager;
+import com.talktrip.talktrip.global.config.QueryDSLTestConfig;
+import com.talktrip.talktrip.global.entity.Country;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
-import static com.talktrip.talktrip.global.TestConst.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
+@Import(QueryDSLTestConfig.class)
+@EnableJpaAuditing
 @ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
-@Import({QuerydslConfig.class, ReviewRepositoryImplTest.AuditingTestConfig.class})
+@Transactional
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ReviewRepositoryImplTest {
 
-    @Autowired EntityManager em;
-    @Autowired ReviewRepository reviewRepository;
+    @Autowired
+    private ReviewRepository reviewRepository;
 
-    @TestConfiguration
-    @EnableJpaAuditing
-    static class AuditingTestConfig {}
+    @Autowired
+    private MemberRepository memberRepository;
 
-    private Member user() {
-        Member m = Member.builder()
-                .accountEmail(USER_EMAIL)
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private TestEntityManager testEntityManager;
+
+    @Autowired
+    private JPAQueryFactory queryFactory;
+
+    private Member member;
+    private Product product;
+    private Order order;
+    private OrderItem orderItem;
+    private Review review;
+    private Country country;
+
+    @BeforeEach
+    void setUp() {
+        country = Country.builder()
+                .id(1L)
+                .name("대한민국")
+                .build();
+        testEntityManager.persist(country);
+
+        member = Member.builder()
+                .accountEmail("test@test.com")
+                .name("테스트유저")
+                .nickname("테스트유저")
                 .memberRole(MemberRole.U)
                 .memberState(MemberState.A)
-                .name(USER_NAME)
-                .phoneNum(PHONE_NUMBER)
-                .build();
-        em.persist(m);
-        return m;
-    }
 
-    private Member seller() {
-        Member m = Member.builder()
-                .accountEmail(SELLER_EMAIL)
-                .memberRole(MemberRole.A)
-                .memberState(MemberState.A)
-                .name(SELLER_NAME)
-                .phoneNum(PHONE_NUMBER)
                 .build();
-        em.persist(m);
-        return m;
-    }
+        memberRepository.save(member);
 
-    private Product product(Member s, String name) {
-        Product p = Product.builder()
-                .member(s)
-                .productName(name)
-                .description(DESC)
-                .deleted(false)
+        product = Product.builder()
+                .member(member)
+                .productName("제주도 여행")
+                .description("아름다운 제주도 여행")
+                .thumbnailImageUrl("https://example.com/jeju.jpg")
+                .country(country)
                 .build();
-        em.persist(p);
-        return p;
-    }
+        productRepository.save(product);
 
-    private Order order(Member buyer) {
-        Order o = Order.builder()
-                .member(buyer)
+        orderItem = OrderItem.builder()
+                .productId(product.getId())
+                .build();
+
+        order = Order.builder()
+                .member(member)
                 .orderStatus(OrderStatus.SUCCESS)
-                .orderCode(ORDER_CODE_PREFIX + System.nanoTime())
+                .orderItems(List.of(orderItem))
+                .orderCode("order-code")
                 .build();
-        em.persist(o);
-        return o;
-    }
+        orderRepository.save(order);
 
-    private void review(Member buyer, Product p, Order o, float star) {
-        OrderItem item = OrderItem.createOrderItem(
-                p.getId(), p.getProductName(), p.getThumbnailImageUrl(),
-                PRICE_10000, null, null, 0, 0,
-                LocalDate.now(), QUANTITY_1, PRICE_10000
-        );
-        item.setOrder(o);
-        o.getOrderItems().add(item);
-        em.persist(item);
-
-        Review r = Review.builder()
-                .member(buyer)
-                .product(p)
-                .order(o)
-                .comment("c")
-                .reviewStar(star)
+        review = Review.builder()
+                .member(member)
+                .product(product)
+                .order(order)
+                .comment("좋은 여행이었습니다")
+                .reviewStar(4.5)
                 .build();
-        em.persist(r);
-    }
-
-    private void flushClear() {
-        em.flush();
-        em.clear();
+        reviewRepository.save(review);
     }
 
     @Test
-    @DisplayName("기본: 여러 상품의 평균 별점 배치 조회 (리뷰 없는 상품은 결과에 포함되지 않음)")
-    void basic_batch_avg() {
-        Member s = seller();
-        Member u = user();
+    @DisplayName("상품 ID로 리뷰를 페이징과 함께 조회한다")
+    void findByProductIdWithPaging_Success() {
+        // given
+        Long productId = product.getId();
+        Pageable pageable = PageRequest.of(0, 10);
 
-        Product p1 = product(s, PRODUCT_NAME_1);
-        Product p2 = product(s, PRODUCT_NAME_2);
-        Product p3 = product(s, PRODUCT_NAME_3); // 리뷰 없음
+        // when
+        Page<Review> result = reviewRepository.findByProductIdWithPaging(productId, pageable);
 
-        review(u, p1, order(u), STAR_4_0);
-        review(u, p1, order(u), STAR_2_0);
-
-        review(u, p2, order(u), STAR_5_0);
-
-        flushClear();
-
-        Map<Long, Double> map = reviewRepository.fetchAvgStarsByProductIds(
-                List.of(p1.getId(), p2.getId(), p3.getId())
-        );
-
-        assertThat(map).containsEntry(p1.getId(), (double) AVG_3_0);
-        assertThat(map).containsEntry(p2.getId(), (double) AVG_5_0);
-        // 리뷰가 전혀 없으면 group by 결과가 없으므로 키 자체가 없음
-        assertThat(map).doesNotContainKey(p3.getId());
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        Review foundReview = result.getContent().get(0);
+        assertThat(foundReview.getProduct().getId()).isEqualTo(productId);
+        assertThat(foundReview.getComment()).isEqualTo("좋은 여행이었습니다");
+        assertThat(foundReview.getReviewStar()).isEqualTo(4.5);
     }
 
     @Test
-    @DisplayName("소수점 평균 1자리 반올림: (4.5, 3.0, 4.0) → 3.8")
-    void decimal_precision_rounded_to_1dp() {
-        Member s = seller();
-        Member u = user();
-        Product p = product(s, PRODUCT_NAME_1);
+    @DisplayName("존재하지 않는 상품 ID로 리뷰 조회 시 빈 페이지를 반환한다")
+    void findByProductIdWithPaging_NoResult() {
+        // given
+        Long nonExistentProductId = 999L;
+        Pageable pageable = PageRequest.of(0, 10);
 
-        review(u, p, order(u), STAR_4_5);
-        review(u, p, order(u), STAR_3_0);
-        review(u, p, order(u), STAR_4_0);
+        // when
+        Page<Review> result = reviewRepository.findByProductIdWithPaging(nonExistentProductId, pageable);
 
-        flushClear();
-
-        Map<Long, Double> map = reviewRepository.fetchAvgStarsByProductIds(List.of(p.getId()));
-
-        double raw = (STAR_4_5 + STAR_3_0 + STAR_4_0) / 3.0;
-        double expectedRounded = Math.round(raw * 10.0) / 10.0;
-
-        assertThat(map).containsKey(p.getId());
-        assertThat(map.get(p.getId())).isEqualTo(expectedRounded);
+        // then
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElements()).isEqualTo(0);
     }
 
     @Test
-    @DisplayName("productIds=null → 빈 Map")
-    void null_ids_returns_empty() {
-        Map<Long, Double> map = reviewRepository.fetchAvgStarsByProductIds(null);
-        assertThat(map).isEmpty();
+    @DisplayName("사용자 ID로 리뷰를 상품 정보와 함께 조회한다")
+    void findByMemberIdWithProduct_Success() {
+        // given
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        // when
+        Page<Review> result = reviewRepository.findByMemberIdWithProduct(memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        Review foundReview = result.getContent().get(0);
+        assertThat(foundReview.getMember().getId()).isEqualTo(memberId);
+        assertThat(foundReview.getProduct()).isNotNull();
+        assertThat(foundReview.getProduct().getProductName()).isEqualTo("제주도 여행");
     }
 
     @Test
-    @DisplayName("productIds=빈 목록 → 빈 Map")
-    void empty_ids_returns_empty() {
-        Map<Long, Double> map = reviewRepository.fetchAvgStarsByProductIds(List.of());
-        assertThat(map).isEmpty();
+    @DisplayName("존재하지 않는 사용자 ID로 리뷰 조회 시 빈 페이지를 반환한다")
+    void findByMemberIdWithProduct_NoResult() {
+        // given
+        Long nonExistentMemberId = 999L;
+        Pageable pageable = PageRequest.of(0, 10);
+
+        // when
+        Page<Review> result = reviewRepository.findByMemberIdWithProduct(nonExistentMemberId, pageable);
+
+        // then
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElements()).isEqualTo(0);
     }
 
     @Test
-    @DisplayName("존재하지 않는 ID가 포함되어도 무시 (해당 키 없음)")
-    void non_existing_ids_ignored() {
-        Member s = seller();
-        Member u = user();
-        Product p = product(s, PRODUCT_NAME_1);
+    @DisplayName("여러 리뷰가 있을 때 페이징이 올바르게 작동한다")
+    void findByProductIdWithPaging_Pagination() {
+        // given
+        // 추가 리뷰 생성 - 각각 다른 Order 사용
+        OrderItem orderItem2 = OrderItem.builder()
+                .productId(product.getId())
+                .build();
 
-        review(u, p, order(u), STAR_4_0);
-        flushClear();
+        Order order2 = Order.builder()
+                .member(member)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderItems(List.of(orderItem2))
+                .orderCode("order-code-2")
+                .build();
+        orderRepository.save(order2);
 
-        Map<Long, Double> map = reviewRepository.fetchAvgStarsByProductIds(
-                List.of(p.getId(), OTHER_PRODUCT_ID) // OTHER_PRODUCT_ID는 DB에 없음
-        );
+        Review review2 = Review.builder()
+                .member(member)
+                .product(product)
+                .order(order2)
+                .comment("두 번째 리뷰입니다")
+                .reviewStar(4.0)
+                .build();
+        reviewRepository.save(review2);
 
-        assertThat(map).containsKey(p.getId());
-        assertThat(map).doesNotContainKey(OTHER_PRODUCT_ID);
+        OrderItem orderItem3 = OrderItem.builder()
+                .productId(product.getId())
+                .build();
+
+        Order order3 = Order.builder()
+                .member(member)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderItems(List.of(orderItem3))
+                .orderCode("order-code-3")
+                .build();
+        orderRepository.save(order3);
+
+        Review review3 = Review.builder()
+                .member(member)
+                .product(product)
+                .order(order3)
+                .comment("세 번째 리뷰입니다")
+                .reviewStar(5.0)
+                .build();
+        reviewRepository.save(review3);
+
+        Long productId = product.getId();
+        Pageable pageable = PageRequest.of(0, 2); // 페이지당 2개씩
+
+        // when
+        Page<Review> result = reviewRepository.findByProductIdWithPaging(productId, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(2);
+        assertThat(result.getTotalElements()).isEqualTo(3);
+        assertThat(result.getTotalPages()).isEqualTo(2);
     }
 
     @Test
-    @DisplayName("입력 productIds에 중복이 있어도 결과는 각 상품당 1개 key만")
-    void duplicated_ids_input_produces_single_key() {
-        Member s = seller();
-        Member u = user();
-        Product p = product(s, PRODUCT_NAME_2);
+    @DisplayName("두 번째 페이지를 조회한다")
+    void findByProductIdWithPaging_SecondPage() {
+        // given
+        // 추가 리뷰 생성 - 각각 다른 Order 사용
+        OrderItem orderItem2 = OrderItem.builder()
+                .productId(product.getId())
+                .build();
 
-        review(u, p, order(u), STAR_5_0);
-        flushClear();
+        Order order2 = Order.builder()
+                .member(member)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderItems(List.of(orderItem2))
+                .orderCode("order-code-2")
+                .build();
+        orderRepository.save(order2);
 
-        Map<Long, Double> map = reviewRepository.fetchAvgStarsByProductIds(
-                List.of(p.getId(), p.getId(), p.getId())
-        );
+        Review review2 = Review.builder()
+                .member(member)
+                .product(product)
+                .order(order2)
+                .comment("두 번째 리뷰입니다")
+                .reviewStar(4.0)
+                .build();
+        reviewRepository.save(review2);
 
-        assertThat(map.keySet().stream().filter(id -> id.equals(p.getId())).count()).isEqualTo(1);
-        assertThat(map.get(p.getId())).isEqualTo(STAR_5_0);
+        OrderItem orderItem3 = OrderItem.builder()
+                .productId(product.getId())
+                .build();
+
+        Order order3 = Order.builder()
+                .member(member)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderItems(List.of(orderItem3))
+                .orderCode("order-code-3")
+                .build();
+        orderRepository.save(order3);
+
+        Review review3 = Review.builder()
+                .member(member)
+                .product(product)
+                .order(order3)
+                .comment("세 번째 리뷰입니다")
+                .reviewStar(5.0)
+                .build();
+        reviewRepository.save(review3);
+
+        Long productId = product.getId();
+        Pageable pageable = PageRequest.of(1, 2); // 두 번째 페이지
+
+        // when
+        Page<Review> result = reviewRepository.findByProductIdWithPaging(productId, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getTotalElements()).isEqualTo(3);
+        assertThat(result.getTotalPages()).isEqualTo(2);
     }
 
     @Test
-    @DisplayName("요청한 ID 외의 상품 리뷰는 집계에 포함되지 않음")
-    void only_requested_ids_are_aggregated() {
-        Member s = seller();
-        Member u = user();
+    @DisplayName("사용자 ID로 리뷰 조회 시 페이징이 올바르게 작동한다")
+    void findByMemberIdWithProduct_Pagination() {
+        // given
+        // 다른 상품과 리뷰 생성
+        Product product2 = Product.builder()
+                .member(member)
+                .productName("부산 여행")
+                .description("아름다운 부산 여행")
+                .thumbnailImageUrl("https://example.com/busan.jpg")
+                .country(country)
+                .build();
+        productRepository.save(product2);
 
-        Product target = product(s, PRODUCT_NAME_1);
-        Product other = product(s, PRODUCT_NAME_2);
+        OrderItem orderItem2 = OrderItem.builder()
+                .productId(product2.getId())
+                .build();
 
-        review(u, target, order(u), STAR_4_0);
-        review(u, other, order(u), STAR_5_0);
-        flushClear();
+        Order order2 = Order.builder()
+                .member(member)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderItems(List.of(orderItem2))
+                .orderCode("order-code-2")
+                .build();
+        orderRepository.save(order2);
 
-        Map<Long, Double> map = reviewRepository.fetchAvgStarsByProductIds(List.of(target.getId()));
-        assertThat(map).containsKey(target.getId());
-        assertThat(map).doesNotContainKey(other.getId());
+        Review review2 = Review.builder()
+                .member(member)
+                .product(product2)
+                .order(order2)
+                .comment("부산 여행 리뷰입니다")
+                .reviewStar(4.0)
+                .build();
+        reviewRepository.save(review2);
+
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 1); // 페이지당 1개씩
+
+        // when
+        Page<Review> result = reviewRepository.findByMemberIdWithProduct(memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getTotalElements()).isEqualTo(2);
+        assertThat(result.getTotalPages()).isEqualTo(2);
     }
 
     @Test
-    @DisplayName("여러 상품 + 리뷰 편차가 커도 그룹별 평균 정확")
-    void many_products_varied_reviews() {
-        Member s = seller();
-        Member u = user();
+    @DisplayName("리뷰가 없는 상품의 경우 빈 페이지를 반환한다")
+    void findByProductIdWithPaging_EmptyProduct() {
+        // given
+        // 리뷰가 없는 새로운 상품 생성
+        Product productWithoutReview = Product.builder()
+                .member(member)
+                .productName("서울 여행")
+                .description("아름다운 서울 여행")
+                .thumbnailImageUrl("https://example.com/seoul.jpg")
+                .country(country)
+                .build();
+        productRepository.save(productWithoutReview);
 
-        Product p1 = product(s, "A");
-        Product p2 = product(s, "B");
-        Product p3 = product(s, "C");
+        Long productId = productWithoutReview.getId();
+        Pageable pageable = PageRequest.of(0, 10);
 
-        review(u, p1, order(u), STAR_3_0);
+        // when
+        Page<Review> result = reviewRepository.findByProductIdWithPaging(productId, pageable);
 
-        review(u, p2, order(u), STAR_2_0);
-        review(u, p2, order(u), STAR_5_0);
-
-        review(u, p3, order(u), STAR_4_5);
-        review(u, p3, order(u), STAR_4_0);
-        review(u, p3, order(u), STAR_5_0);
-
-        flushClear();
-
-        Map<Long, Double> map = reviewRepository.fetchAvgStarsByProductIds(
-                List.of(p1.getId(), p2.getId(), p3.getId())
-        );
-
-        double expectedP1 = Math.round((STAR_3_0) * 10.0) / 10.0;
-        double expectedP2 = Math.round(((STAR_2_0 + STAR_5_0) / 2.0) * 10.0) / 10.0;
-        double expectedP3 = Math.round(((STAR_4_5 + STAR_4_0 + STAR_5_0) / 3.0) * 10.0) / 10.0;
-
-        assertThat(map).containsEntry(p1.getId(), expectedP1);
-        assertThat(map).containsEntry(p2.getId(), expectedP2);
-        assertThat(map).containsEntry(p3.getId(), expectedP3);
+        // then
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElements()).isEqualTo(0);
     }
 
     @Test
-    @DisplayName("삭제된(soft delete) 상품의 리뷰도 평균 집계에 포함")
-    void deleted_product_reviews_are_included_in_avg() {
-        Member s = seller();
-        Member u = user();
-        Product p = product(s, PRODUCT_NAME_1);
+    @DisplayName("리뷰가 없는 사용자의 경우 빈 페이지를 반환한다")
+    void findByMemberIdWithProduct_EmptyMember() {
+        // given
+        // 리뷰가 없는 새로운 사용자 생성
+        Member memberWithoutReview = Member.builder()
+                .accountEmail("no-review@test.com")
+                .name("리뷰없는유저")
+                .nickname("리뷰없는유저")
+                .memberRole(MemberRole.U)
+                .memberState(MemberState.A)
+                .build();
+        memberRepository.save(memberWithoutReview);
 
-        review(u, p, order(u), STAR_4_0);
-        review(u, p, order(u), STAR_2_0);
+        Long memberId = memberWithoutReview.getId();
+        Pageable pageable = PageRequest.of(0, 10);
 
-        p.markDeleted();
+        // when
+        Page<Review> result = reviewRepository.findByMemberIdWithProduct(memberId, pageable);
 
-        flushClear();
-
-        Map<Long, Double> map = reviewRepository.fetchAvgStarsByProductIds(List.of(p.getId()));
-
-        assertThat(map).containsEntry(p.getId(), (double) AVG_3_0);
+        // then
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElements()).isEqualTo(0);
     }
-
 }
+

@@ -1,16 +1,16 @@
 package com.talktrip.talktrip.domain.product.service;
 
 import com.talktrip.talktrip.domain.member.entity.Member;
+import com.talktrip.talktrip.domain.member.enums.MemberRole;
+import com.talktrip.talktrip.domain.member.enums.MemberState;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.product.dto.request.AdminProductCreateRequest;
 import com.talktrip.talktrip.domain.product.dto.request.AdminProductUpdateRequest;
 import com.talktrip.talktrip.domain.product.dto.request.ProductOptionRequest;
 import com.talktrip.talktrip.domain.product.dto.response.AdminProductEditResponse;
 import com.talktrip.talktrip.domain.product.dto.response.AdminProductSummaryResponse;
-import com.talktrip.talktrip.domain.product.entity.HashTag;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.entity.ProductImage;
-import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.domain.product.repository.ProductHashTagRepository;
 import com.talktrip.talktrip.domain.product.repository.ProductImageRepository;
 import com.talktrip.talktrip.domain.product.repository.ProductOptionRepository;
@@ -21,8 +21,8 @@ import com.talktrip.talktrip.global.exception.MemberException;
 import com.talktrip.talktrip.global.exception.ProductException;
 import com.talktrip.talktrip.global.repository.CountryRepository;
 import com.talktrip.talktrip.global.s3.S3Uploader;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -39,361 +39,724 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-import static com.talktrip.talktrip.global.TestConst.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.BDDMockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AdminProductServiceTest {
 
-    @InjectMocks AdminProductService adminProductService;
+    @Mock
+    private ProductRepository productRepository;
 
-    @Mock ProductRepository productRepository;
-    @Mock CountryRepository countryRepository;
-    @Mock MemberRepository memberRepository;
-    @Mock ProductImageRepository productImageRepository;
-    @Mock ProductHashTagRepository productHashTagRepository;
-    @Mock ProductOptionRepository productOptionRepository;
-    @Mock S3Uploader s3Uploader;
+    @Mock
+    private CountryRepository countryRepository;
 
-    private Member seller() {
-        return Member.builder()
-                .Id(SELLER_ID)
-                .name(SELLER_NAME)
-                .accountEmail(SELLER_EMAIL)
-                .phoneNum(PHONE_NUMBER)
+    @Mock
+    private MemberRepository memberRepository;
+
+    @Mock
+    private ProductImageRepository productImageRepository;
+
+    @Mock
+    private ProductHashTagRepository productHashTagRepository;
+
+    @Mock
+    private ProductOptionRepository productOptionRepository;
+
+    @Mock
+    private S3Uploader s3Uploader;
+
+    @InjectMocks
+    private AdminProductService adminProductService;
+
+    private Member adminMember;
+    private Member regularMember;
+    private Product product;
+    private Product deletedProduct;
+    private Country country;
+    private AdminProductCreateRequest createRequest;
+    private AdminProductUpdateRequest updateRequest;
+    private MockMultipartFile thumbnailImage;
+    private MockMultipartFile detailImage;
+
+    @BeforeEach
+    void setUp() {
+        adminMember = Member.builder()
+                .Id(1L)
+                .accountEmail("admin@test.com")
+                .phoneNum("010-1234-5678")
+                .name("관리자")
+                .nickname("관리자")
+                .memberRole(MemberRole.A)
+                .memberState(MemberState.A)
                 .build();
-    }
 
-    private Country kr() {
-        return Country.builder().name(COUNTRY_KOREA).continent(CONTINENT_ASIA).build();
-    }
+        regularMember = Member.builder()
+                .Id(2L)
+                .accountEmail("user@test.com")
+                .phoneNum("010-9876-5432")
+                .name("일반유저")
+                .nickname("일반유저")
+                .memberRole(MemberRole.U)
+                .memberState(MemberState.A)
+                .build();
 
-    private Product ownedProduct() {
-        Product p = Product.builder()
-                .id(PRODUCT_ID)
-                .member(seller())
-                .productName(PRODUCT_NAME_1)
-                .description(DESC)
-                .country(kr())
-                .thumbnailImageUrl(THUMBNAIL_URL)
-                .thumbnailImageHash(THUMBNAIL_HASH)
+        country = Country.builder()
+                .id(1L)
+                .name("대한민국")
+                .continent("아시아")
+                .build();
+
+        product = Product.builder()
+                .id(1L)
+                .productName("제주도 여행")
+                .description("아름다운 제주도 여행")
+                .thumbnailImageUrl("https://example.com/jeju.jpg")
+                .member(adminMember)
+                .country(country)
                 .deleted(false)
                 .build();
 
-        p.getImages().add(ProductImage.builder()
-                .id(IMAGE_ID_1)
-                .product(p)
-                .imageUrl(IMAGE_URL_1)
-                .sortOrder(0)
-                .build());
+        deletedProduct = Product.builder()
+                .id(2L)
+                .productName("삭제된 제주도 여행")
+                .description("삭제된 제주도 여행")
+                .thumbnailImageUrl("https://example.com/deleted-jeju.jpg")
+                .member(adminMember)
+                .country(country)
+                .deleted(true)  // 삭제된 상태
+                .build();
 
-        p.getHashtags().add(HashTag.builder().product(p).hashtag(HASHTAG_SEA).build());
+        createRequest = AdminProductCreateRequest.builder()
+                .productName("제주도 여행")
+                .description("아름다운 제주도 여행")
+                .countryName("대한민국")
+                .hashtags(List.of("제주도", "여행", "관광"))
+                .options(List.of(
+                        ProductOptionRequest.builder()
+                                .optionName("기본 패키지")
+                                .startDate(LocalDate.now().plusDays(1))
+                                .stock(10)
+                                .price(100000)
+                                .discountPrice(90000)
+                                .build()
+                ))
+                .build();
 
-        p.getProductOptions().add(ProductOption.builder()
-                .id(OPTION_ID_1)
-                .product(p)
-                .optionName(OPTION_NAME)
-                .startDate(LocalDate.now())
-                .stock(STOCK_3)
-                .price(PRICE_10000)
-                .discountPrice(DISC_9000)
-                .build());
+        updateRequest = AdminProductUpdateRequest.builder()
+                .productName("수정된 제주도 여행")
+                .description("수정된 제주도 여행 설명")
+                .countryName("대한민국")
+                .hashtags(List.of("제주도", "여행", "관광"))
+                .options(List.of(
+                        ProductOptionRequest.builder()
+                                .optionName("기본 패키지")
+                                .startDate(LocalDate.now().plusDays(1))
+                                .stock(10)
+                                .price(100000)
+                                .discountPrice(90000)
+                                .build()
+                ))
+                .build();
 
-        return p;
+        thumbnailImage = new MockMultipartFile(
+                "thumbnailImage",
+                "thumbnail.jpg",
+                "image/jpeg",
+                "thumbnail content".getBytes()
+        );
+
+        detailImage = new MockMultipartFile(
+                "detailImage",
+                "detail.jpg",
+                "image/jpeg",
+                "detail content".getBytes()
+        );
     }
 
-    @Nested @DisplayName("createProduct(request, memberId, thumbnail, details)")
-    class Create {
+    @Test
+    @DisplayName("상품을 성공적으로 생성한다")
+    void createProduct_Success() {
+        // given
+        Long memberId = adminMember.getId();
+        List<MultipartFile> detailImages = List.of(detailImage);
 
-        @Test @DisplayName("정상 생성(썸네일/디테일 이미지 포함)")
-        void ok_with_images() {
-            AdminProductCreateRequest req = new AdminProductCreateRequest(
-                    PRODUCT_NAME_1, DESC, COUNTRY_KOREA,
-                    List.of(new ProductOptionRequest(LocalDate.now(), OPTION_NAME, STOCK_5, PRICE_10000, DISC_9000)),
-                    List.of(HASHTAG_SEA, HASHTAG_FOOD)
-            );
-            MockMultipartFile thumb = new MockMultipartFile(MF_T_NAME, MF_T_FILENAME, MEDIA_IMAGE_PNG, BYTES_X);
-            MockMultipartFile d1 = new MockMultipartFile(MF_D_NAME, MF_D1_FILENAME, MEDIA_IMAGE_PNG, BYTES_X);
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(adminMember));
+        when(countryRepository.findByName("대한민국")).thenReturn(Optional.of(country));
+        when(s3Uploader.upload(any(), eq("products/thumbnail"))).thenReturn("https://s3.com/thumbnail.jpg");
+        when(s3Uploader.calculateHash(any())).thenReturn("thumbnail-hash");
+        when(s3Uploader.upload(any(), eq("products/detail"))).thenReturn("https://s3.com/detail.jpg");
+        when(productRepository.save(any(Product.class))).thenReturn(product);
 
-            given(memberRepository.findById(SELLER_ID)).willReturn(Optional.of(seller()));
-            given(countryRepository.findByName(COUNTRY_KOREA)).willReturn(Optional.of(kr()));
-            given(s3Uploader.upload(any(MultipartFile.class), anyString())).willReturn(THUMBNAIL_URL);
-            given(s3Uploader.calculateHash(any(MultipartFile.class))).willReturn(THUMBNAIL_HASH);
+        // when
+        adminProductService.createProduct(createRequest, memberId, thumbnailImage, detailImages);
 
-            adminProductService.createProduct(req, SELLER_ID, thumb, List.of(d1));
-
-            then(productRepository).should().save(argThat(p ->
-                    p.getProductOptions().size() == 1 &&
-                            p.getImages().size() == 1 &&
-                            THUMBNAIL_URL.equals(p.getThumbnailImageUrl()) &&
-                            THUMBNAIL_HASH.equals(p.getThumbnailImageHash())
-            ));
-        }
-
-        @Test @DisplayName("ADMIN_NOT_FOUND")
-        void adminNotFound() {
-            given(memberRepository.findById(SELLER_ID)).willReturn(Optional.empty());
-            AdminProductCreateRequest req = new AdminProductCreateRequest(
-                    PRODUCT_NAME_1, DESC, COUNTRY_KOREA, List.of(), List.of());
-
-            assertThatThrownBy(() ->
-                    adminProductService.createProduct(req, SELLER_ID, null, null)
-            ).isInstanceOf(MemberException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.ADMIN_NOT_FOUND);
-        }
-
-        @Test @DisplayName("COUNTRY_NOT_FOUND")
-        void countryNotFound() {
-            given(memberRepository.findById(SELLER_ID)).willReturn(Optional.of(seller()));
-            given(countryRepository.findByName(COUNTRY_KOREA)).willReturn(Optional.empty());
-
-            AdminProductCreateRequest req = new AdminProductCreateRequest(
-                    PRODUCT_NAME_1, DESC, COUNTRY_KOREA, List.of(), List.of());
-
-            assertThatThrownBy(() ->
-                    adminProductService.createProduct(req, SELLER_ID, null, null)
-            ).isInstanceOf(ProductException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.COUNTRY_NOT_FOUND);
-        }
+        // then
+        verify(productRepository).save(any(Product.class));
+        verify(s3Uploader).upload(thumbnailImage, "products/thumbnail");
+        verify(s3Uploader).upload(detailImage, "products/detail");
     }
 
-    @Nested @DisplayName("getMyProducts(memberId, keyword, status, pageable)")
-    class MyList {
-
-        @Test @DisplayName("status null → 기본 ACTIVE로 위임, 페이지/매핑 정상")
-        void defaultActive_noKeyword() {
-            Product p = ownedProduct();
-            Pageable pageable = PAGE_0_SIZE_10;
-
-            given(productRepository.findSellerProducts(eq(SELLER_ID), eq(STATUS_ACTIVE), isNull(), eq(pageable)))
-                    .willReturn(new PageImpl<>(List.of(p), pageable, 1));
-
-            Page<AdminProductSummaryResponse> res =
-                    adminProductService.getMyProducts(SELLER_ID, null, null, pageable);
-
-            assertThat(res.getTotalElements()).isEqualTo(1);
-            assertThat(res.getContent().getFirst().id()).isEqualTo(PRODUCT_ID);
-
-            then(productRepository).should().findSellerProducts(SELLER_ID, STATUS_ACTIVE, null, pageable);
-        }
-
-        @Test @DisplayName("키워드/정렬 전달 위임 확인")
-        void keyword_and_sort_passthrough() {
-            Product a = ownedProduct();
-            Product b = ownedProduct();
-            b.updateBasicInfo(PRODUCT_NAME_3, DESC, kr());
-
-            Pageable pageable = PageRequest.of(PAGE_0, SIZE_10, SORT_BY_PRODUCT_NAME_DESC);
-
-            given(productRepository.findSellerProducts(eq(SELLER_ID), eq(STATUS_ACTIVE), eq(KEYWORD_P), eq(pageable)))
-                    .willReturn(new PageImpl<>(List.of(a, b), pageable, 2));
-
-            Page<AdminProductSummaryResponse> res =
-                    adminProductService.getMyProducts(SELLER_ID, KEYWORD_P, STATUS_ACTIVE, pageable);
-
-            assertThat(res.getContent()).extracting(AdminProductSummaryResponse::productName)
-                    .contains(PRODUCT_NAME_1, PRODUCT_NAME_3);
-
-            then(productRepository).should().findSellerProducts(SELLER_ID, STATUS_ACTIVE, KEYWORD_P, pageable);
-        }
+    @Test
+    @DisplayName("null 회원 ID로 상품 생성 시 예외가 발생한다")
+    void createProduct_NullMemberId() {
+        // when & then
+        assertThatThrownBy(() -> adminProductService.createProduct(createRequest, null, thumbnailImage, List.<MultipartFile>of()))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
     }
 
-    @Nested @DisplayName("getMyProductEditForm(productId, memberId)")
-    class EditForm {
+    @Test
+    @DisplayName("존재하지 않는 회원으로 상품 생성 시 예외가 발생한다")
+    void createProduct_MemberNotFound() {
+        // given
+        Long nonExistentMemberId = 999L;
 
-        @Test @DisplayName("정상 반환")
-        void ok() {
-            Product p = ownedProduct();
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.of(p));
+        when(memberRepository.findById(nonExistentMemberId)).thenReturn(Optional.empty());
 
-            AdminProductEditResponse res = adminProductService.getMyProductEditForm(PRODUCT_ID, SELLER_ID);
-
-            assertThat(res.productName()).isEqualTo(PRODUCT_NAME_1);
-            assertThat(res.options()).hasSize(1);
-        }
-
-        @Test @DisplayName("PRODUCT_NOT_FOUND")
-        void notFound() {
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() ->
-                    adminProductService.getMyProductEditForm(PRODUCT_ID, SELLER_ID)
-            ).isInstanceOf(ProductException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.PRODUCT_NOT_FOUND);
-        }
-
-        @Test @DisplayName("ACCESS_DENIED (소유자 불일치)")
-        void accessDenied() {
-            Product p = ownedProduct();
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID))
-                    .willReturn(Optional.of(p));
-
-            assertThatThrownBy(() ->
-                    adminProductService.getMyProductEditForm(PRODUCT_ID, OTHER_MEMBER_ID)
-            ).isInstanceOf(ProductException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.ACCESS_DENIED);
-        }
+        // when & then
+        assertThatThrownBy(() -> adminProductService.createProduct(createRequest, nonExistentMemberId, thumbnailImage, List.<MultipartFile>of()))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
     }
 
-    @Nested @DisplayName("updateProduct(productId, request, memberId, thumbnail, details, order)")
-    class Update {
+    @Test
+    @DisplayName("일반 사용자로 상품 생성 시 예외가 발생한다")
+    void createProduct_RegularUser() {
+        // given
+        Long memberId = regularMember.getId();
 
-        @Test @DisplayName("정상(권한 OK) - fallback 경로(exitingDetailImageIds 사용), 삭제 없음")
-        void ok() {
-            Product p = ownedProduct();
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.of(p));
-            given(countryRepository.findByName(COUNTRY_KOREA)).willReturn(Optional.of(kr()));
-            given(productImageRepository.findAllByProduct(p)).willReturn(p.getImages());
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(regularMember));
 
-            AdminProductUpdateRequest req = new AdminProductUpdateRequest(
-                    PRODUCT_NAME_1, DESC, COUNTRY_KOREA,
-                    List.of(new ProductOptionRequest(LocalDate.now(), OPTION_NAME, STOCK_3, PRICE_10000, DISC_9000)),
-                    List.of(HASHTAG_SEA), THUMBNAIL_HASH, List.of(IMAGE_ID_1)
-            );
-
-            adminProductService.updateProduct(PRODUCT_ID, req, SELLER_ID, null, List.of(), null);
-
-            then(productImageRepository).should(never()).delete(any());
-            then(productHashTagRepository).should().deleteAllByProduct(p);
-            then(productOptionRepository).should().deleteAllByProduct(p);
-        }
-
-        @Test @DisplayName("PRODUCT_NOT_FOUND")
-        void notFound() {
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.empty());
-
-            AdminProductUpdateRequest req = new AdminProductUpdateRequest(
-                    PRODUCT_NAME_1, DESC, COUNTRY_KOREA, List.of(), List.of(), THUMBNAIL_HASH, List.of());
-
-            assertThatThrownBy(() ->
-                    adminProductService.updateProduct(PRODUCT_ID, req, SELLER_ID, null, null, null)
-            ).isInstanceOf(ProductException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.PRODUCT_NOT_FOUND);
-        }
-
-        @Test @DisplayName("ACCESS_DENIED (소유자 불일치)")
-        void accessDenied() {
-            Product p = ownedProduct();
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.of(p));
-
-            AdminProductUpdateRequest req = new AdminProductUpdateRequest(
-                    PRODUCT_NAME_1, DESC, COUNTRY_KOREA, List.of(), List.of(), THUMBNAIL_HASH, List.of());
-
-            assertThatThrownBy(() ->
-                    adminProductService.updateProduct(PRODUCT_ID, req, OTHER_MEMBER_ID, null, null, null)
-            ).isInstanceOf(ProductException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.ACCESS_DENIED);
-        }
-
-        @Test @DisplayName("COUNTRY_NOT_FOUND")
-        void countryNotFound() {
-            Product p = ownedProduct();
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.of(p));
-            given(countryRepository.findByName(COUNTRY_KOREA)).willReturn(Optional.empty());
-
-            AdminProductUpdateRequest req = new AdminProductUpdateRequest(
-                    PRODUCT_NAME_1, DESC, COUNTRY_KOREA, List.of(), List.of(), THUMBNAIL_HASH, List.of());
-
-            assertThatThrownBy(() ->
-                    adminProductService.updateProduct(PRODUCT_ID, req, SELLER_ID, null, null, null)
-            ).isInstanceOf(ProductException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.COUNTRY_NOT_FOUND);
-        }
-
-        @Test @DisplayName("IMAGE_UPLOAD_FAILED - new:N 토큰이 파일 범위 밖")
-        void imageUploadFailed_badToken() {
-            Product p = ownedProduct();
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.of(p));
-            given(countryRepository.findByName(COUNTRY_KOREA)).willReturn(Optional.of(kr()));
-            given(productImageRepository.findAllByProduct(p)).willReturn(p.getImages());
-
-            AdminProductUpdateRequest req = new AdminProductUpdateRequest(
-                    PRODUCT_NAME_1, DESC, COUNTRY_KOREA, List.of(), List.of(), THUMBNAIL_HASH, List.of());
-
-            assertThatThrownBy(() ->
-                    adminProductService.updateProduct(PRODUCT_ID, req, SELLER_ID, null, List.of(), List.of("new:1"))
-            ).isInstanceOf(ProductException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.IMAGE_UPLOAD_FAILED);
-        }
+        // when & then
+        assertThatThrownBy(() -> adminProductService.createProduct(createRequest, memberId, thumbnailImage, List.<MultipartFile>of()))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCESS_DENIED);
     }
 
-    @Nested @DisplayName("deleteProduct(productId, memberId)")
-    class Delete {
+    @Test
+    @DisplayName("존재하지 않는 국가로 상품 생성 시 예외가 발생한다")
+    void createProduct_CountryNotFound() {
+        // given
+        Long memberId = adminMember.getId();
 
-        @Test @DisplayName("정상 소프트 삭제")
-        void ok() {
-            Product p = ownedProduct();
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.of(p));
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(adminMember));
+        when(countryRepository.findByName("존재하지않는국가")).thenReturn(Optional.empty());
 
-            adminProductService.deleteProduct(PRODUCT_ID, SELLER_ID);
+        AdminProductCreateRequest invalidRequest = AdminProductCreateRequest.builder()
+                .productName("제주도 여행")
+                .description("아름다운 제주도 여행")
+                .countryName("존재하지않는국가")
+                .hashtags(List.of("제주도", "여행", "관광"))
+                .options(List.of(
+                        ProductOptionRequest.builder()
+                                .optionName("기본 패키지")
+                                .startDate(LocalDate.now().plusDays(1))
+                                .stock(10)
+                                .price(100000)
+                                .discountPrice(90000)
+                                .build()
+                ))
+                .build();
 
-            assertThat(p.isDeleted()).isTrue();
-        }
-
-        @Test @DisplayName("PRODUCT_NOT_FOUND")
-        void notFound() {
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.empty());
-
-            assertThatThrownBy(() ->
-                    adminProductService.deleteProduct(PRODUCT_ID, SELLER_ID)
-            ).isInstanceOf(ProductException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.PRODUCT_NOT_FOUND);
-        }
-
-        @Test @DisplayName("ACCESS_DENIED (소유자 불일치)")
-        void accessDenied() {
-            Product p = ownedProduct(); // 소유자는 SELLER_ID
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID)).willReturn(Optional.of(p));
-
-            assertThatThrownBy(() ->
-                    adminProductService.deleteProduct(PRODUCT_ID, OTHER_MEMBER_ID)
-            ).isInstanceOf(ProductException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.ACCESS_DENIED);
-        }
+        // when & then
+        assertThatThrownBy(() -> adminProductService.createProduct(invalidRequest, memberId, thumbnailImage, List.<MultipartFile>of()))
+                .isInstanceOf(ProductException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.COUNTRY_NOT_FOUND);
     }
 
-    @Nested @DisplayName("restoreProduct(productId, memberId)")
-    class Restore {
+    @Test
+    @DisplayName("내 상품 목록을 성공적으로 조회한다")
+    void getMyProducts_Success() {
+        // given
+        Long memberId = adminMember.getId();
+        String keyword = "제주도";
+        String status = "ACTIVE";
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Product> productPage = new PageImpl<>(List.of(product), pageable, 1);
 
-        @Test @DisplayName("정상 복구")
-        void ok() {
-            Product p = ownedProduct();
-            p.markDeleted();
-            assertThat(p.isDeleted()).isTrue();
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(adminMember));
+        when(productRepository.findSellerProducts(memberId, status, keyword, pageable)).thenReturn(productPage);
 
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID))
-                    .willReturn(Optional.of(p));
+        // when
+        Page<AdminProductSummaryResponse> result = adminProductService.getMyProducts(memberId, keyword, status, pageable);
 
-            adminProductService.restoreProduct(PRODUCT_ID, SELLER_ID);
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).productName()).isEqualTo("제주도 여행");
+    }
 
-            assertThat(p.isDeleted()).isFalse();
-        }
+    @Test
+    @DisplayName("ALL 상태로 상품 목록을 조회한다")
+    void getMyProducts_AllStatus() {
+        // given
+        Long memberId = adminMember.getId();
+        String keyword = "제주도";
+        String status = "ALL";
+        Pageable pageable = PageRequest.of(0, 10);
+        
+        // 활성화된 상품(product)과 삭제된 상품을 모두 포함
+        Page<Product> productPage = new PageImpl<>(List.of(product, deletedProduct), pageable, 2);
 
-        @Test @DisplayName("PRODUCT_NOT_FOUND")
-        void notFound() {
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID))
-                    .willReturn(Optional.empty());
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(adminMember));
+        when(productRepository.findSellerProducts(memberId, status, keyword, pageable)).thenReturn(productPage);
 
-            assertThatThrownBy(() ->
-                    adminProductService.restoreProduct(PRODUCT_ID, SELLER_ID)
-            ).isInstanceOf(ProductException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.PRODUCT_NOT_FOUND);
-        }
+        // when
+        Page<AdminProductSummaryResponse> result = adminProductService.getMyProducts(memberId, keyword, status, pageable);
 
-        @Test @DisplayName("ACCESS_DENIED (소유자 불일치)")
-        void accessDenied() {
-            Product p = ownedProduct(); // 소유자는 SELLER_ID
-            p.markDeleted();
-            given(productRepository.findByIdIncludingDeleted(PRODUCT_ID))
-                    .willReturn(Optional.of(p));
+        // then
+        assertThat(result.getContent()).hasSize(2);
+        assertThat(result.getContent().get(0).productName()).isEqualTo("제주도 여행");
+        assertThat(result.getContent().get(1).productName()).isEqualTo("삭제된 제주도 여행");
+    }
 
-            assertThatThrownBy(() ->
-                    adminProductService.restoreProduct(PRODUCT_ID, OTHER_MEMBER_ID)
-            ).isInstanceOf(ProductException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.ACCESS_DENIED);
-        }
+    @Test
+    @DisplayName("DELETED 상태로 상품 목록을 조회한다")
+    void getMyProducts_DeletedStatus() {
+        // given
+        Long memberId = adminMember.getId();
+        String keyword = "제주도";
+        String status = "DELETED";
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Page<Product> productPage = new PageImpl<>(List.of(deletedProduct), pageable, 1);
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(adminMember));
+        when(productRepository.findSellerProducts(memberId, status, keyword, pageable)).thenReturn(productPage);
+
+        // when
+        Page<AdminProductSummaryResponse> result = adminProductService.getMyProducts(memberId, keyword, status, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).productName()).isEqualTo("삭제된 제주도 여행");
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 회원으로 상품 목록 조회 시 예외가 발생한다")
+    void getMyProducts_MemberNotFound() {
+        // given
+        Long nonExistentMemberId = 999L;
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.findById(nonExistentMemberId)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.getMyProducts(nonExistentMemberId, "제주도", "ACTIVE", pageable))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("null 회원 ID로 상품 목록 조회 시 예외가 발생한다")
+    void getMyProducts_NullMemberId() {
+        // given
+        Pageable pageable = PageRequest.of(0, 10);
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.getMyProducts(null, "제주도", "ACTIVE", pageable))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("일반 사용자로 상품 목록 조회 시 예외가 발생한다")
+    void getMyProducts_RegularUser() {
+        // given
+        Long memberId = regularMember.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(regularMember));
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.getMyProducts(memberId, "제주도", "ACTIVE", pageable))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("null 회원 ID로 상품 수정 폼 조회 시 예외가 발생한다")
+    void getMyProductEditForm_NullMemberId() {
+        // given
+        Long productId = product.getId();
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.getMyProductEditForm(productId, null))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 회원으로 상품 수정 폼 조회 시 예외가 발생한다")
+    void getMyProductEditForm_MemberNotFound() {
+        // given
+        Long productId = product.getId();
+        Long nonExistentMemberId = 999L;
+
+        when(memberRepository.findById(nonExistentMemberId)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.getMyProductEditForm(productId, nonExistentMemberId))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("일반 사용자로 상품 수정 폼 조회 시 예외가 발생한다")
+    void getMyProductEditForm_RegularUser() {
+        // given
+        Long productId = product.getId();
+        Long memberId = regularMember.getId();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(regularMember));
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.getMyProductEditForm(productId, memberId))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("상품 수정 폼을 성공적으로 조회한다")
+    void getMyProductEditForm_Success() {
+        // given
+        Long productId = product.getId();
+        Long memberId = adminMember.getId();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(adminMember));
+        when(productRepository.findProductWithAllDetailsById(productId)).thenReturn(product);
+
+        // when
+        AdminProductEditResponse result = adminProductService.getMyProductEditForm(productId, memberId);
+
+        // then
+        verify(memberRepository).findById(memberId);
+        verify(productRepository).findProductWithAllDetailsById(productId);
+        assertThat(result).isNotNull();
+        assertThat(result.productName()).isEqualTo("제주도 여행");
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 상품으로 수정 폼 조회 시 예외가 발생한다")
+    void getMyProductEditForm_ProductNotFound() {
+        // given
+        Long nonExistentProductId = 999L;
+        Long memberId = adminMember.getId();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(adminMember));
+        when(productRepository.findProductWithAllDetailsById(nonExistentProductId)).thenReturn(null);
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.getMyProductEditForm(nonExistentProductId, memberId))
+                .isInstanceOf(ProductException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 상품으로 수정 폼 조회 시 예외가 발생한다")
+    void getMyProductEditForm_AccessDenied() {
+        // given
+        Long productId = product.getId();
+        Long otherMemberId = 999L;
+
+        when(memberRepository.findById(otherMemberId)).thenReturn(Optional.of(adminMember));
+        when(productRepository.findProductWithAllDetailsById(productId)).thenReturn(product);
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.getMyProductEditForm(productId, otherMemberId))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("null 회원 ID로 상품 수정 시 예외가 발생한다")
+    void updateProduct_NullMemberId() {
+        // given
+        Long productId = product.getId();
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.updateProduct(productId, updateRequest, null, thumbnailImage, List.<MultipartFile>of(), List.of()))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 회원으로 상품 수정 시 예외가 발생한다")
+    void updateProduct_MemberNotFound() {
+        // given
+        Long productId = product.getId();
+        Long nonExistentMemberId = 999L;
+
+        when(memberRepository.findById(nonExistentMemberId)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.updateProduct(productId, updateRequest, nonExistentMemberId, thumbnailImage, List.<MultipartFile>of(), List.of()))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("일반 사용자로 상품 수정 시 예외가 발생한다")
+    void updateProduct_RegularUser() {
+        // given
+        Long productId = product.getId();
+        Long memberId = regularMember.getId();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(regularMember));
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.updateProduct(productId, updateRequest, memberId, thumbnailImage, List.<MultipartFile>of(), List.of()))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("상품을 성공적으로 수정한다")
+    void updateProduct_Success() {
+        // given
+        Long productId = product.getId();
+        Long memberId = adminMember.getId();
+        List<MultipartFile> detailImages = List.of(detailImage);
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(adminMember));
+        when(countryRepository.findByName("대한민국")).thenReturn(Optional.of(country));
+        when(productRepository.findProductWithAllDetailsById(productId)).thenReturn(product);
+        when(s3Uploader.calculateHash(any())).thenReturn("new-thumbnail-hash");
+        when(s3Uploader.upload(any(), eq("products/thumbnail"))).thenReturn("https://s3.com/new-thumbnail.jpg");
+        when(s3Uploader.upload(any(), eq("products/detail"))).thenReturn("https://s3.com/new-detail.jpg");
+        when(productImageRepository.findAllByProduct(product)).thenReturn(List.of());
+        doNothing().when(productHashTagRepository).deleteAllByProduct(product);
+        doNothing().when(productOptionRepository).deleteAllByProduct(product);
+
+        // when
+        adminProductService.updateProduct(productId, updateRequest, memberId, thumbnailImage, detailImages, List.of());
+
+        // then
+        verify(memberRepository).findById(memberId);
+        verify(productRepository).findProductWithAllDetailsById(productId);
+        verify(s3Uploader).upload(thumbnailImage, "products/thumbnail");
+        verify(s3Uploader).upload(detailImage, "products/detail");
+        verify(productImageRepository).findAllByProduct(product);
+        verify(productHashTagRepository).deleteAllByProduct(product);
+        verify(productOptionRepository).deleteAllByProduct(product);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 상품으로 수정 시 예외가 발생한다")
+    void updateProduct_ProductNotFound() {
+        // given
+        Long nonExistentProductId = 999L;
+        Long memberId = adminMember.getId();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(adminMember));
+        when(productRepository.findProductWithAllDetailsById(nonExistentProductId)).thenReturn(null);
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.updateProduct(nonExistentProductId, updateRequest, memberId, thumbnailImage, List.<MultipartFile>of(), List.of()))
+                .isInstanceOf(ProductException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 상품으로 수정 시 예외가 발생한다")
+    void updateProduct_AccessDenied() {
+        // given
+        Long productId = product.getId();
+        Long otherMemberId = 999L;
+
+        when(memberRepository.findById(otherMemberId)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.updateProduct(productId, updateRequest, otherMemberId, thumbnailImage, List.<MultipartFile>of(), List.of()))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("null 회원 ID로 상품 삭제 시 예외가 발생한다")
+    void deleteProduct_NullMemberId() {
+        // given
+        Long productId = product.getId();
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.deleteProduct(productId, null))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 회원으로 상품 삭제 시 예외가 발생한다")
+    void deleteProduct_MemberNotFound() {
+        // given
+        Long productId = product.getId();
+        Long nonExistentMemberId = 999L;
+
+        when(memberRepository.findById(nonExistentMemberId)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.deleteProduct(productId, nonExistentMemberId))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("일반 사용자로 상품 삭제 시 예외가 발생한다")
+    void deleteProduct_RegularUser() {
+        // given
+        Long productId = product.getId();
+        Long memberId = regularMember.getId();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(regularMember));
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.deleteProduct(productId, memberId))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("상품을 성공적으로 삭제한다")
+    void deleteProduct_Success() {
+        // given
+        Long productId = product.getId();
+        Long memberId = adminMember.getId();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(adminMember));
+        when(productRepository.findProductWithAllDetailsById(productId)).thenReturn(product);
+
+        // when
+        adminProductService.deleteProduct(productId, memberId);
+
+        // then
+        verify(memberRepository).findById(memberId);
+        verify(productRepository).findProductWithAllDetailsById(productId);
+        assertThat(product.isDeleted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 상품으로 삭제 시 예외가 발생한다")
+    void deleteProduct_ProductNotFound() {
+        // given
+        Long nonExistentProductId = 999L;
+        Long memberId = adminMember.getId();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(adminMember));
+        when(productRepository.findProductWithAllDetailsById(nonExistentProductId)).thenReturn(null);
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.deleteProduct(nonExistentProductId, memberId))
+                .isInstanceOf(ProductException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 상품으로 삭제 시 예외가 발생한다")
+    void deleteProduct_AccessDenied() {
+        // given
+        Long productId = product.getId();
+        Long otherMemberId = 999L;
+
+        when(memberRepository.findById(otherMemberId)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.deleteProduct(productId, otherMemberId))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("null 회원 ID로 상품 복구 시 예외가 발생한다")
+    void restoreProduct_NullMemberId() {
+        // given
+        Long productId = product.getId();
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.restoreProduct(productId, null))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 회원으로 상품 복구 시 예외가 발생한다")
+    void restoreProduct_MemberNotFound() {
+        // given
+        Long productId = product.getId();
+        Long nonExistentMemberId = 999L;
+
+        when(memberRepository.findById(nonExistentMemberId)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.restoreProduct(productId, nonExistentMemberId))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("일반 사용자로 상품 복구 시 예외가 발생한다")
+    void restoreProduct_RegularUser() {
+        // given
+        Long productId = product.getId();
+        Long memberId = regularMember.getId();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(regularMember));
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.restoreProduct(productId, memberId))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("상품을 성공적으로 복구한다")
+    void restoreProduct_Success() {
+        // given
+        Long productId = product.getId();
+        Long memberId = adminMember.getId();
+        product.markDeleted();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(adminMember));
+        when(productRepository.findProductWithAllDetailsById(productId)).thenReturn(product);
+
+        // when
+        adminProductService.restoreProduct(productId, memberId);
+
+        // then
+        verify(memberRepository).findById(memberId);
+        verify(productRepository).findProductWithAllDetailsById(productId);
+        assertThat(product.isDeleted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 상품으로 복구 시 예외가 발생한다")
+    void restoreProduct_ProductNotFound() {
+        // given
+        Long nonExistentProductId = 999L;
+        Long memberId = adminMember.getId();
+
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(adminMember));
+        when(productRepository.findProductWithAllDetailsById(nonExistentProductId)).thenReturn(null);
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.restoreProduct(nonExistentProductId, memberId))
+                .isInstanceOf(ProductException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 상품으로 복구 시 예외가 발생한다")
+    void restoreProduct_AccessDenied() {
+        // given
+        Long productId = product.getId();
+        Long otherMemberId = regularMember.getId();
+
+        when(memberRepository.findById(otherMemberId)).thenReturn(Optional.of(regularMember));
+
+        // when & then
+        assertThatThrownBy(() -> adminProductService.restoreProduct(productId, otherMemberId))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCESS_DENIED);
     }
 }

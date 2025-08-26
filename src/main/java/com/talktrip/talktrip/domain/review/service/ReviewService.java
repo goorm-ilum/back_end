@@ -14,23 +14,21 @@ import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
 import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.domain.review.repository.ReviewRepository;
 import com.talktrip.talktrip.global.exception.ErrorCode;
+import com.talktrip.talktrip.global.exception.MemberException;
+import com.talktrip.talktrip.global.exception.OrderException;
 import com.talktrip.talktrip.global.exception.ReviewException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
 public class ReviewService {
-
     private final ReviewRepository reviewRepository;
     private final ProductRepository productRepository;
     private final MemberRepository memberRepository;
@@ -38,100 +36,49 @@ public class ReviewService {
 
     @Transactional
     public void createReview(Long orderId, Long memberId, ReviewRequest request) {
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new ReviewException(ErrorCode.USER_NOT_FOUND));
+        validateMember(memberId);
+        validateOrder(orderId);
+        
+        Member member = findMember(memberId);
+        Order order = findOrder(orderId);
+        
+        validateOrderAccess(order, memberId);
+        validateOrderStatus(order);
+        validateReviewNotExists(orderId);
 
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ReviewException(ErrorCode.ORDER_NOT_FOUND));
+        Long productId = extractProductId(order);
+        validateProduct(productId);
+        Product product = findProduct(productId);
 
-        if (!order.getMember().getId().equals(memberId)) throw new ReviewException(ErrorCode.ACCESS_DENIED);
-        if (!(order.getOrderStatus() == OrderStatus.SUCCESS))
-            throw new ReviewException(ErrorCode.ORDER_NOT_COMPLETED);
-        if (reviewRepository.existsByOrderId(orderId)) throw new ReviewException(ErrorCode.ALREADY_REVIEWED);
-
-        Long productId = order.getOrderItems().stream()
-                .map(OrderItem::getProductId)
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElseThrow(() -> new ReviewException(ErrorCode.ORDER_EMPTY));
-
-        // 소프트 삭제 포함으로 로드해서 Review.product에 세팅
-        Product product = productRepository.findByIdIncludingDeleted(productId)
-                .orElseThrow(() -> new ReviewException(ErrorCode.PRODUCT_NOT_FOUND));
-
-        Review review = Review.builder()
-                .order(order)
-                .product(product)
-                .member(member)
-                .comment(request.comment())
-                .reviewStar(request.reviewStar())
-                .build();
-
+        Review review = Review.to(order, product, member, request);
         reviewRepository.save(review);
     }
 
     @Transactional
     public void updateReview(Long reviewId, Long memberId, ReviewRequest request) {
-        Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ReviewException(ErrorCode.REVIEW_NOT_FOUND));
-        if (!review.getMember().getId().equals(memberId)) throw new ReviewException(ErrorCode.ACCESS_DENIED);
+        validateMember(memberId);
+        validateReview(reviewId);
+        
+        Review review = findReview(reviewId);
+        validateReviewAccess(review, memberId);
         review.update(request.comment(), request.reviewStar());
     }
 
     @Transactional
     public void deleteReview(Long reviewId, Long memberId) {
-        Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ReviewException(ErrorCode.REVIEW_NOT_FOUND));
-        if (!review.getMember().getId().equals(memberId)) throw new ReviewException(ErrorCode.ACCESS_DENIED);
+        validateMember(memberId);
+        validateReview(reviewId);
+        
+        Review review = findReview(reviewId);
+        validateReviewAccess(review, memberId);
         reviewRepository.delete(review);
     }
 
     @Transactional(readOnly = true)
     public Page<ReviewResponse> getMyReviews(Long memberId, Pageable pageable) {
-        memberRepository.findById(memberId)
-                .orElseThrow(() -> new ReviewException(ErrorCode.USER_NOT_FOUND));
-
-        Page<Review> page = reviewRepository.findByMemberId(memberId, pageable);
-
-        return page.map(r -> {
-            Product product = productRepository.findByIdIncludingDeleted(r.getProduct().getId()).orElse(null);
-            return ReviewResponse.from(r, product);
-        });
-    }
-
-    @Transactional(readOnly = true)
-    public MyReviewFormResponse getReviewCreateForm(Long orderId, Long memberId) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ReviewException(ErrorCode.ORDER_NOT_FOUND));
-
-        if (!order.getMember().getId().equals(memberId)) throw new ReviewException(ErrorCode.ACCESS_DENIED);
-        if (!(order.getOrderStatus() == OrderStatus.SUCCESS))
-            throw new ReviewException(ErrorCode.ORDER_NOT_COMPLETED);
-        if (reviewRepository.existsByOrderId(orderId)) throw new ReviewException(ErrorCode.ALREADY_REVIEWED);
-
-        Long productId = order.getOrderItems().stream()
-                .map(OrderItem::getProductId)
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElse(null);
-
-        Product product = (productId == null)
-                ? null
-                : productRepository.findByIdIncludingDeleted(productId).orElse(null);
-
-        return MyReviewFormResponse.from(product, null);
-    }
-
-    @Transactional(readOnly = true)
-    public MyReviewFormResponse getReviewUpdateForm(Long reviewId, Long memberId) {
-        Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ReviewException(ErrorCode.REVIEW_NOT_FOUND));
-        if (!review.getMember().getId().equals(memberId)) throw new ReviewException(ErrorCode.ACCESS_DENIED);
-
-        Product product = productRepository.findByIdIncludingDeleted(review.getProduct().getId())
-                .orElse(null);
-
-        return MyReviewFormResponse.from(product, review);
+        validateMember(memberId);
+        Page<Review> page = reviewRepository.findByMemberIdWithProduct(memberId, pageable);
+        return page.map(review -> ReviewResponse.from(review, review.getProduct()));
     }
 
     @Transactional(readOnly = true)
@@ -140,43 +87,140 @@ public class ReviewService {
             Long productId,
             Pageable pageable
     ) {
-        productRepository.findByIdAndMemberIdIncludingDeleted(productId, sellerId)
-                .orElseThrow(() -> new ReviewException(ErrorCode.ACCESS_DENIED));
+        validateMember(sellerId);
+        validateProduct(productId);
+        validateProductAccess(productId, sellerId);
 
-        List<Review> allReviews = reviewRepository.findByProductIdIncludingDeleted(productId);
-
-
-        List<Review> sorted = allReviews.stream()
-                .sorted(getComparator(pageable.getSort()))
-                .toList();
-
-        int offset = (int) pageable.getOffset();
-        int toIndex = Math.min(offset + pageable.getPageSize(), sorted.size());
-        List<Review> paged = (offset > sorted.size()) ? List.of() : sorted.subList(offset, toIndex);
-
-        Product product = productRepository.findByIdIncludingDeleted(productId).orElse(null);
-
-        return new PageImpl<>(
-                paged.stream().map(r -> ReviewResponse.from(r, product)).toList(),
-                pageable,
-                sorted.size()
-        );
+        Page<Review> reviewPage = reviewRepository.findByProductIdWithPaging(productId, pageable);
+        Product product = findProductOrNull(productId);
+        return reviewPage.map(review -> ReviewResponse.from(review, product));
     }
 
-    private Comparator<Review> getComparator(Sort sort) {
-        Comparator<Review> comparator = Comparator.comparing(Review::getUpdatedAt); // 기본값
+    @Transactional(readOnly = true)
+    public MyReviewFormResponse getReviewCreateForm(Long orderId, Long memberId) {
+        validateMember(memberId);
+        validateOrder(orderId);
+        
+        Order order = findOrder(orderId);
+        validateOrderAccess(order, memberId);
+        validateOrderStatus(order);
+        validateReviewNotExists(orderId);
 
-        for (Sort.Order order : sort) {
-            switch (order.getProperty()) {
-                case "updatedAt" -> comparator = Comparator.comparing(Review::getUpdatedAt);
-                case "reviewStar" -> comparator = Comparator.comparing(Review::getReviewStar);
-                default -> throw new IllegalArgumentException("Invalid sort property: " + order.getProperty());
-            }
+        Long productId = extractProductId(order);
+        validateProduct(productId);
+        Product product = findProductOrNull(productId);
 
-            if (order.getDirection().isDescending()) {
-                comparator = comparator.reversed();
-            }
+        return MyReviewFormResponse.from(product, null);
+    }
+
+    @Transactional(readOnly = true)
+    public MyReviewFormResponse getReviewUpdateForm(Long reviewId, Long memberId) {
+        validateMember(memberId);
+        validateReview(reviewId);
+        
+        Review review = findReview(reviewId);
+        validateReviewAccess(review, memberId);
+
+        Product product = findProductOrNull(review.getProduct().getId());
+        return MyReviewFormResponse.from(product, review);
+    }
+
+    // Validation methods
+    private void validateMember(Long memberId) {
+        if (memberId == null) {
+            throw new MemberException(ErrorCode.USER_NOT_FOUND);
         }
-        return comparator;
+        if (!memberRepository.existsById(memberId)) {
+            throw new MemberException(ErrorCode.USER_NOT_FOUND);
+        }
+    }
+
+    private void validateOrder(Long orderId) {
+        if (orderId == null) {
+            throw new OrderException(ErrorCode.ORDER_NOT_FOUND);
+        }
+        if (!orderRepository.existsById(orderId)) {
+            throw new OrderException(ErrorCode.ORDER_NOT_FOUND);
+        }
+    }
+
+    private void validateReview(Long reviewId) {
+        if (reviewId == null) {
+            throw new ReviewException(ErrorCode.REVIEW_NOT_FOUND);
+        }
+        if (!reviewRepository.existsById(reviewId)) {
+            throw new ReviewException(ErrorCode.REVIEW_NOT_FOUND);
+        }
+    }
+
+    private void validateProduct(Long productId) {
+        if (productId == null) {
+            throw new ReviewException(ErrorCode.PRODUCT_NOT_FOUND);
+        }
+        if (!productRepository.existsById(productId)) {
+            throw new ReviewException(ErrorCode.PRODUCT_NOT_FOUND);
+        }
+    }
+
+    private Member findMember(Long memberId) {
+        return memberRepository.findById(memberId)
+                .orElseThrow(() -> new ReviewException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    private Order findOrder(Long orderId) {
+        return orderRepository.findById(orderId)
+                .orElseThrow(() -> new ReviewException(ErrorCode.ORDER_NOT_FOUND));
+    }
+
+    private Review findReview(Long reviewId) {
+        return reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ReviewException(ErrorCode.REVIEW_NOT_FOUND));
+    }
+
+    private Product findProduct(Long productId) {
+        return productRepository.findByIdIncludingDeleted(productId)
+                .orElseThrow(() -> new ReviewException(ErrorCode.PRODUCT_NOT_FOUND));
+    }
+
+    private Product findProductOrNull(Long productId) {
+        return productRepository.findByIdIncludingDeleted(productId).orElse(null);
+    }
+
+    private void validateOrderAccess(Order order, Long memberId) {
+        if (!order.getMember().getId().equals(memberId)) {
+            throw new ReviewException(ErrorCode.ACCESS_DENIED);
+        }
+    }
+
+    private void validateOrderStatus(Order order) {
+        if (order.getOrderStatus() != OrderStatus.SUCCESS) {
+            throw new ReviewException(ErrorCode.ORDER_NOT_COMPLETED);
+        }
+    }
+
+    private void validateReviewNotExists(Long orderId) {
+        if (reviewRepository.existsByOrderId(orderId)) {
+            throw new ReviewException(ErrorCode.ALREADY_REVIEWED);
+        }
+    }
+
+    private void validateReviewAccess(Review review, Long memberId) {
+        if (!review.isWrittenBy(memberId)) {
+            throw new ReviewException(ErrorCode.ACCESS_DENIED);
+        }
+    }
+
+    private void validateProductAccess(Long productId, Long sellerId) {
+        if (productRepository.findByIdAndMemberIdIncludingDeleted(productId, sellerId).isEmpty()) {
+            throw new ReviewException(ErrorCode.ACCESS_DENIED);
+        }
+    }
+
+    private Long extractProductId(Order order) {
+        return order.getOrderItems().stream()
+                .map(OrderItem::getProductId)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElseThrow(() -> new ReviewException(ErrorCode.ORDER_EMPTY));
     }
 }

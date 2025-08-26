@@ -2,31 +2,42 @@ package com.talktrip.talktrip.domain.review.dto.response;
 
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.review.entity.Review;
+import lombok.Builder;
 
 import java.util.List;
 
+@Builder
 public record ReviewResponse(
         Long reviewId,
         String nickName,
         String productName,
         String thumbnailImageUrl,
         String comment,
-        float reviewStar,
+        Double reviewStar,
         String updatedAt
 ) {
     public static ReviewResponse from(Review review, Product product) {
-        String name = (product != null) ? product.getProductName() : "(삭제된 상품)";
-        String thumb = (product != null) ? product.getThumbnailImageUrl() : null;
-
         return new ReviewResponse(
                 review.getId(),
                 review.getMember().getNickname(),
-                name,
-                thumb,
+                getProductName(product),
+                getProductThumbnail(product),
                 review.getComment(),
                 review.getReviewStar(),
-                review.getUpdatedAt() != null ? review.getUpdatedAt().toString() : null
+                formatUpdatedAt(review.getUpdatedAt())
         );
+    }
+
+    private static String getProductName(Product product) {
+        return (product != null) ? product.getProductName() : "(삭제된 상품)";
+    }
+
+    private static String getProductThumbnail(Product product) {
+        return (product != null) ? product.getThumbnailImageUrl() : null;
+    }
+
+    private static String formatUpdatedAt(java.time.LocalDateTime updatedAt) {
+        return (updatedAt != null) ? updatedAt.toString() : null;
     }
 
     public static List<ReviewResponse> to(List<Review> reviews, Product product) {

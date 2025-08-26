@@ -1,24 +1,25 @@
 package com.talktrip.talktrip.domain.product.service;
 
-import com.talktrip.talktrip.domain.like.repository.LikeRepository;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.enums.MemberRole;
 import com.talktrip.talktrip.domain.member.enums.MemberState;
+import com.talktrip.talktrip.domain.member.repository.MemberRepository;
+import com.talktrip.talktrip.domain.product.dto.ProductWithAvgStarAndLike;
 import com.talktrip.talktrip.domain.product.dto.response.ProductDetailResponse;
 import com.talktrip.talktrip.domain.product.dto.response.ProductSummaryResponse;
 import com.talktrip.talktrip.domain.product.entity.Product;
-import com.talktrip.talktrip.domain.product.entity.ProductOption;
 import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.domain.review.repository.ReviewRepository;
 import com.talktrip.talktrip.global.entity.Country;
 import com.talktrip.talktrip.global.exception.ErrorCode;
+import com.talktrip.talktrip.global.exception.MemberException;
 import com.talktrip.talktrip.global.exception.ProductException;
+import com.talktrip.talktrip.global.repository.CountryRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -26,300 +27,778 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
-import static com.talktrip.talktrip.global.TestConst.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ProductServiceTest {
 
-    @InjectMocks ProductService productService;
-    @Mock ProductRepository productRepository;
-    @Mock ReviewRepository reviewRepository;
-    @Mock LikeRepository likeRepository;
+    @Mock
+    private ProductRepository productRepository;
 
-    private Member seller() {
-        return Member.builder()
-                .Id(SELLER_ID)
-                .name(SELLER_NAME)
-                .accountEmail(SELLER_EMAIL)
-                .phoneNum(PHONE_NUMBER)
+    @Mock
+    private ReviewRepository reviewRepository;
+
+    @Mock
+    private MemberRepository memberRepository;
+
+    @Mock
+    private CountryRepository countryRepository;
+
+    @Mock
+    private RestTemplate restTemplate;
+
+    @InjectMocks
+    private ProductService productService;
+
+    private Member member;
+    private Product product;
+    private Country country;
+    private Review review;
+
+    @BeforeEach
+    void setUp() {
+        member = Member.builder()
+                .Id(1L)
+                .accountEmail("test@test.com")
+                .phoneNum("010-1234-5678")
+                .name("테스트유저")
+                .nickname("테스트유저")
                 .memberRole(MemberRole.U)
                 .memberState(MemberState.A)
                 .build();
-    }
 
-    private Member user() {
-        return Member.builder()
-                .Id(USER_ID)
-                .name(USER_NAME)
-                .accountEmail(USER_EMAIL)
-                .phoneNum(PHONE_NUMBER)
-                .memberRole(MemberRole.A)
-                .memberState(MemberState.A)
-                .build();
-    }
-
-    private Member user2() {
-        return Member.builder()
-                .Id(USER_ID2)
-                .name(USER2_NAME)
-                .accountEmail(USER2_EMAIL)
-                .phoneNum(PHONE_NUMBER)
-                .memberRole(MemberRole.A)
-                .memberState(MemberState.A)
-                .build();
-    }
-
-    private Country kr() {
-        return Country.builder().name(COUNTRY_KOREA).continent(CONTINENT_ASIA).build();
-    }
-
-    private Product productWithFutureOption(Long id, String name, int discountPrice) {
-        Product p = Product.builder()
-                .id(id) // 빌더에 id 포함 가정
-                .member(seller())
-                .productName(name)
-                .description(DESC)
-                .thumbnailImageUrl(THUMBNAIL_URL)
-                .country(kr())
-                .deleted(false)
+        country = Country.builder()
+                .id(1L)
+                .name("대한민국")
                 .build();
 
-        p.getProductOptions().add(ProductOption.builder()
-                .id(id + 100) // 테스트용 고유 id
-                .product(p)
-                .optionName(OPTION_NAME)
-                .startDate(LocalDate.now())
-                .stock(STOCK_5)
-                .price(PRICE_12000)
-                .discountPrice(discountPrice)
-                .build());
-        return p;
+        product = Product.builder()
+                .id(1L)
+                .productName("제주도 여행")
+                .description("아름다운 제주도 여행")
+                .thumbnailImageUrl("https://example.com/jeju.jpg")
+                .member(member)
+                .country(country)
+                .build();
+
+        review = Review.builder()
+                .id(1L)
+                .member(member)
+                .product(product)
+                .comment("좋은 여행이었습니다")
+                .reviewStar(4.5)
+                .build();
+
+        ReflectionTestUtils.setField(productService, "fastApiBaseUrl", "http://localhost:8000");
     }
 
-    private List<Review> reviews_4_and_2(Product p) {
-        return List.of(
-                Review.builder().product(p).member(user()).reviewStar(STAR_4_0).build(),
-                Review.builder().product(p).member(user2()).reviewStar(STAR_2_0).build()
-        );
+    @Test
+    @DisplayName("상품 검색을 성공적으로 수행한다")
+    void searchProducts_Success() {
+        // given
+        String keyword = "제주도";
+        String countryName = "전체";
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+        
+        // Mock 객체 생성
+        ProductWithAvgStarAndLike productWithAvgStarAndLike = mock(ProductWithAvgStarAndLike.class);
+        when(productWithAvgStarAndLike.getProduct()).thenReturn(product);
+        when(productWithAvgStarAndLike.getAvgStar()).thenReturn(4.5);
+        when(productWithAvgStarAndLike.getIsLiked()).thenReturn(true);
+        
+        Page<ProductWithAvgStarAndLike> searchResults = new PageImpl<>(List.of(productWithAvgStarAndLike), pageable, 1);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(productRepository.searchProductsWithAvgStarAndLike(eq(keyword), eq("전체"), any(LocalDate.class), eq(memberId), eq(pageable)))
+                .thenReturn(searchResults);
+
+        // when
+        Page<ProductSummaryResponse> result = productService.searchProducts(keyword, countryName, memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).productName()).isEqualTo("제주도 여행");
+        assertThat(result.getContent().get(0).isLiked()).isTrue();
+        assertThat(result.getContent().get(0).averageReviewStar()).isEqualTo(4.5);
     }
 
-    // ===== searchProducts =====
-    @Nested @DisplayName("searchProducts(keyword, countryName, memberId, pageable)")
-    class SearchProducts {
+    @Test
+    @DisplayName("상품 검색 시 키워드가 없으면 null로 처리한다")
+    void searchProducts_EmptyKeyword() {
+        // given
+        String countryName = "전체";
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+        
+        // Mock 객체 생성
+        ProductWithAvgStarAndLike productWithAvgStarAndLike = mock(ProductWithAvgStarAndLike.class);
+        when(productWithAvgStarAndLike.getProduct()).thenReturn(product);
+        when(productWithAvgStarAndLike.getAvgStar()).thenReturn(4.5);
+        when(productWithAvgStarAndLike.getIsLiked()).thenReturn(true);
+        
+        Page<ProductWithAvgStarAndLike> searchResults = new PageImpl<>(List.of(productWithAvgStarAndLike), pageable, 1);
 
-        @Test
-        @DisplayName("키워드 없음 + country=전체 → findVisibleProducts 위임, 빈 페이지 그대로 매핑")
-        void noKeyword_allCountry_empty() {
-            Pageable pageable = PAGE_0_SIZE_9;
-            given(productRepository.findVisibleProducts(COUNTRY_ALL, pageable))
-                    .willReturn(new PageImpl<>(List.of(), pageable, 0));
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(productRepository.searchProductsWithAvgStarAndLike(eq(""), eq("전체"), any(LocalDate.class), eq(memberId), eq(pageable)))
+                .thenReturn(searchResults);
 
-            Page<ProductSummaryResponse> res =
-                    productService.searchProducts(null, COUNTRY_ALL, null, pageable);
+        // when
+        Page<ProductSummaryResponse> result = productService.searchProducts("", countryName, memberId, pageable);
 
-            assertThat(res.getTotalElements()).isZero();
-            assertThat(res.getContent()).isEmpty();
-
-            then(productRepository).should().findVisibleProducts(COUNTRY_ALL, pageable);
-            then(reviewRepository).shouldHaveNoInteractions();
-            then(likeRepository).shouldHaveNoInteractions();
-        }
-
-        @Test
-        @DisplayName("키워드 공백 + 특정 국가 → findVisibleProducts 위임 + 평균/좋아요(배치) 매핑")
-        void blankKeyword_byCountry_data() {
-            Pageable pageable = PAGE_0_SIZE_9;
-            Product p = productWithFutureOption(PRODUCT_ID, PRODUCT_NAME_1, DISC_9000);
-
-            given(productRepository.findVisibleProducts(COUNTRY_KOREA, pageable))
-                    .willReturn(new PageImpl<>(List.of(p), pageable, 1));
-            given(reviewRepository.fetchAvgStarsByProductIds(List.of(PRODUCT_ID)))
-                    .willReturn(Map.of(PRODUCT_ID, 3.0));
-            given(likeRepository.findLikedProductIds(USER_ID, List.of(PRODUCT_ID)))
-                    .willReturn(Set.of(PRODUCT_ID));
-
-            Page<ProductSummaryResponse> res =
-                    productService.searchProducts(BLANK, COUNTRY_KOREA, USER_ID, pageable);
-
-            assertThat(res.getTotalElements()).isEqualTo(1);
-            ProductSummaryResponse dto = res.getContent().getFirst();
-            assertThat(dto.productId()).isEqualTo(PRODUCT_ID);
-            assertThat(dto.averageReviewStar()).isEqualTo(AVG_3_0);
-            assertThat(dto.isLiked()).isTrue();
-
-            then(productRepository).should().findVisibleProducts(COUNTRY_KOREA, pageable);
-            then(reviewRepository).should().fetchAvgStarsByProductIds(List.of(PRODUCT_ID));
-            then(likeRepository).should().findLikedProductIds(USER_ID, List.of(PRODUCT_ID));
-        }
-
-        @Test
-        @DisplayName("키워드 여러개 → searchByKeywords 위임 + 키워드 전달 검증 + 배치 매핑")
-        void keywords_passthrough_and_batch_mapping() {
-            Pageable pageable = PAGE_0_SIZE_9;
-
-            Product a = productWithFutureOption(PRODUCT_ID, PRODUCT_NAME_1, DISC_9000);
-            Product b = productWithFutureOption(OTHER_PRODUCT_ID, PRODUCT_NAME_2, DISC_9500);
-
-            String multi = PRODUCT_NAME_1 + " " + HASHTAG_SEA;
-            List<String> expectedKeywords = List.of(PRODUCT_NAME_1, HASHTAG_SEA);
-
-            given(productRepository.searchByKeywords(expectedKeywords, COUNTRY_KOREA, pageable))
-                    .willReturn(new PageImpl<>(List.of(a, b), pageable, 2));
-            given(reviewRepository.fetchAvgStarsByProductIds(List.of(PRODUCT_ID, OTHER_PRODUCT_ID)))
-                    .willReturn(Map.of(PRODUCT_ID, 3.0, OTHER_PRODUCT_ID, 5.0));
-
-            Page<ProductSummaryResponse> res =
-                    productService.searchProducts(multi, COUNTRY_KOREA, null, pageable);
-
-            assertThat(res.getTotalElements()).isEqualTo(2);
-            assertThat(res.getContent()).extracting(ProductSummaryResponse::averageReviewStar)
-                    .containsExactly(AVG_3_0, AVG_5_0);
-
-            @SuppressWarnings("unchecked")
-            ArgumentCaptor<List<String>> cap = ArgumentCaptor.forClass(List.class);
-            then(productRepository).should()
-                    .searchByKeywords(cap.capture(), eq(COUNTRY_KOREA), eq(pageable));
-            assertThat(cap.getValue()).containsExactlyElementsOf(expectedKeywords);
-
-            then(likeRepository).shouldHaveNoInteractions();
-        }
-
-        @Test
-        @DisplayName("레포지토리 정렬/페이지 결과를 그대로 유지(서비스는 순서 변경 없음)")
-        void keeps_repository_order() {
-            Pageable pageable = PageRequest.of(PAGE_0, SIZE_2, DEFAULT_SORT_UPDATED_DESC);
-
-            Product p1 = productWithFutureOption(PRODUCT_ID, PRODUCT_NAME_1, DISC_9000);
-            Product p2 = productWithFutureOption(OTHER_PRODUCT_ID, PRODUCT_NAME_2, DISC_9500);
-
-            // repo가 정렬 결과를 [p2, p1]로 줬다고 가정
-            given(productRepository.findVisibleProducts(COUNTRY_ALL, pageable))
-                    .willReturn(new PageImpl<>(List.of(p2, p1), pageable, 2));
-            given(reviewRepository.fetchAvgStarsByProductIds(List.of(OTHER_PRODUCT_ID, PRODUCT_ID)))
-                    .willReturn(Map.of(OTHER_PRODUCT_ID, 5.0, PRODUCT_ID, 3.0));
-
-            Page<ProductSummaryResponse> res =
-                    productService.searchProducts(null, COUNTRY_ALL, null, pageable);
-
-            assertThat(res.getContent()).extracting(ProductSummaryResponse::productId)
-                    .containsExactly(OTHER_PRODUCT_ID, PRODUCT_ID);
-        }
-
-        @Test
-        @DisplayName("page overflow는 레포지토리 반환을 그대로 전달")
-        void page_overflow_passthrough() {
-            Pageable overflow = PageRequest.of(PAGE_2, SIZE_2, DEFAULT_SORT_UPDATED_DESC);
-            given(productRepository.findVisibleProducts(COUNTRY_ALL, overflow))
-                    .willReturn(new PageImpl<>(List.of(), overflow, 2));
-
-            Page<ProductSummaryResponse> res =
-                    productService.searchProducts(null, COUNTRY_ALL, null, overflow);
-
-            assertThat(res.getContent()).isEmpty();
-            assertThat(res.getTotalElements()).isEqualTo(2);
-            assertThat(res.getNumber()).isEqualTo(PAGE_2);
-            assertThat(res.getSize()).isEqualTo(SIZE_2);
-
-            then(reviewRepository).shouldHaveNoInteractions();
-            then(likeRepository).shouldHaveNoInteractions();
-        }
-
-        @Test
-        @DisplayName("memberId=null → 좋아요 배치 조회 미호출(게스트)")
-        void guest_should_not_call_like_repo() {
-            Pageable pageable = PAGE_0_SIZE_9;
-            Product p = productWithFutureOption(PRODUCT_ID, PRODUCT_NAME_1, DISC_9000);
-
-            given(productRepository.findVisibleProducts(COUNTRY_ALL, pageable))
-                    .willReturn(new PageImpl<>(List.of(p), pageable, 1));
-            given(reviewRepository.fetchAvgStarsByProductIds(List.of(PRODUCT_ID)))
-                    .willReturn(Map.of(PRODUCT_ID, 3.0));
-
-            Page<ProductSummaryResponse> res =
-                    productService.searchProducts(null, COUNTRY_ALL, null, pageable);
-
-            assertThat(res.getTotalElements()).isEqualTo(1);
-            then(likeRepository).shouldHaveNoInteractions();
-        }
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).productName()).isEqualTo("제주도 여행");
     }
 
-    @Nested @DisplayName("getProductDetail(productId, memberId, pageable)")
-    class GetProductDetail {
+    @Test
+    @DisplayName("상품 검색 결과가 없으면 빈 페이지를 반환한다")
+    void searchProducts_EmptyResult() {
+        // given
+        String keyword = "존재하지않는상품";
+        String countryName = "전체";
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<ProductWithAvgStarAndLike> emptyResults = new PageImpl<>(List.of(), pageable, 0);
 
-        @Test
-        @DisplayName("정상: 평균 별점은 전체 리뷰 기준, isLiked=false")
-        void ok_guest() {
-            Product p = productWithFutureOption(PRODUCT_ID, PRODUCT_NAME_1, DISC_9000);
-            List<Review> all = reviews_4_and_2(p);
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(productRepository.searchProductsWithAvgStarAndLike(eq(keyword), eq("전체"), any(LocalDate.class), eq(memberId), eq(pageable)))
+                .thenReturn(emptyResults);
 
-            given(productRepository.findById(PRODUCT_ID)).willReturn(Optional.of(p));
-            Page<Review> page = new PageImpl<>(all, PAGE_0_SIZE_9, all.size());
-            given(reviewRepository.findByProductId(eq(PRODUCT_ID), any(Pageable.class))).willReturn(page);
-            given(reviewRepository.findByProductId(PRODUCT_ID)).willReturn(all);
+        // when
+        Page<ProductSummaryResponse> result = productService.searchProducts(keyword, countryName, memberId, pageable);
 
-            ProductDetailResponse res =
-                    productService.getProductDetail(PRODUCT_ID, null, PAGE_0_SIZE_9);
+        // then
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElements()).isEqualTo(0);
+    }
 
-            assertThat(res.productId()).isEqualTo(PRODUCT_ID);
-            assertThat(res.averageReviewStar()).isEqualTo(AVG_3_0);
-            assertThat(res.isLiked()).isFalse();
-        }
+    @Test
+    @DisplayName("존재하지 않는 회원으로 상품 검색 시 예외가 발생한다")
+    void searchProducts_MemberNotFound() {
+        // given
+        Long nonExistentMemberId = 999L;
+        Pageable pageable = PageRequest.of(0, 10);
 
-        @Test
-        @DisplayName("로그인: isLiked=true + 평균은 전체 리뷰 기준(페이지 일부만 조회돼도 전체 평균)")
-        void authed_isLiked_true_and_avg_from_all_reviews() {
-            Product p = productWithFutureOption(PRODUCT_ID, PRODUCT_NAME_1, DISC_9000);
-            List<Review> all = reviews_4_and_2(p);
-            Review only = all.getFirst();
+        when(memberRepository.existsById(nonExistentMemberId)).thenReturn(false);
 
-            given(productRepository.findById(PRODUCT_ID)).willReturn(Optional.of(p));
-            Page<Review> partial = new PageImpl<>(List.of(only), PAGE_0_SIZE_9, 1);
-            given(reviewRepository.findByProductId(eq(PRODUCT_ID), any(Pageable.class))).willReturn(partial);
-            given(reviewRepository.findByProductId(PRODUCT_ID)).willReturn(all);
-            given(likeRepository.existsByProductIdAndMemberId(PRODUCT_ID, USER_ID)).willReturn(true);
+        // when & then
+        assertThatThrownBy(() -> productService.searchProducts("제주도", "전체", nonExistentMemberId, pageable))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
 
-            ProductDetailResponse res =
-                    productService.getProductDetail(PRODUCT_ID, USER_ID, PAGE_0_SIZE_9);
+    @Test
+    @DisplayName("null 회원 ID로 상품 검색 시 예외가 발생한다")
+    void searchProducts_NullMemberId() {
+        // given
+        Pageable pageable = PageRequest.of(0, 10);
 
-            assertThat(res.productId()).isEqualTo(PRODUCT_ID);
-            assertThat(res.isLiked()).isTrue();
-            assertThat(res.averageReviewStar()).isEqualTo(AVG_3_0);
-        }
+        // when & then
+        assertThatThrownBy(() -> productService.searchProducts("제주도", "전체", null, pageable))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
 
-        @Test
-        @DisplayName("상품 없음 → PRODUCT_NOT_FOUND")
-        void productMissing() {
-            given(productRepository.findById(PRODUCT_ID)).willReturn(Optional.empty());
-            assertThatThrownBy(() ->
-                    productService.getProductDetail(PRODUCT_ID, USER_ID, PAGE_0_SIZE_9)
-            ).isInstanceOf(ProductException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.PRODUCT_NOT_FOUND);
-        }
+    @Test
+    @DisplayName("상품 상세 정보를 성공적으로 조회한다")
+    void getProductDetail_Success() {
+        // given
+        Long productId = product.getId();
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 3);
+        Page<Review> reviewPage = new PageImpl<>(List.of(review), pageable, 1);
 
-        @Test
-        @DisplayName("미래 재고 합 0 → PRODUCT_NOT_FOUND")
-        void futureStockZero_throws() {
-            Product p = productWithFutureOption(PRODUCT_ID, PRODUCT_NAME_1, DISC_9000);
-            p.getProductOptions().clear(); // 미래 재고 0
-            given(productRepository.findById(PRODUCT_ID)).willReturn(Optional.of(p));
+        ProductWithAvgStarAndLike productWithDetails = ProductWithAvgStarAndLike.builder()
+                .product(product)
+                .avgStar(4.5)
+                .isLiked(true)
+                .build();
 
-            assertThatThrownBy(() ->
-                    productService.getProductDetail(PRODUCT_ID, null, PAGE_0_SIZE_9)
-            ).isInstanceOf(ProductException.class)
-                    .extracting(ERROR_CODE).isEqualTo(ErrorCode.PRODUCT_NOT_FOUND);
-        }
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(productRepository.existsById(productId)).thenReturn(true);
+        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), any(LocalDate.class), eq(memberId)))
+                .thenReturn(Optional.of(productWithDetails));
+        when(reviewRepository.findByProductId(productId, pageable)).thenReturn(reviewPage);
+
+        // when
+        ProductDetailResponse result = productService.getProductDetail(productId, memberId, pageable);
+
+        // then
+        assertThat(result.productId()).isEqualTo(productId);
+        assertThat(result.productName()).isEqualTo("제주도 여행");
+        assertThat(result.isLiked()).isTrue();
+        assertThat(result.averageReviewStar()).isEqualTo(4.5);
+        assertThat(result.reviews()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("상품 상세 조회 시 리뷰 페이징이 올바르게 적용된다")
+    void getProductDetail_WithReviewPaging() {
+        // given
+        Long productId = product.getId();
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(1, 2); // 두 번째 페이지, 크기 2
+        
+        // 두 번째 페이지의 리뷰들 생성
+        Review secondPageReview1 = Review.builder()
+                .id(4L)
+                .product(product)
+                .member(member)
+                .reviewStar(4.0)
+                .comment("두 번째 페이지 리뷰 1")
+                .build();
+        
+        Review secondPageReview2 = Review.builder()
+                .id(5L)
+                .product(product)
+                .member(member)
+                .reviewStar(5.0)
+                .comment("두 번째 페이지 리뷰 2")
+                .build();
+        
+        Page<Review> reviewPage = new PageImpl<>(List.of(secondPageReview1, secondPageReview2), pageable, 5); // 총 5개 리뷰
+
+        ProductWithAvgStarAndLike productWithDetails = ProductWithAvgStarAndLike.builder()
+                .product(product)
+                .avgStar(4.5)
+                .isLiked(true)
+                .build();
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(productRepository.existsById(productId)).thenReturn(true);
+        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), any(LocalDate.class), eq(memberId)))
+                .thenReturn(Optional.of(productWithDetails));
+        when(reviewRepository.findByProductId(productId, pageable)).thenReturn(reviewPage);
+
+        // when
+        ProductDetailResponse result = productService.getProductDetail(productId, memberId, pageable);
+
+        // then
+        assertThat(result.productId()).isEqualTo(productId);
+        assertThat(result.productName()).isEqualTo("제주도 여행");
+        assertThat(result.isLiked()).isTrue();
+        assertThat(result.averageReviewStar()).isEqualTo(4.5);
+        assertThat(result.reviews()).hasSize(2);
+        
+        // 두 번째 페이지의 리뷰들이 올바르게 반환되는지 확인
+        assertThat(result.reviews().get(0).reviewId()).isEqualTo(4L);
+        assertThat(result.reviews().get(0).comment()).isEqualTo("두 번째 페이지 리뷰 1");
+        assertThat(result.reviews().get(0).reviewStar()).isEqualTo(4.0);
+        
+        assertThat(result.reviews().get(1).reviewId()).isEqualTo(5L);
+        assertThat(result.reviews().get(1).comment()).isEqualTo("두 번째 페이지 리뷰 2");
+        assertThat(result.reviews().get(1).reviewStar()).isEqualTo(5.0);
+    }
+
+    @Test
+    @DisplayName("상품 상세 조회 시 리뷰가 없는 경우 빈 리스트를 반환한다")
+    void getProductDetail_NoReviews() {
+        // given
+        Long productId = product.getId();
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 3);
+        Page<Review> emptyReviewPage = new PageImpl<>(List.of(), pageable, 0);
+
+        ProductWithAvgStarAndLike productWithDetails = ProductWithAvgStarAndLike.builder()
+                .product(product)
+                .avgStar(0.0)
+                .isLiked(false)
+                .build();
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(productRepository.existsById(productId)).thenReturn(true);
+        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), any(LocalDate.class), eq(memberId)))
+                .thenReturn(Optional.of(productWithDetails));
+        when(reviewRepository.findByProductId(productId, pageable)).thenReturn(emptyReviewPage);
+
+        // when
+        ProductDetailResponse result = productService.getProductDetail(productId, memberId, pageable);
+
+        // then
+        assertThat(result.productId()).isEqualTo(productId);
+        assertThat(result.productName()).isEqualTo("제주도 여행");
+        assertThat(result.isLiked()).isFalse();
+        assertThat(result.averageReviewStar()).isEqualTo(0.0);
+        assertThat(result.reviews()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("상품 상세 조회 시 리뷰 별점 내림차순 정렬이 올바르게 적용된다")
+    void getProductDetail_WithReviewSortingDesc() {
+        // given
+        Long productId = product.getId();
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "reviewStar"));
+        
+        // 별점 내림차순으로 정렬된 리뷰들 생성
+        Review highStarReview = Review.builder()
+                .id(1L)
+                .product(product)
+                .member(member)
+                .reviewStar(5.0)
+                .comment("최고의 여행이었습니다!")
+                .build();
+        
+        Review mediumStarReview = Review.builder()
+                .id(2L)
+                .product(product)
+                .member(member)
+                .reviewStar(4.5)
+                .comment("좋은 여행이었습니다")
+                .build();
+        
+        Review lowStarReview = Review.builder()
+                .id(3L)
+                .product(product)
+                .member(member)
+                .reviewStar(3.0)
+                .comment("괜찮은 여행이었습니다")
+                .build();
+        
+        Page<Review> reviewPage = new PageImpl<>(List.of(highStarReview, mediumStarReview, lowStarReview), pageable, 3);
+
+        ProductWithAvgStarAndLike productWithDetails = ProductWithAvgStarAndLike.builder()
+                .product(product)
+                .avgStar(4.2)
+                .isLiked(true)
+                .build();
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(productRepository.existsById(productId)).thenReturn(true);
+        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), any(LocalDate.class), eq(memberId)))
+                .thenReturn(Optional.of(productWithDetails));
+        when(reviewRepository.findByProductId(productId, pageable)).thenReturn(reviewPage);
+
+        // when
+        ProductDetailResponse result = productService.getProductDetail(productId, memberId, pageable);
+
+        // then
+        assertThat(result.productId()).isEqualTo(productId);
+        assertThat(result.productName()).isEqualTo("제주도 여행");
+        assertThat(result.isLiked()).isTrue();
+        assertThat(result.averageReviewStar()).isEqualTo(4.2);
+        assertThat(result.reviews()).hasSize(3);
+        
+        // 별점 내림차순 정렬 검증
+        assertThat(result.reviews().get(0).reviewId()).isEqualTo(1L);
+        assertThat(result.reviews().get(0).reviewStar()).isEqualTo(5.0);
+        assertThat(result.reviews().get(0).comment()).isEqualTo("최고의 여행이었습니다!");
+        
+        assertThat(result.reviews().get(1).reviewId()).isEqualTo(2L);
+        assertThat(result.reviews().get(1).reviewStar()).isEqualTo(4.5);
+        assertThat(result.reviews().get(1).comment()).isEqualTo("좋은 여행이었습니다");
+        
+        assertThat(result.reviews().get(2).reviewId()).isEqualTo(3L);
+        assertThat(result.reviews().get(2).reviewStar()).isEqualTo(3.0);
+        assertThat(result.reviews().get(2).comment()).isEqualTo("괜찮은 여행이었습니다");
+    }
+
+    @Test
+    @DisplayName("상품 상세 조회 시 리뷰 별점 오름차순 정렬이 올바르게 적용된다")
+    void getProductDetail_WithReviewSortingAsc() {
+        // given
+        Long productId = product.getId();
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "reviewStar"));
+        
+        // 별점 오름차순으로 정렬된 리뷰들 생성
+        Review lowStarReview = Review.builder()
+                .id(3L)
+                .product(product)
+                .member(member)
+                .reviewStar(3.0)
+                .comment("괜찮은 여행이었습니다")
+                .build();
+        
+        Review mediumStarReview = Review.builder()
+                .id(2L)
+                .product(product)
+                .member(member)
+                .reviewStar(4.5)
+                .comment("좋은 여행이었습니다")
+                .build();
+        
+        Review highStarReview = Review.builder()
+                .id(1L)
+                .product(product)
+                .member(member)
+                .reviewStar(5.0)
+                .comment("최고의 여행이었습니다!")
+                .build();
+        
+        Page<Review> reviewPage = new PageImpl<>(List.of(lowStarReview, mediumStarReview, highStarReview), pageable, 3);
+
+        ProductWithAvgStarAndLike productWithDetails = ProductWithAvgStarAndLike.builder()
+                .product(product)
+                .avgStar(4.2)
+                .isLiked(true)
+                .build();
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(productRepository.existsById(productId)).thenReturn(true);
+        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), any(LocalDate.class), eq(memberId)))
+                .thenReturn(Optional.of(productWithDetails));
+        when(reviewRepository.findByProductId(productId, pageable)).thenReturn(reviewPage);
+
+        // when
+        ProductDetailResponse result = productService.getProductDetail(productId, memberId, pageable);
+
+        // then
+        assertThat(result.productId()).isEqualTo(productId);
+        assertThat(result.productName()).isEqualTo("제주도 여행");
+        assertThat(result.isLiked()).isTrue();
+        assertThat(result.averageReviewStar()).isEqualTo(4.2);
+        assertThat(result.reviews()).hasSize(3);
+        
+        // 별점 오름차순 정렬 검증
+        assertThat(result.reviews().get(0).reviewId()).isEqualTo(3L);
+        assertThat(result.reviews().get(0).reviewStar()).isEqualTo(3.0);
+        assertThat(result.reviews().get(0).comment()).isEqualTo("괜찮은 여행이었습니다");
+        
+        assertThat(result.reviews().get(1).reviewId()).isEqualTo(2L);
+        assertThat(result.reviews().get(1).reviewStar()).isEqualTo(4.5);
+        assertThat(result.reviews().get(1).comment()).isEqualTo("좋은 여행이었습니다");
+        
+        assertThat(result.reviews().get(2).reviewId()).isEqualTo(1L);
+        assertThat(result.reviews().get(2).reviewStar()).isEqualTo(5.0);
+        assertThat(result.reviews().get(2).comment()).isEqualTo("최고의 여행이었습니다!");
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 상품으로 상세 조회 시 예외가 발생한다")
+    void getProductDetail_ProductNotFound() {
+        // given
+        Long nonExistentProductId = 999L;
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 3);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(productRepository.existsById(nonExistentProductId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> productService.getProductDetail(nonExistentProductId, memberId, pageable))
+                .isInstanceOf(ProductException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("null 상품 ID로 상세 조회 시 예외가 발생한다")
+    void getProductDetail_NullProductId() {
+        // given
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 3);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+
+        // when & then
+        assertThatThrownBy(() -> productService.getProductDetail(null, memberId, pageable))
+                .isInstanceOf(ProductException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 회원으로 상품 상세 조회 시 예외가 발생한다")
+    void getProductDetail_MemberNotFound() {
+        // given
+        Long productId = product.getId();
+        Long nonExistentMemberId = 999L;
+        Pageable pageable = PageRequest.of(0, 3);
+
+        when(memberRepository.existsById(nonExistentMemberId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> productService.getProductDetail(productId, nonExistentMemberId, pageable))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 국가로 상품 검색 시 예외가 발생한다")
+    void searchProducts_NonExistentCountry_ThrowsException() {
+        // given
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(countryRepository.existsByName("존재하지않는국가")).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> productService.searchProducts("서울", "존재하지않는국가", memberId, pageable))
+                .isInstanceOf(ProductException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.COUNTRY_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("전체 국가로 상품 검색 시 국가 검증을 건너뛴다")
+    void searchProducts_AllCountries_SkipsValidation() {
+        // given
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<ProductWithAvgStarAndLike> productPage = new PageImpl<>(List.of(), pageable, 0);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(productRepository.searchProductsWithAvgStarAndLike(any(), any(), any(), eq(memberId), eq(pageable)))
+                .thenReturn(productPage);
+
+        // when
+        Page<ProductSummaryResponse> result = productService.searchProducts("서울", "전체", memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("null 국가명으로 상품 검색 시 국가 검증을 건너뛴다")
+    void searchProducts_NullCountry_SkipsValidation() {
+        // given
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<ProductWithAvgStarAndLike> productPage = new PageImpl<>(List.of(), pageable, 0);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(productRepository.searchProductsWithAvgStarAndLike(any(), any(), any(), eq(memberId), eq(pageable)))
+                .thenReturn(productPage);
+
+        // when
+        Page<ProductSummaryResponse> result = productService.searchProducts("서울", null, memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("빈 문자열 국가명으로 상품 검색 시 국가 검증을 건너뛴다")
+    void searchProducts_EmptyCountry_SkipsValidation() {
+        // given
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<ProductWithAvgStarAndLike> productPage = new PageImpl<>(List.of(), pageable, 0);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(productRepository.searchProductsWithAvgStarAndLike(any(), any(), any(), eq(memberId), eq(pageable)))
+                .thenReturn(productPage);
+
+        // when
+        Page<ProductSummaryResponse> result = productService.searchProducts("서울", "", memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("AI 상품 검색을 성공적으로 수행한다")
+    void aiSearchProducts_Success() {
+        // given
+        String query = "제주도 여행";
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+        List<Long> productIds = List.of(1L);
+        
+        // Mock 객체 생성
+        ProductWithAvgStarAndLike productWithAvgStarAndLike = mock(ProductWithAvgStarAndLike.class);
+        when(productWithAvgStarAndLike.getProduct()).thenReturn(product);
+        when(productWithAvgStarAndLike.getAvgStar()).thenReturn(4.5);
+        when(productWithAvgStarAndLike.getIsLiked()).thenReturn(true);
+        
+        List<ProductWithAvgStarAndLike> productsWithDetails = List.of(productWithAvgStarAndLike);
+        Page<ProductWithAvgStarAndLike> productPage = new PageImpl<>(productsWithDetails, pageable, 1);
+
+        Map<String, Object> aiResponse = Map.of("product_ids", productIds);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(restTemplate.postForObject(
+                eq("http://localhost:8000/query"),
+                any(Map.class),
+                eq(Map.class)
+        )).thenReturn(aiResponse);
+        when(productRepository.findProductsWithAvgStarAndLikeByIds(productIds, memberId, pageable))
+                .thenReturn(productPage);
+
+        // when
+        Page<ProductSummaryResponse> result = productService.aiSearchProducts(query, memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).productName()).isEqualTo("제주도 여행");
+        assertThat(result.getContent().get(0).averageReviewStar()).isEqualTo(4.5);
+        assertThat(result.getContent().get(0).isLiked()).isTrue();
+    }
+
+    @Test
+    @DisplayName("AI 상품 검색 시 null 쿼리로 예외가 발생한다")
+    void aiSearchProducts_NullQuery_ThrowsException() {
+        // given
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+
+        // when & then
+        assertThatThrownBy(() -> productService.aiSearchProducts(null, memberId, pageable))
+                .isInstanceOf(ProductException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("AI 상품 검색 시 빈 쿼리로 예외가 발생한다")
+    void aiSearchProducts_EmptyQuery_ThrowsException() {
+        // given
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+
+        // when & then
+        assertThatThrownBy(() -> productService.aiSearchProducts("", memberId, pageable))
+                .isInstanceOf(ProductException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("AI 상품 검색 시 존재하지 않는 회원으로 예외가 발생한다")
+    void aiSearchProducts_MemberNotFound_ThrowsException() {
+        // given
+        String query = "제주도 여행";
+        Long nonExistentMemberId = 999L;
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(nonExistentMemberId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> productService.aiSearchProducts(query, nonExistentMemberId, pageable))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("AI 상품 검색 시 AI 서비스 응답이 null이면 빈 결과를 반환한다")
+    void aiSearchProducts_NullAiResponse_ReturnsEmpty() {
+        // given
+        String query = "제주도 여행";
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+
+        // when
+        Page<ProductSummaryResponse> result = productService.aiSearchProducts(query, memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElements()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("AI 상품 검색 시 AI 서비스에서 product_ids가 없으면 빈 결과를 반환한다")
+    void aiSearchProducts_NoProductIds_ReturnsEmpty() {
+        // given
+        String query = "제주도 여행";
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+
+        // when
+        Page<ProductSummaryResponse> result = productService.aiSearchProducts(query, memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElements()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("상품 검색 시 존재하지 않는 국가로 검색하면 예외가 발생한다")
+    void searchProducts_InvalidCountry_ThrowsException() {
+        // given
+        String keyword = "제주도";
+        String invalidCountryName = "존재하지 않는 국가";
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(countryRepository.existsByName(invalidCountryName)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> productService.searchProducts(keyword, invalidCountryName, memberId, pageable))
+                .isInstanceOf(ProductException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.COUNTRY_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("상품 검색 시 null memberId로 예외가 발생한다")
+    void searchProducts_NullMemberId_ThrowsException() {
+        // given
+        String keyword = "제주도";
+        String countryName = "전체";
+        Pageable pageable = PageRequest.of(0, 10);
+
+        // when & then
+        assertThatThrownBy(() -> productService.searchProducts(keyword, countryName, null, pageable))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("상품 상세 조회 시 null memberId로 예외가 발생한다")
+    void getProductDetail_NullMemberId_ThrowsException() {
+        // given
+        Long productId = product.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        // when & then
+        assertThatThrownBy(() -> productService.getProductDetail(productId, null, pageable))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("상품 상세 조회 시 null productId로 예외가 발생한다")
+    void getProductDetail_NullProductId_ThrowsException() {
+        // given
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+
+        // when & then
+        assertThatThrownBy(() -> productService.getProductDetail(null, memberId, pageable))
+                .isInstanceOf(ProductException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("AI 상품 검색 시 AI 서비스 예외가 발생하면 빈 결과를 반환한다")
+    void aiSearchProducts_AiServiceException_ReturnsEmpty() {
+        // given
+        String query = "제주도 여행";
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(restTemplate.postForObject(
+                eq("http://localhost:8000/query"),
+                any(Map.class),
+                eq(Map.class)
+        )).thenThrow(new RuntimeException("AI 서비스 오류"));
+
+        // when
+        Page<ProductSummaryResponse> result = productService.aiSearchProducts(query, memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElements()).isEqualTo(0);
     }
 }
