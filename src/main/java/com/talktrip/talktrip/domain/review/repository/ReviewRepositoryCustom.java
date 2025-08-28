@@ -1,8 +1,11 @@
 package com.talktrip.talktrip.domain.review.repository;
 
-import java.util.List;
-import java.util.Map;
+import com.talktrip.talktrip.domain.review.entity.Review;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface ReviewRepositoryCustom {
-    Map<Long, Double> fetchAvgStarsByProductIds(List<Long> productIds);
+    Page<Review> findByProductIdWithPaging(Long productId, Pageable pageable);
+    
+    Page<Review> findByMemberIdWithProduct(Long memberId, Pageable pageable);
 }

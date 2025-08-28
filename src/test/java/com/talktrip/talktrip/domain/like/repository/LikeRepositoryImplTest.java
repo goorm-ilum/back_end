@@ -35,13 +35,12 @@ import com.talktrip.talktrip.global.config.QueryDSLTestConfig;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 @DataJpaTest
 @Import(QueryDSLTestConfig.class)
 @EnableJpaAuditing
 @ActiveProfiles("test")
-@Transactional
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class LikeRepositoryImplTest {
 
     @Autowired
@@ -171,8 +170,6 @@ class LikeRepositoryImplTest {
         likeRepository.saveAll(List.of(like1, like2));
     }
 
-
-
     @Test
     @DisplayName("QueryDSL 구현체가 정상적으로 좋아요한 상품 목록을 조회한다")
     void findLikedProductsWithAvgStar_ReturnsCorrectResults() {
@@ -213,36 +210,50 @@ class LikeRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("QueryDSL 구현체가 productName 정렬을 올바르게 처리한다")
-    void findLikedProductsWithAvgStar_WithProductNameSort_ReturnsCorrectOrder() {
+    @DisplayName("QueryDSL 구현체가 averageReviewStar 오름차순 정렬을 올바르게 처리한다")
+    void findLikedProductsWithAvgStar_WithAverageReviewStarAscSort_ReturnsCorrectOrder() {
         // given
         Long memberId = user.getId();
-        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.ASC, "productName"));
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.ASC, "averageReviewStar"));
 
         // when
         Page<ProductWithAvgStar> result = likeRepositoryImpl.findLikedProductsWithAvgStar(memberId, pageable);
 
         // then
         assertThat(result.getContent()).hasSize(2);
-        assertThat(result.getContent().get(0).getProduct().getProductName()).isEqualTo("부산 여행");
-        assertThat(result.getContent().get(1).getProduct().getProductName()).isEqualTo("제주도 여행");
+        // 평균 별점 오름차순: product2(3.0) -> product1(4.0)
+        assertThat(result.getContent().get(0).getProduct().getId()).isEqualTo(product2.getId());
+        assertThat(result.getContent().get(1).getProduct().getId()).isEqualTo(product1.getId());
     }
 
     @Test
-    @DisplayName("QueryDSL 구현체가 알 수 없는 정렬 필드를 기본값으로 처리한다")
-    void findLikedProductsWithAvgStar_WithUnknownSort_ReturnsDefaultOrder() {
+    @DisplayName("QueryDSL 구현체가 averageReviewStar 내림차순 정렬을 올바르게 처리한다")
+    void findLikedProductsWithAvgStar_WithAverageReviewStarDescSort_ReturnsCorrectOrder() {
         // given
         Long memberId = user.getId();
-        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "unknownField"));
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "averageReviewStar"));
 
         // when
         Page<ProductWithAvgStar> result = likeRepositoryImpl.findLikedProductsWithAvgStar(memberId, pageable);
 
         // then
         assertThat(result.getContent()).hasSize(2);
-        // 기본값으로 updatedAt DESC 정렬되어야 함
-        assertThat(result.getContent().get(0).getProduct().getId()).isEqualTo(product2.getId());
-        assertThat(result.getContent().get(1).getProduct().getId()).isEqualTo(product1.getId());
+        // 평균 별점 내림차순: product1(4.0) -> product2(3.0)
+        assertThat(result.getContent().get(0).getProduct().getId()).isEqualTo(product1.getId());
+        assertThat(result.getContent().get(1).getProduct().getId()).isEqualTo(product2.getId());
+    }
+
+    @Test
+    @DisplayName("QueryDSL 구현체가 지원하지 않는 정렬 필드로 요청하면 예외가 발생한다")
+    void findLikedProductsWithAvgStar_WithUnsupportedSort_ThrowsException() {
+        // given
+        Long memberId = user.getId();
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "unsupportedField"));
+
+        // when & then
+        assertThatThrownBy(() -> likeRepositoryImpl.findLikedProductsWithAvgStar(memberId, pageable))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("Unsupported sort property: unsupportedField");
     }
 
     @Test
@@ -347,4 +358,38 @@ class LikeRepositoryImplTest {
         assertThat(product.getThumbnailImageUrl()).isNotNull();
         assertThat(firstResult.getAvgStar()).isGreaterThanOrEqualTo(0.0);
     }
+
+    @Test
+    @DisplayName("QueryDSL 구현체가 updatedAt 정렬(오름차순)을 올바르게 처리한다")
+    void findLikedProductsWithAvgStar_WithUpdatedAtAscSort_ReturnsCorrectOrder() {
+        // given
+        Long memberId = user.getId();
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.ASC, "updatedAt"));
+
+        // when
+        Page<ProductWithAvgStar> result = likeRepositoryImpl.findLikedProductsWithAvgStar(memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(2);
+        // 오름차순이면 더 예전에 업데이트된 product1이 먼저, 그 다음 product2
+        assertThat(result.getContent().get(0).getProduct().getId()).isEqualTo(product1.getId());
+        assertThat(result.getContent().get(1).getProduct().getId()).isEqualTo(product2.getId());
+    }
+
+    @Test
+    @DisplayName("빈 결과일 때 PageImpl(total==0)로 안전하게 반환한다")
+    void findLikedProductsWithAvgStar_WhenEmpty_UsesZeroTotalInPageImpl() {
+        // given: 좋아요가 전혀 없는 사용자(또는 존재하지 않는 사용자)
+        Long memberId = 987654321L;
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "updatedAt"));
+
+        // when
+        Page<ProductWithAvgStar> result = likeRepositoryImpl.findLikedProductsWithAvgStar(memberId, pageable);
+
+        // then: content 비어있고, total=0, totalPages=0을 기대
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElements()).isEqualTo(0);
+        assertThat(result.getTotalPages()).isEqualTo(0);
+    }
+
 }

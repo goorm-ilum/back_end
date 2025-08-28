@@ -158,6 +158,50 @@ class ReviewServiceTest {
     }
 
     @Test
+    @DisplayName("null 리뷰 ID로 리뷰 수정 시 예외가 발생한다")
+    void updateReview_NullReviewId() {
+        Long memberId = 1L;
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+
+        assertThatThrownBy(() -> reviewService.updateReview(null, memberId, reviewRequest))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REVIEW_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("null 리뷰 ID로 리뷰 삭제 시 예외가 발생한다")
+    void deleteReview_NullReviewId() {
+        Long memberId = 1L;
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+
+        assertThatThrownBy(() -> reviewService.deleteReview(null, memberId))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REVIEW_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("null 주문 ID로 리뷰 생성 폼 조회 시 예외가 발생한다")
+    void getReviewCreateForm_NullOrderId() {
+        Long memberId = 1L;
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+
+        assertThatThrownBy(() -> reviewService.getReviewCreateForm(null, memberId))
+                .isInstanceOf(OrderException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ORDER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("null 리뷰 ID로 리뷰 수정 폼 조회 시 예외가 발생한다")
+    void getReviewUpdateForm_NullReviewId() {
+        Long memberId = 1L;
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+
+        assertThatThrownBy(() -> reviewService.getReviewUpdateForm(null, memberId))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REVIEW_NOT_FOUND);
+    }
+
+    @Test
     @DisplayName("존재하지 않는 주문으로 리뷰 생성 시 예외가 발생한다")
     void createReview_OrderNotFound() {
         // given
@@ -484,6 +528,22 @@ class ReviewServiceTest {
     }
 
     @Test
+    @DisplayName("판매자 리뷰 목록 조회 - null 상품 ID 시 PRODUCT_NOT_FOUND")
+    void getReviewsForAdminProduct_NullProductId() {
+        // given
+        Long sellerId = 1L;
+        Long productId = null;
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(sellerId)).thenReturn(true);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.getReviewsForAdminProduct(sellerId, productId, pageable))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
     @DisplayName("접근 권한이 없는 상품의 리뷰 목록 조회 시 예외가 발생한다")
     void getReviewsForAdminProduct_AccessDenied() {
         // given
@@ -599,6 +659,145 @@ class ReviewServiceTest {
 
         // when & then
         assertThatThrownBy(() -> reviewService.getReviewUpdateForm(nonExistentReviewId, memberId))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REVIEW_NOT_FOUND);
+    }
+
+    // ===== 추가: validate 통과 후 find 단계에서의 NOT_FOUND 예외들 =====
+
+    @Test
+    @DisplayName("createReview: member exists지만 findById 없음 → ReviewException(USER_NOT_FOUND)")
+    void createReview_FindMemberNotFound() {
+        Long orderId = 1L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(orderRepository.existsById(orderId)).thenReturn(true);
+        when(memberRepository.findById(memberId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.createReview(orderId, memberId, reviewRequest))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("createReview: order exists지만 findById 없음 → ReviewException(ORDER_NOT_FOUND)")
+    void createReview_FindOrderNotFound() {
+        Long orderId = 1L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(orderRepository.existsById(orderId)).thenReturn(true);
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.createReview(orderId, memberId, reviewRequest))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ORDER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("createReview: product exists지만 findByIdIncludingDeleted 없음 → ReviewException(PRODUCT_NOT_FOUND)")
+    void createReview_FindProductNotFound() {
+        Long orderId = 1L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(orderRepository.existsById(orderId)).thenReturn(true);
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(productRepository.existsById(1L)).thenReturn(true);
+        when(productRepository.findByIdIncludingDeleted(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.createReview(orderId, memberId, reviewRequest))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("updateReview: review exists지만 findById 없음 → ReviewException(REVIEW_NOT_FOUND)")
+    void updateReview_FindReviewNotFound() {
+        Long reviewId = 1L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(reviewRepository.existsById(reviewId)).thenReturn(true);
+        when(reviewRepository.findById(reviewId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.updateReview(reviewId, memberId, reviewRequest))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REVIEW_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("deleteReview: review exists지만 findById 없음 → ReviewException(REVIEW_NOT_FOUND)")
+    void deleteReview_FindReviewNotFound() {
+        Long reviewId = 1L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(reviewRepository.existsById(reviewId)).thenReturn(true);
+        when(reviewRepository.findById(reviewId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.deleteReview(reviewId, memberId))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REVIEW_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("getReviewCreateForm: order exists지만 findById 없음 → ReviewException(ORDER_NOT_FOUND)")
+    void getReviewCreateForm_FindOrderNotFound() {
+        Long orderId = 1L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(orderRepository.existsById(orderId)).thenReturn(true);
+        when(orderRepository.findById(orderId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.getReviewCreateForm(orderId, memberId))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ORDER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("리뷰 생성 - 주문에 상품이 없어 ORDER_EMPTY")
+    void createReview_OrderEmpty_ThrowsException() {
+        // given
+        Long orderId = 1L;
+        Long memberId = 1L;
+
+        Order orderWithoutProduct = Order.builder()
+                .id(orderId)
+                .member(member)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderItems(java.util.List.of(
+                        OrderItem.builder().id(10L).productId(null).build()
+                ))
+                .build();
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(orderRepository.existsById(orderId)).thenReturn(true);
+        when(memberRepository.findById(memberId)).thenReturn(java.util.Optional.of(member));
+        when(orderRepository.findById(orderId)).thenReturn(java.util.Optional.of(orderWithoutProduct));
+        when(reviewRepository.existsByOrderId(orderId)).thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> reviewService.createReview(orderId, memberId, reviewRequest))
+                .isInstanceOf(ReviewException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ORDER_EMPTY);
+    }
+
+    @Test
+    @DisplayName("getReviewUpdateForm: review exists지만 findById 없음 → ReviewException(REVIEW_NOT_FOUND)")
+    void getReviewUpdateForm_FindReviewNotFound() {
+        Long reviewId = 1L;
+        Long memberId = 1L;
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(reviewRepository.existsById(reviewId)).thenReturn(true);
+        when(reviewRepository.findById(reviewId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.getReviewUpdateForm(reviewId, memberId))
                 .isInstanceOf(ReviewException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REVIEW_NOT_FOUND);
     }

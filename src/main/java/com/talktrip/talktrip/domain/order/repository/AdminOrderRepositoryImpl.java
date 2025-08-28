@@ -50,10 +50,10 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
                 .join(order.orderItems, orderItem)
                 .leftJoin(payment).on(payment.order.eq(order))
                 .where(orderItem.productId.in(
-                    JPAExpressions
-                        .select(product.id)
-                        .from(product)
-                        .where(product.member.Id.eq(sellerId))
+                        JPAExpressions
+                                .select(product.id)
+                                .from(product)
+                                .where(product.member.Id.eq(sellerId))
                 )) // 서브쿼리로 판매자의 상품 ID들만 필터링
                 .distinct()
                 .fetch();
@@ -61,13 +61,13 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
 
     @Override
     public Page<AdminOrderResponseDTO> findOrdersBySellerIdWithPagination(
-            Long sellerId, 
-            Pageable pageable, 
-            String sort, 
-            String paymentMethod, 
-            String keyword, 
+            Long sellerId,
+            Pageable pageable,
+            String sort,
+            String paymentMethod,
+            String keyword,
             String orderStatus) {
-        
+
         QOrder order = QOrder.order;
         QOrderItem orderItem = QOrderItem.orderItem;
         QMember member = QMember.member;
@@ -77,10 +77,10 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
         // 기본 조건: 판매자의 상품 ID들만 필터링
         BooleanBuilder whereClause = new BooleanBuilder();
         whereClause.and(orderItem.productId.in(
-            JPAExpressions
-                .select(product.id)
-                .from(product)
-                .where(product.member.Id.eq(sellerId))
+                JPAExpressions
+                        .select(product.id)
+                        .from(product)
+                        .where(product.member.Id.eq(sellerId))
         ));
 
         // 결제수단 필터
@@ -113,7 +113,7 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
 
         // 전체 개수 조회
         long total = queryFactory
-                .select(order.count())
+                .select(order.count().coalesce(0L))
                 .from(order)
                 .join(order.member, member)
                 .join(order.orderItems, orderItem)
@@ -170,15 +170,15 @@ public class AdminOrderRepositoryImpl implements AdminOrderRepositoryCustom {
 
         // 주문 기본 정보 조회 (Payment 정보 포함)
         var orderInfo = queryFactory
-                .select(order.orderCode, order.createdAt, order.orderDate, 
-                       buyer.name, buyer.accountEmail, buyer.phoneNum,
-                       order.orderStatus, payment.method, order.totalPrice,
-                       payment.paymentKey, payment.approvedAt, payment.receiptUrl,
-                       payment.status, payment.totalAmount, payment.vat,
-                       payment.suppliedAmount, payment.isPartialCancelable,
-                       cardPayment.cardNumber, cardPayment.issuerCode, cardPayment.acquirerCode,
-                       cardPayment.approveNo, cardPayment.installmentMonths, cardPayment.isInterestFree,
-                       cardPayment.cardType, cardPayment.ownerType, cardPayment.acquireStatus, cardPayment.amount)
+                .select(order.orderCode, order.createdAt, order.orderDate,
+                        buyer.name, buyer.accountEmail, buyer.phoneNum,
+                        order.orderStatus, payment.method, order.totalPrice,
+                        payment.paymentKey, payment.approvedAt, payment.receiptUrl,
+                        payment.status, payment.totalAmount, payment.vat,
+                        payment.suppliedAmount, payment.isPartialCancelable,
+                        cardPayment.cardNumber, cardPayment.issuerCode, cardPayment.acquirerCode,
+                        cardPayment.approveNo, cardPayment.installmentMonths, cardPayment.isInterestFree,
+                        cardPayment.cardType, cardPayment.ownerType, cardPayment.acquireStatus, cardPayment.amount)
                 .from(order)
                 .join(order.member, buyer)
                 .join(order.orderItems, orderItem)

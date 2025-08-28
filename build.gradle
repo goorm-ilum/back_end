@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.3'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'jacoco'
 }
 
 group = 'com.talktrip'
@@ -107,6 +108,60 @@ clean {
     delete file(generated)
 }
 
+// 테스트 실행 후, like/review/product의 controller/service/repository만 커버리지 리포트 생성
 tasks.named('test') {
     useJUnitPlatform()
+    finalizedBy 'jacocoDomainCoverage'
+}
+
+tasks.register('jacocoDomainCoverage', JacocoReport) {
+    dependsOn test
+
+    reports {
+        html.required = true
+        xml.required = true
+        csv.required = false
+    }
+
+    // 포함/제외 패턴
+    def includePatterns = [
+            // product
+            'com/talktrip/talktrip/domain/product/controller/**',
+            'com/talktrip/talktrip/domain/product/service/**',
+            'com/talktrip/talktrip/domain/product/repository/**',
+            // like
+            'com/talktrip/talktrip/domain/like/controller/**',
+            'com/talktrip/talktrip/domain/like/service/**',
+            'com/talktrip/talktrip/domain/like/repository/**',
+            // review
+            'com/talktrip/talktrip/domain/review/controller/**',
+            'com/talktrip/talktrip/domain/review/service/**',
+            'com/talktrip/talktrip/domain/review/repository/**'
+    ]
+
+    def excludePatterns = [
+            '**/Q*.class',  // QueryDSL 생성 클래스 제외
+            'com/talktrip/talktrip/**/entity/**',
+            'com/talktrip/talktrip/**/dto/**',
+            'com/talktrip/talktrip/**/enums/**',
+            'com/talktrip/talktrip/**/exception/**'
+    ]
+
+    // 클래스/소스/실행데이터 지정
+    def mainOutput = files(sourceSets.main.output)
+
+    classDirectories.setFrom(
+            mainOutput.asFileTree.matching {
+                include includePatterns
+                exclude excludePatterns
+            }
+    )
+
+    sourceDirectories.setFrom files(sourceSets.main.allSource.srcDirs)
+
+    executionData.setFrom fileTree(dir: buildDir, includes: [
+            'jacoco/test.exec',
+            'jacoco/*.exec',
+            'outputs/unit_test_code_coverage/*/*.exec' // 환경에 따라 생성 경로 보정
+    ])
 }

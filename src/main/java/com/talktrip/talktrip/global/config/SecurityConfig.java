@@ -19,8 +19,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import jakarta.servlet.http.HttpServletResponse;
-
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -50,6 +48,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/member/kakao-login-url").permitAll()
                         .requestMatchers("/api/member/kakao").permitAll()
                         .requestMatchers("/api/user/login").permitAll()
+                        // 리뷰 관련 주문 엔드포인트는 인증 필요
+                        .requestMatchers(HttpMethod.POST, "/api/orders/*/review").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/orders/*/review/form").authenticated()
+                        // 그 외 주문 엔드포인트는 공개
                         .requestMatchers("/api/orders/**").permitAll()
                         .requestMatchers("/api/tosspay/**").permitAll()
                         .requestMatchers("/api/products/*/like").authenticated()
@@ -64,11 +66,6 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .anonymous(AbstractHttpConfigurer::disable)
-                .exceptionHandling(exceptionHandling -> exceptionHandling
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                        })
-                )
                 .addFilterBefore(
                         new JWTCheckFilter(jwtUtil, memberRepository), UsernamePasswordAuthenticationFilter.class);
 

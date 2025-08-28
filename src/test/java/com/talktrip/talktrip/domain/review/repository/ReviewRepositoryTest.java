@@ -206,7 +206,7 @@ class ReviewRepositoryTest {
 
     @Test
     @DisplayName("상품 ID로 리뷰를 성공적으로 조회한다")
-    void findByProductId_Success() {
+    void findByProductIdWithPaging_Success() {
         // given
         OrderItem orderItem2 = OrderItem.builder()
                 .productId(product.getId())
@@ -231,7 +231,7 @@ class ReviewRepositoryTest {
 
         // when
         Pageable pageable = PageRequest.of(0, 10);
-        Page<Review> reviewPage = reviewRepository.findByProductId(product.getId(), pageable);
+        Page<Review> reviewPage = reviewRepository.findByProductIdWithPaging(product.getId(), pageable);
 
         // then
         assertThat(reviewPage.getContent()).hasSize(2);
@@ -240,10 +240,10 @@ class ReviewRepositoryTest {
 
     @Test
     @DisplayName("존재하지 않는 상품 ID로 리뷰 조회 시 빈 페이지를 반환한다")
-    void findByProductId_NoResult() {
+    void findByProductIdWithPaging_NoResult() {
         // when
         Pageable pageable = PageRequest.of(0, 10);
-        Page<Review> reviewPage = reviewRepository.findByProductId(999L, pageable);
+        Page<Review> reviewPage = reviewRepository.findByProductIdWithPaging(999L, pageable);
 
         // then
         assertThat(reviewPage.getContent()).isEmpty();
@@ -252,7 +252,7 @@ class ReviewRepositoryTest {
 
     @Test
     @DisplayName("사용자 ID로 리뷰를 성공적으로 조회한다")
-    void findByMemberId_Success() {
+    void findByMemberIdWithProduct_Success() {
         // given
         OrderItem orderItem2 = OrderItem.builder()
                 .productId(product.getId())
@@ -277,7 +277,7 @@ class ReviewRepositoryTest {
 
         // when
         Pageable pageable = PageRequest.of(0, 10);
-        Page<Review> reviewPage = reviewRepository.findByMemberId(member.getId(), pageable);
+        Page<Review> reviewPage = reviewRepository.findByMemberIdWithProduct(member.getId(), pageable);
 
         // then
         assertThat(reviewPage.getContent()).hasSize(2);
@@ -286,10 +286,10 @@ class ReviewRepositoryTest {
 
     @Test
     @DisplayName("존재하지 않는 사용자 ID로 리뷰 조회 시 빈 페이지를 반환한다")
-    void findByMemberId_NoResult() {
+    void findByMemberIdWithProduct_NoResult() {
         // when
         Pageable pageable = PageRequest.of(0, 10);
-        Page<Review> reviewPage = reviewRepository.findByMemberId(999L, pageable);
+        Page<Review> reviewPage = reviewRepository.findByMemberIdWithProduct(999L, pageable);
 
         // then
         assertThat(reviewPage.getContent()).isEmpty();

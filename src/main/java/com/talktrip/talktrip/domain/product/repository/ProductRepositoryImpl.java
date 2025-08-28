@@ -3,27 +3,25 @@ package com.talktrip.talktrip.domain.product.repository;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
-import com.querydsl.core.types.Path;
-import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.JPQLQuery;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import com.talktrip.talktrip.domain.product.dto.ProductWithAvgStarAndLike;
-import com.talktrip.talktrip.domain.product.entity.Product;
-import com.talktrip.talktrip.domain.product.entity.QHashTag;
 import com.talktrip.talktrip.domain.like.entity.QLike;
-import com.talktrip.talktrip.domain.product.entity.QProduct;
-import com.talktrip.talktrip.domain.product.entity.QProductOption;
-import com.talktrip.talktrip.domain.product.entity.QProductImage;
-import com.talktrip.talktrip.domain.product.entity.ProductOption;
-import com.talktrip.talktrip.domain.product.entity.ProductImage;
+import com.talktrip.talktrip.domain.member.entity.QMember;
+import com.talktrip.talktrip.domain.product.dto.ProductWithAvgStarAndLike;
 import com.talktrip.talktrip.domain.product.entity.HashTag;
+import com.talktrip.talktrip.domain.product.entity.Product;
+import com.talktrip.talktrip.domain.product.entity.ProductImage;
+import com.talktrip.talktrip.domain.product.entity.ProductOption;
+import com.talktrip.talktrip.domain.product.entity.QHashTag;
+import com.talktrip.talktrip.domain.product.entity.QProduct;
+import com.talktrip.talktrip.domain.product.entity.QProductImage;
+import com.talktrip.talktrip.domain.product.entity.QProductOption;
 import com.talktrip.talktrip.domain.review.entity.QReview;
 import com.talktrip.talktrip.global.entity.QCountry;
-import com.talktrip.talktrip.domain.member.entity.QMember;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -33,26 +31,27 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.Arrays;
 
 @RequiredArgsConstructor
 public class ProductRepositoryImpl implements ProductRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
 
-    private static final Set<String> ALLOWED_SORT = Set.of(
-            "productName", "price", "discountPrice", "totalStock", "updatedAt"
+    private static final Set<String> ALLOWED_SELLER_SORT = Set.of(
+            "productName", "updatedAt", "totalStock"
+    );
+
+    private static final Set<String> ALLOWED_SEARCH_SORT = Set.of(
+            "updatedAt", "productName", "discountPrice", "averageReviewStar"
     );
 
     private static final String ALL_COUNTRIES = "전체";
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_DELETED = "DELETED";
-    
+
     private static final QProduct PRODUCT = QProduct.product;
     private static final QCountry COUNTRY = QCountry.country;
     private static final QProductOption PRODUCT_OPTION = QProductOption.productOption;
@@ -62,45 +61,78 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
     private static final QLike LIKE = QLike.like;
     private static final QMember MEMBER = QMember.member;
 
-    private static BooleanExpression occGoe(Path<String> col, String kwLower, int req) {
-        return Expressions.numberTemplate(Integer.class,
-                "((length(lower({0})) - length(function('replace', lower({0}), {1}, ''))) / length({1}))",
-                col, Expressions.constant(kwLower)
-        ).goe(req);
+    private static final Pattern WS = Pattern.compile("\\s+");
+
+    private static List<String> tokensOf(String keyword) {
+        if (keyword == null || keyword.isBlank()) return List.of();
+        return WS.splitAsStream(keyword.trim())
+                .toList();
     }
 
-    private BooleanBuilder keywordWhere(List<String> keywords, QProduct p, QCountry c, QHashTag hSub) {
-        Map<String, Long> need = keywords.stream()
-                .filter(s -> s != null && !s.isBlank())
-                .map(s -> s.toLowerCase(java.util.Locale.ROOT))
-                .collect(Collectors.groupingBy(s -> s, Collectors.counting()));
+    private static List<String> distinctTokensLower(List<String> tokens) {
+        return tokens.stream()
+                .map(s -> s.toLowerCase(Locale.ROOT))
+                .distinct()
+                .toList();
+    }
 
-        BooleanBuilder where = new BooleanBuilder();
-        for (Map.Entry<String, Long> e : need.entrySet()) {
-            String kw = e.getKey();
-            int req = e.getValue().intValue();
-
-            BooleanExpression perKeyword =
-                    occGoe(p.productName, kw, req)
-                            .or(occGoe(p.description, kw, req))
-                            .or(occGoe(c.name, kw, req))
-                            .or(JPAExpressions.selectOne()
-                                    .from(hSub)
-                                    .where(hSub.product.eq(p)
-                                            .and(occGoe(hSub.hashtag, kw, req)))
-                                    .exists());
-
-            where.and(perKeyword);
+    private static Map<String, Integer> tokenCountsLower(List<String> tokens) {
+        Map<String, Integer> freq = new HashMap<>();
+        for (String s : tokens) {
+            String k = s.toLowerCase(Locale.ROOT);
+            freq.put(k, freq.getOrDefault(k, 0) + 1);
         }
-        return where;
+        return freq;
     }
 
-    private BooleanExpression hasFutureStock(QProduct p, QProductOption o) {
+    private static String normalizeStatus(String status) {
+        if (status == null || status.isBlank()) return "";
+        return status.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private BooleanBuilder keywordFilter(List<String> rawTokens, QProduct p, QCountry c, QHashTag h) {
+        List<String> distinct = distinctTokensLower(rawTokens);
+        Map<String, Integer> need = tokenCountsLower(rawTokens);
+
+        BooleanExpression nameAll = Expressions.TRUE;
+        for (String kw : distinct) {
+            nameAll = nameAll.and(p.productName.containsIgnoreCase(kw));
+        }
+
+        BooleanExpression descAll = Expressions.TRUE;
+        for (String kw : distinct) {
+            descAll = descAll.and(p.description.containsIgnoreCase(kw));
+        }
+
+        BooleanExpression countryAny = Expressions.FALSE;
+        for (String kw : distinct) {
+            countryAny = countryAny.or(c.name.containsIgnoreCase(kw));
+        }
+
+        BooleanExpression tagsAll = Expressions.TRUE;
+        for (Map.Entry<String, Integer> e : need.entrySet()) {
+            String kw = e.getKey();
+            int req = e.getValue();
+            JPQLQuery<Long> countQuery = JPAExpressions
+                    .select(h.id.count())
+                    .from(h)
+                    .where(h.product.eq(p)
+                            .and(h.hashtag.containsIgnoreCase(kw)));
+            tagsAll = tagsAll.and(countQuery.goe((long) req));
+        }
+
+        BooleanBuilder orGroup = new BooleanBuilder();
+        orGroup.or(nameAll).or(descAll).or(countryAny).or(tagsAll);
+        return orGroup;
+    }
+
+    private BooleanExpression hasFutureStock(QProduct p, LocalDate tomorrow) {
+        QProductOption oSub = new QProductOption("productOptionFutureStock");
         return JPAExpressions.selectOne()
-                .from(o)
-                .where(o.product.eq(p)
-                        .and(o.startDate.goe(LocalDate.now()))
-                        .and(o.stock.gt(0)))
+                .from(oSub)
+                .where(oSub.product.eq(p)
+                        .and(oSub.startDate.goe(tomorrow))
+                        .and(oSub.stock.gt(0)))
                 .exists();
     }
 
@@ -117,25 +149,19 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
             query.orderBy(p.updatedAt.desc());
             return;
         }
-
         for (Sort.Order s : pageable.getSort()) {
             String prop = s.getProperty();
             Order dir = s.isDescending() ? Order.DESC : Order.ASC;
-
-            if (!ALLOWED_SORT.contains(prop)) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Unsupported sort property: " + prop
-                );
-            }
-
             switch (prop) {
                 case "productName" -> query.orderBy(new OrderSpecifier<>(dir, p.productName));
-                case "updatedAt"   -> query.orderBy(new OrderSpecifier<>(dir, p.updatedAt));
+                case "updatedAt" -> query.orderBy(new OrderSpecifier<>(dir, p.updatedAt));
                 case "totalStock" -> {
                     JPQLQuery<Integer> q = totalStockQuery(p, o);
                     query.orderBy(new OrderSpecifier<>(dir, q));
                 }
+                default -> throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Unsupported sort property: " + prop
+                );
             }
         }
     }
@@ -147,30 +173,18 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
         BooleanBuilder where = new BooleanBuilder();
         where.and(p.member.Id.eq(sellerId));
 
-        if (status != null && !status.isBlank()) {
-            switch (status.trim().toUpperCase()) {
-                case STATUS_ACTIVE -> where.and(p.deleted.isFalse());
-                case STATUS_DELETED -> where.and(p.deleted.isTrue());
-                case "ALL" -> {}
-                default -> throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Unsupported status: " + status
-                );
-            }
-        } else {
-            // 기본적으로 삭제되지 않은 상품만 조회
-            where.and(p.deleted.isFalse());
+        String st = normalizeStatus(status);
+        switch (st) {
+            case STATUS_ACTIVE -> where.and(p.deleted.isFalse());
+            case STATUS_DELETED -> where.and(p.deleted.isTrue());
+            case "ALL" -> {}
+            default -> throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Unsupported status: " + status
+            );
         }
 
-        if (keyword != null && !keyword.isBlank()) {
-            for (String tok : keyword.trim().split("\\s+")) {
-                if (tok.isBlank()) continue;
-                where.and(
-                        p.productName.containsIgnoreCase(tok)
-                                .or(p.description.containsIgnoreCase(tok))
-                );
-            }
-        }
+        List<String> tokens = tokensOf(keyword);
+        where.and(keywordFilter(tokens, p, COUNTRY, HASH_TAG));
 
         JPAQuery<Product> dataQuery = queryFactory
                 .select(p)
@@ -184,20 +198,22 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
                 .limit(pageable.getPageSize())
                 .fetch();
 
-        Long total = queryFactory
-                .select(p.id.count())
-                .from(p)
-                .where(where)
-                .fetchOne();
+        long total = Objects.requireNonNullElse(
+                queryFactory
+                        .select(p.id.count())
+                        .from(p)
+                        .where(where)
+                        .fetchOne(),
+                0L
+        );
 
-        return new PageImpl<>(content, pageable, total == null ? 0 : total);
+        return new PageImpl<>(content, pageable, total);
     }
 
     @Override
     public Page<ProductWithAvgStarAndLike> searchProductsWithAvgStarAndLike(
             String keyword,
             String countryName,
-            LocalDate tomorrow,
             Long memberId,
             Pageable pageable
     ) {
@@ -206,12 +222,26 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
         QProductOption o = PRODUCT_OPTION;
         QReview r = REVIEW;
 
-        BooleanBuilder where = buildSearchWhereClause(p, c, o, keyword, countryName);
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
 
-        // 메인 쿼리
-        JPAQuery<ProductWithAvgStarAndLike> query = buildProductWithAvgStarAndLikeQuery(p, c, o, r, where, memberId);
+        BooleanBuilder where = new BooleanBuilder();
+        where.and(p.deleted.isFalse());
 
-        // 정렬 적용
+        String cn = Optional.ofNullable(countryName).map(String::trim).orElse("");
+        BooleanExpression countryExpr =
+                (cn.isEmpty() || ALL_COUNTRIES.equals(cn)) ? Expressions.TRUE
+                        : c.name.equalsIgnoreCase(cn);
+        where.and(countryExpr);
+
+        List<String> tokens = tokensOf(keyword);
+        where.and(keywordFilter(tokens, p, c, HASH_TAG));
+
+        where.and(hasFutureStock(p, tomorrow));
+
+        JPAQuery<ProductWithAvgStarAndLike> query = buildProductWithAvgStarAndLikeQuery(
+                p, c, o, r, where, memberId, tomorrow
+        );
+
         applyOrderByWithProjection(query, pageable, p, o, r);
 
         List<ProductWithAvgStarAndLike> content = query
@@ -219,46 +249,50 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
                 .limit(pageable.getPageSize())
                 .fetch();
 
-        // 전체 개수 조회
-        Long total = queryFactory
-                .select(p.id.countDistinct())
-                .from(p)
-                .leftJoin(p.country, c)
-                .leftJoin(o).on(o.product.eq(p)
-                        .and(o.startDate.goe(tomorrow))
-                        .and(o.stock.gt(0)))
-                .where(where)
-                .fetchOne();
+        long total = java.util.Objects.requireNonNullElse(
+                queryFactory
+                        .select(p.id.countDistinct().coalesce(0L))
+                        .from(p)
+                        .leftJoin(p.country, c)
+                        .leftJoin(o).on(o.product.eq(p)
+                                .and(o.startDate.goe(tomorrow))
+                                .and(o.stock.gt(0)))
+                        .where(where)
+                        .fetchOne(),
+                0L
+        );
 
-        return new PageImpl<>(content, pageable, total == null ? 0 : total);
+        return new PageImpl<>(content, pageable, total);
+
     }
 
-    private void applyOrderByWithProjection(JPAQuery<ProductWithAvgStarAndLike> query, Pageable pageable, 
-                                          QProduct p, QProductOption o, QReview r) {
-        if (pageable.getSort().isSorted()) {
-            for (Sort.Order order : pageable.getSort()) {
-                OrderSpecifier<?> orderSpecifier = switch (order.getProperty()) {
-                    case "updatedAt" -> order.getDirection() == Sort.Direction.ASC ? 
-                            p.updatedAt.asc() : p.updatedAt.desc();
-                    case "productName" -> order.getDirection() == Sort.Direction.ASC ? 
-                            p.productName.asc() : p.productName.desc();
-                    case "discountPrice" -> order.getDirection() == Sort.Direction.ASC ?
-                            o.discountPrice.min().asc() : o.discountPrice.min().desc();
-                    case "averageReviewStar" -> order.getDirection() == Sort.Direction.ASC ? 
-                            r.reviewStar.avg().coalesce(0.0).asc() : r.reviewStar.avg().coalesce(0.0).desc();
-                    default -> p.updatedAt.desc();
-                };
-                query.orderBy(orderSpecifier);
-            }
-        } else {
+    private void applyOrderByWithProjection(JPAQuery<ProductWithAvgStarAndLike> query, Pageable pageable,
+                                            QProduct p, QProductOption o, QReview r) {
+        if (pageable.getSort().isUnsorted()) {
             query.orderBy(p.updatedAt.desc());
+            return;
+        }
+        for (Sort.Order order : pageable.getSort()) {
+            String property = order.getProperty();
+            switch (property) {
+                case "updatedAt" ->
+                        query.orderBy(order.getDirection() == Sort.Direction.ASC ? p.updatedAt.asc() : p.updatedAt.desc());
+                case "productName" ->
+                        query.orderBy(order.getDirection() == Sort.Direction.ASC ? p.productName.asc() : p.productName.desc());
+                case "discountPrice" ->
+                        query.orderBy(order.getDirection() == Sort.Direction.ASC ? o.discountPrice.min().asc() : o.discountPrice.min().desc());
+                case "averageReviewStar" ->
+                        query.orderBy(order.getDirection() == Sort.Direction.ASC ? r.reviewStar.avg().coalesce(0.0).asc() : r.reviewStar.avg().coalesce(0.0).desc());
+                default -> throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Unsupported sort property: " + property
+                );
+            }
         }
     }
 
     @Override
     public Optional<ProductWithAvgStarAndLike> findByIdWithDetailsAndAvgStarAndLike(
             Long productId,
-            LocalDate tomorrow,
             Long memberId
     ) {
         QProduct p = PRODUCT;
@@ -267,9 +301,12 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
         BooleanBuilder where = new BooleanBuilder();
         where.and(p.id.eq(productId));
         where.and(p.deleted.isFalse());
-        where.and(hasFutureStock(p, o));
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        where.and(hasFutureStock(p, tomorrow));
 
-        ProductWithAvgStarAndLike result = buildProductWithAvgStarAndLikeQuery(p, COUNTRY, o, REVIEW, where, memberId)
+        ProductWithAvgStarAndLike result = buildProductWithAvgStarAndLikeQuery(
+                p, COUNTRY, o, REVIEW, where, memberId, tomorrow
+        )
                 .having(o.discountPrice.min().isNotNull())
                 .fetchFirst();
 
@@ -295,10 +332,12 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
         where.and(p.id.in(productIds));
         where.and(p.deleted.isFalse());
 
-        // 메인 쿼리
-        JPAQuery<ProductWithAvgStarAndLike> query = buildProductWithAvgStarAndLikeQuery(p, c, o, r, where, memberId);
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
 
-        // 정렬 적용
+        JPAQuery<ProductWithAvgStarAndLike> query = buildProductWithAvgStarAndLikeQuery(
+                p, c, o, r, where, memberId, tomorrow
+        );
+
         applyOrderByWithProjection(query, pageable, p, o, r);
 
         List<ProductWithAvgStarAndLike> content = query
@@ -306,48 +345,29 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
                 .limit(pageable.getPageSize())
                 .fetch();
 
-        // 전체 개수 조회
-        Long total = queryFactory
-                .select(p.id.countDistinct())
-                .from(p)
-                .leftJoin(p.country, c)
-                .leftJoin(o).on(o.product.eq(p)
-                        .and(o.startDate.goe(LocalDate.now()))
-                        .and(o.stock.gt(0)))
-                .where(where)
-                .fetchOne();
+        long total = java.util.Objects.requireNonNullElse(
+                queryFactory
+                        .select(p.id.countDistinct().coalesce(0L))
+                        .from(p)
+                        .leftJoin(p.country, c)
+                        .leftJoin(o).on(o.product.eq(p)
+                                .and(o.startDate.goe(tomorrow))
+                                .and(o.stock.gt(0)))
+                        .where(where)
+                        .fetchOne(),
+                0L
+        );
 
-        return new PageImpl<>(content, pageable, total == null ? 0 : total);
+        return new PageImpl<>(content, pageable, total);
+
     }
 
-    // 공통 메서드들
-    private BooleanBuilder buildSearchWhereClause(QProduct p, QCountry c, QProductOption o,
-                                                  String keyword, String countryName) {
-        BooleanBuilder where = new BooleanBuilder();
-        where.and(p.deleted.isFalse());
-
-        // 국가 필터
-        if (countryName != null && !countryName.isBlank() && !ALL_COUNTRIES.equals(countryName)) {
-            where.and(c.name.equalsIgnoreCase(countryName.trim()));
-        }
-
-        // 키워드 필터 - 고급 검색 사용
-        if (keyword != null && !keyword.isBlank()) {
-            List<String> keywords = Arrays.asList(keyword.trim().split("\\s+"));
-            where.and(keywordWhere(keywords, p, c, ProductRepositoryImpl.HASH_TAG));
-        }
-
-        // 재고 조건
-        where.and(hasFutureStock(p, o));
-
-        return where;
-    }
-
-    private JPAQuery<ProductWithAvgStarAndLike> buildProductWithAvgStarAndLikeQuery(QProduct p, QCountry c, 
-                                                                                   QProductOption o, QReview r, 
-                                                                                   BooleanBuilder where, Long memberId) {
+    private JPAQuery<ProductWithAvgStarAndLike> buildProductWithAvgStarAndLikeQuery(QProduct p, QCountry c,
+                                                                                    QProductOption o, QReview r,
+                                                                                    BooleanBuilder where, Long memberId,
+                                                                                    LocalDate tomorrow) {
         return queryFactory
-                .select(Projections.constructor(ProductWithAvgStarAndLike.class,
+                .select(com.querydsl.core.types.Projections.constructor(ProductWithAvgStarAndLike.class,
                         p,
                         r.reviewStar.avg().coalesce(0.0),
                         memberId == null ? Expressions.constant(false) :
@@ -360,12 +380,12 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
                 .from(p)
                 .leftJoin(p.country, c)
                 .leftJoin(o).on(o.product.eq(p)
-                        .and(o.startDate.goe(LocalDate.now()))
+                        .and(o.startDate.goe(tomorrow))
                         .and(o.stock.gt(0)))
                 .leftJoin(r).on(r.product.eq(p))
                 .where(where)
-                .groupBy(p.id, p.productName, p.description, p.thumbnailImageUrl, 
-                        p.thumbnailImageHash, p.member, p.country, p.deleted, 
+                .groupBy(p.id, p.productName, p.description, p.thumbnailImageUrl,
+                        p.thumbnailImageHash, p.member, p.country, p.deleted,
                         p.deletedAt, p.createdAt, p.updatedAt);
     }
 
@@ -378,7 +398,6 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
         QCountry c = COUNTRY;
         QMember m = MEMBER;
 
-        // 메인 쿼리로 Product와 연관 엔티티들을 한 번에 조회
         Product product = queryFactory
                 .selectFrom(p)
                 .leftJoin(p.country, c).fetchJoin()
@@ -390,7 +409,6 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
             return null;
         }
 
-        // 연관 엔티티들을 별도로 조회 (MultipleBagFetchException 방지)
         List<ProductOption> options = queryFactory
                 .selectFrom(o)
                 .where(o.product.eq(product))
@@ -407,7 +425,6 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
                 .where(h.product.eq(product))
                 .fetch();
 
-        // 연관 엔티티들을 Product에 설정
         product.getProductOptions().addAll(options);
         product.getImages().addAll(images);
         product.getHashtags().addAll(hashtags);

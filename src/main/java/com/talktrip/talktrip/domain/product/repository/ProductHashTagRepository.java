@@ -8,5 +8,4 @@ import java.util.List;
 
 public interface ProductHashTagRepository extends JpaRepository<HashTag, Long> {
     void deleteAllByProduct(Product product);
-    List<HashTag> findAllByProduct(Product product);
 }

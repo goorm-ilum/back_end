@@ -122,7 +122,7 @@ class ProductServiceTest {
         Page<ProductWithAvgStarAndLike> searchResults = new PageImpl<>(List.of(productWithAvgStarAndLike), pageable, 1);
 
         when(memberRepository.existsById(memberId)).thenReturn(true);
-        when(productRepository.searchProductsWithAvgStarAndLike(eq(keyword), eq("전체"), any(LocalDate.class), eq(memberId), eq(pageable)))
+        when(productRepository.searchProductsWithAvgStarAndLike(eq(keyword), eq("전체"), eq(memberId), eq(pageable)))
                 .thenReturn(searchResults);
 
         // when
@@ -152,7 +152,7 @@ class ProductServiceTest {
         Page<ProductWithAvgStarAndLike> searchResults = new PageImpl<>(List.of(productWithAvgStarAndLike), pageable, 1);
 
         when(memberRepository.existsById(memberId)).thenReturn(true);
-        when(productRepository.searchProductsWithAvgStarAndLike(eq(""), eq("전체"), any(LocalDate.class), eq(memberId), eq(pageable)))
+        when(productRepository.searchProductsWithAvgStarAndLike(eq(""), eq("전체"), eq(memberId), eq(pageable)))
                 .thenReturn(searchResults);
 
         // when
@@ -174,7 +174,7 @@ class ProductServiceTest {
         Page<ProductWithAvgStarAndLike> emptyResults = new PageImpl<>(List.of(), pageable, 0);
 
         when(memberRepository.existsById(memberId)).thenReturn(true);
-        when(productRepository.searchProductsWithAvgStarAndLike(eq(keyword), eq("전체"), any(LocalDate.class), eq(memberId), eq(pageable)))
+        when(productRepository.searchProductsWithAvgStarAndLike(eq(keyword), eq("전체"), eq(memberId), eq(pageable)))
                 .thenReturn(emptyResults);
 
         // when
@@ -229,9 +229,9 @@ class ProductServiceTest {
 
         when(memberRepository.existsById(memberId)).thenReturn(true);
         when(productRepository.existsById(productId)).thenReturn(true);
-        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), any(LocalDate.class), eq(memberId)))
+        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), eq(memberId)))
                 .thenReturn(Optional.of(productWithDetails));
-        when(reviewRepository.findByProductId(productId, pageable)).thenReturn(reviewPage);
+        when(reviewRepository.findByProductIdWithPaging(productId, pageable)).thenReturn(reviewPage);
 
         // when
         ProductDetailResponse result = productService.getProductDetail(productId, memberId, pageable);
@@ -279,9 +279,9 @@ class ProductServiceTest {
 
         when(memberRepository.existsById(memberId)).thenReturn(true);
         when(productRepository.existsById(productId)).thenReturn(true);
-        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), any(LocalDate.class), eq(memberId)))
+        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), eq(memberId)))
                 .thenReturn(Optional.of(productWithDetails));
-        when(reviewRepository.findByProductId(productId, pageable)).thenReturn(reviewPage);
+        when(reviewRepository.findByProductIdWithPaging(productId, pageable)).thenReturn(reviewPage);
 
         // when
         ProductDetailResponse result = productService.getProductDetail(productId, memberId, pageable);
@@ -320,9 +320,9 @@ class ProductServiceTest {
 
         when(memberRepository.existsById(memberId)).thenReturn(true);
         when(productRepository.existsById(productId)).thenReturn(true);
-        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), any(LocalDate.class), eq(memberId)))
+        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), eq(memberId)))
                 .thenReturn(Optional.of(productWithDetails));
-        when(reviewRepository.findByProductId(productId, pageable)).thenReturn(emptyReviewPage);
+        when(reviewRepository.findByProductIdWithPaging(productId, pageable)).thenReturn(emptyReviewPage);
 
         // when
         ProductDetailResponse result = productService.getProductDetail(productId, memberId, pageable);
@@ -378,9 +378,9 @@ class ProductServiceTest {
 
         when(memberRepository.existsById(memberId)).thenReturn(true);
         when(productRepository.existsById(productId)).thenReturn(true);
-        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), any(LocalDate.class), eq(memberId)))
+        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), eq(memberId)))
                 .thenReturn(Optional.of(productWithDetails));
-        when(reviewRepository.findByProductId(productId, pageable)).thenReturn(reviewPage);
+        when(reviewRepository.findByProductIdWithPaging(productId, pageable)).thenReturn(reviewPage);
 
         // when
         ProductDetailResponse result = productService.getProductDetail(productId, memberId, pageable);
@@ -449,9 +449,9 @@ class ProductServiceTest {
 
         when(memberRepository.existsById(memberId)).thenReturn(true);
         when(productRepository.existsById(productId)).thenReturn(true);
-        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), any(LocalDate.class), eq(memberId)))
+        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), eq(memberId)))
                 .thenReturn(Optional.of(productWithDetails));
-        when(reviewRepository.findByProductId(productId, pageable)).thenReturn(reviewPage);
+        when(reviewRepository.findByProductIdWithPaging(productId, pageable)).thenReturn(reviewPage);
 
         // when
         ProductDetailResponse result = productService.getProductDetail(productId, memberId, pageable);
@@ -490,6 +490,23 @@ class ProductServiceTest {
 
         // when & then
         assertThatThrownBy(() -> productService.getProductDetail(nonExistentProductId, memberId, pageable))
+                .isInstanceOf(ProductException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("상품 존재 확인은 true지만 상세 조회 Optional.empty()면 PRODUCT_NOT_FOUND")
+    void getProductDetail_ExistsTrueButFindEmpty_ThrowsException() {
+        Long productId = product.getId();
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 3);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(productRepository.existsById(productId)).thenReturn(true);
+        when(productRepository.findByIdWithDetailsAndAvgStarAndLike(eq(productId), eq(memberId)))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.getProductDetail(productId, memberId, pageable))
                 .isInstanceOf(ProductException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
     }
@@ -550,7 +567,7 @@ class ProductServiceTest {
         Page<ProductWithAvgStarAndLike> productPage = new PageImpl<>(List.of(), pageable, 0);
 
         when(memberRepository.existsById(memberId)).thenReturn(true);
-        when(productRepository.searchProductsWithAvgStarAndLike(any(), any(), any(), eq(memberId), eq(pageable)))
+        when(productRepository.searchProductsWithAvgStarAndLike(any(), any(), eq(memberId), eq(pageable)))
                 .thenReturn(productPage);
 
         // when
@@ -569,7 +586,7 @@ class ProductServiceTest {
         Page<ProductWithAvgStarAndLike> productPage = new PageImpl<>(List.of(), pageable, 0);
 
         when(memberRepository.existsById(memberId)).thenReturn(true);
-        when(productRepository.searchProductsWithAvgStarAndLike(any(), any(), any(), eq(memberId), eq(pageable)))
+        when(productRepository.searchProductsWithAvgStarAndLike(any(), any(), eq(memberId), eq(pageable)))
                 .thenReturn(productPage);
 
         // when
@@ -588,7 +605,7 @@ class ProductServiceTest {
         Page<ProductWithAvgStarAndLike> productPage = new PageImpl<>(List.of(), pageable, 0);
 
         when(memberRepository.existsById(memberId)).thenReturn(true);
-        when(productRepository.searchProductsWithAvgStarAndLike(any(), any(), any(), eq(memberId), eq(pageable)))
+        when(productRepository.searchProductsWithAvgStarAndLike(any(), any(), eq(memberId), eq(pageable)))
                 .thenReturn(productPage);
 
         // when
@@ -681,6 +698,47 @@ class ProductServiceTest {
         assertThatThrownBy(() -> productService.aiSearchProducts(query, nonExistentMemberId, pageable))
                 .isInstanceOf(MemberException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("AI 상품 검색 시 null memberId로 예외가 발생한다")
+    void aiSearchProducts_NullMemberId_ThrowsException() {
+        Pageable pageable = PageRequest.of(0, 10);
+        assertThatThrownBy(() -> productService.aiSearchProducts("제주도", null, pageable))
+                .isInstanceOf(MemberException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("AI 상품 검색 - FastAPI가 준 ID 순서를 보존한다")
+    void aiSearchProducts_PreservesOrderFromAI() {
+        String query = "제주도 여행";
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        // AI가 [2, 1] 순서로 결과를 줬다고 가정
+        java.util.List<Long> productIds = java.util.List.of(2L, 1L);
+
+        // 리포지토리는 [1, 2] 순서로 반환한다고 가정 (서비스에서 AI 순서로 재정렬해야 함)
+        Product product1 = Product.builder().id(1L).productName("P1").description("d").thumbnailImageUrl(null).member(member).country(country).build();
+        Product product2 = Product.builder().id(2L).productName("P2").description("d").thumbnailImageUrl(null).member(member).country(country).build();
+
+        ProductWithAvgStarAndLike d1 = ProductWithAvgStarAndLike.builder().product(product1).avgStar(4.0).isLiked(false).build();
+        ProductWithAvgStarAndLike d2 = ProductWithAvgStarAndLike.builder().product(product2).avgStar(5.0).isLiked(true).build();
+        Page<ProductWithAvgStarAndLike> repoPage = new PageImpl<>(java.util.List.of(d1, d2), pageable, 2);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(restTemplate.postForObject(
+                eq("http://localhost:8000/query"), any(Map.class), eq(Map.class)
+        )).thenReturn(java.util.Map.of("product_ids", productIds));
+        when(productRepository.findProductsWithAvgStarAndLikeByIds(productIds, memberId, pageable))
+                .thenReturn(repoPage);
+
+        Page<ProductSummaryResponse> result = productService.aiSearchProducts(query, memberId, pageable);
+
+        assertThat(result.getContent()).hasSize(2);
+        assertThat(result.getContent().get(0).productId()).isEqualTo(2L);
+        assertThat(result.getContent().get(1).productId()).isEqualTo(1L);
     }
 
     @Test
@@ -801,4 +859,78 @@ class ProductServiceTest {
         assertThat(result.getContent()).isEmpty();
         assertThat(result.getTotalElements()).isEqualTo(0);
     }
+
+    @Test
+    @DisplayName("유효한 국가명이면 existsByName=true → 예외 없이 통과(분기 false 커버)")
+    void searchProducts_ValidCountry_PassesValidation() {
+        // given
+        String keyword = "서울";
+        String countryName = "대한민국"; // '전체'가 아님 → validateCountry 내부 if 실행
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        // existsByName=true로 만들어 if(!existsByName) false 분기 커버
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        when(countryRepository.existsByName(countryName)).thenReturn(true);
+
+        ProductWithAvgStarAndLike dto = mock(ProductWithAvgStarAndLike.class);
+        when(dto.getProduct()).thenReturn(product);
+        when(dto.getAvgStar()).thenReturn(4.5);
+        when(dto.getIsLiked()).thenReturn(true);
+
+        Page<ProductWithAvgStarAndLike> page = new PageImpl<>(List.of(dto), pageable, 1);
+        when(productRepository.searchProductsWithAvgStarAndLike(keyword, countryName, memberId, pageable))
+                .thenReturn(page);
+
+        // when
+        Page<ProductSummaryResponse> result =
+                productService.searchProducts(keyword, countryName, memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).productName()).isEqualTo("제주도 여행");
+    }
+
+    @Test
+    @DisplayName("AI 응답에 product_ids 키가 없으면 빈 결과(OR의 두번째 피연산자 분기 커버)")
+    void aiSearchProducts_ResponseWithoutProductIds_ReturnsEmpty() {
+        // given
+        String query = "제주도";
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        // response != null 이면서 product_ids 키 없음 → (response == null || !containsKey) 조건의 우측 분기 실행
+        when(restTemplate.postForObject(eq("http://localhost:8000/query"), any(Map.class), eq(Map.class)))
+                .thenReturn(java.util.Collections.emptyMap());
+
+        // when
+        Page<ProductSummaryResponse> result = productService.aiSearchProducts(query, memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElements()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("AI 응답의 product_ids가 List가 아니면 빈 결과( instanceof false 분기 + return 커버 )")
+    void aiSearchProducts_ProductIdsNotAList_ReturnsEmpty() {
+        // given
+        String query = "제주도";
+        Long memberId = member.getId();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(memberRepository.existsById(memberId)).thenReturn(true);
+        // product_ids 값이 List가 아닌 케이스 → (productIdsObj instanceof List<?>) 가 false
+        when(restTemplate.postForObject(eq("http://localhost:8000/query"), any(Map.class), eq(Map.class)))
+                .thenReturn(java.util.Map.of("product_ids", "not-a-list"));
+
+        // when
+        Page<ProductSummaryResponse> result = productService.aiSearchProducts(query, memberId, pageable);
+
+        // then
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElements()).isEqualTo(0);
+    }
+
 }

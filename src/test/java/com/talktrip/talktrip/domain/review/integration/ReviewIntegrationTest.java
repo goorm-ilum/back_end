@@ -1,5 +1,7 @@
 package com.talktrip.talktrip.domain.review.integration;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.enums.Gender;
 import com.talktrip.talktrip.domain.member.enums.MemberRole;
@@ -12,477 +14,848 @@ import com.talktrip.talktrip.domain.order.repository.OrderRepository;
 import com.talktrip.talktrip.domain.product.entity.Product;
 import com.talktrip.talktrip.domain.product.repository.ProductRepository;
 import com.talktrip.talktrip.domain.review.dto.request.ReviewRequest;
-import com.talktrip.talktrip.domain.review.dto.response.ReviewResponse;
 import com.talktrip.talktrip.domain.review.entity.Review;
 import com.talktrip.talktrip.domain.review.repository.ReviewRepository;
-import com.talktrip.talktrip.domain.review.service.ReviewService;
 import com.talktrip.talktrip.global.entity.Country;
-import com.talktrip.talktrip.global.exception.*;
 import com.talktrip.talktrip.global.repository.CountryRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import com.talktrip.talktrip.global.util.JWTUtil;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.*;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("integration-test")
-@Transactional
 class ReviewIntegrationTest {
 
-    @Autowired
-    private ReviewService reviewService;
+    @Autowired private TestRestTemplate restTemplate;
 
-    @Autowired
-    private ReviewRepository reviewRepository;
+    // setup/teardown용 리포지토리
+    @Autowired private MemberRepository memberRepository;
+    @Autowired private ProductRepository productRepository;
+    @Autowired private CountryRepository countryRepository;
+    @Autowired private OrderRepository orderRepository;
+    @Autowired private ReviewRepository reviewRepository;
 
-    @Autowired
-    private MemberRepository memberRepository;
+    @LocalServerPort private int port;
+    @Autowired private ObjectMapper objectMapper;
 
-    @Autowired
-    private ProductRepository productRepository;
+    private String baseUrl;
 
-    @Autowired
-    private CountryRepository countryRepository;
-
-    @Autowired
-    private OrderRepository orderRepository;
-
-    private Member member1;
-    private Member member2;
-    private Member member3;
-    private Country country;
+    // 주요 테스트 데이터
+    private Member seller;
+    private Member reviewer;
+    private Member otherUser;
     private Product product1;
     private Product product2;
-    private Order order1;
-    private Order order2;
-    private Order order3;
     private Review review1;
     private Review review2;
 
+    private String code1; // reviewer의 과거 주문(이미 리뷰 작성됨)
+    private String code2; // otherUser의 과거 주문
+
+    // 폼/생성용 추가 주문들
+    private Long orderSuccessId;         // SUCCESS + item 존재
+    private Long orderPendingId;         // PENDING + item 존재
+    private Long orderEmptyId;           // SUCCESS + item 없음
+    private Long orderInvalidProductId;  // SUCCESS + item 존재(없는 productId)
+
+    private String sellerToken;
+    private String reviewerToken;
+
+    /* ==========================
+     * Common Helpers
+     * ========================== */
+
+    private HttpEntity<Void> auth(String token) {
+        HttpHeaders h = new HttpHeaders();
+        h.setBearerAuth(token);
+        return new HttpEntity<>(h);
+    }
+
+    private HttpEntity<String> authJson(String token, Object body) {
+        try {
+            HttpHeaders h = new HttpHeaders();
+            h.setBearerAuth(token);
+            h.set(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+            return new HttpEntity<>(objectMapper.writeValueAsString(body), h);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Map<String, Object> parseRoot(ResponseEntity<String> res) {
+        try {
+            String body = res.getBody();
+            if (body == null || body.isBlank()) {
+                return new HashMap<>();
+            }
+            return objectMapper.readValue(body, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            throw new RuntimeException("응답 파싱 실패", e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> parseContent(ResponseEntity<String> res) {
+        Map<String, Object> root = parseRoot(res);
+        return (List<Map<String, Object>>) root.getOrDefault("content", List.of());
+    }
+
+    private long asLong(Object v) {
+        if (v instanceof Number n) return n.longValue();
+        return Long.parseLong(String.valueOf(v));
+    }
+
+    /* ==========================
+     * Setup / Teardown
+     * ========================== */
+
     @BeforeEach
     void setUp() {
-        // 테스트 데이터 생성
-        country = Country.builder()
-                .id(1L)
-                .name("대한민국")
-                .continent("아시아")
-                .build();
-        countryRepository.save(country);
+        baseUrl = "http://localhost:" + port + "/api";
 
-        member1 = Member.builder()
-                .accountEmail("test1@test.com")
-                .name("테스트유저1")
-                .nickname("테스터1")
-                .gender(Gender.M)
-                .birthday(LocalDate.of(1990, 1, 1))
-                .memberRole(MemberRole.U)
-                .memberState(MemberState.A)
-                .build();
-        memberRepository.save(member1);
+        long ts = System.nanoTime();
+        String sellerEmail = "seller+" + ts + "@test.com";
+        String reviewerEmail = "user2+" + ts + "@test.com";
+        String otherEmail = "user3+" + ts + "@test.com";
+        code1 = "ORD-" + ts + "-001";
+        code2 = "ORD-" + ts + "-002";
 
-        member2 = Member.builder()
-                .accountEmail("test2@test.com")
-                .name("테스트유저2")
-                .nickname("테스터2")
-                .gender(Gender.F)
-                .birthday(LocalDate.of(1995, 5, 5))
-                .memberRole(MemberRole.U)
-                .memberState(MemberState.A)
-                .build();
-        memberRepository.save(member2);
+        Country kr = Country.builder().id(1L).name("대한민국").continent("아시아").build();
+        countryRepository.save(kr);
 
-        member3 = Member.builder()
-                .accountEmail("test3@test.com")
-                .name("테스트유저3")
-                .nickname("테스터3")
-                .gender(Gender.F)
-                .birthday(LocalDate.of(1997, 5, 5))
-                .memberRole(MemberRole.U)
-                .memberState(MemberState.A)
-                .build();
-        memberRepository.save(member3);
+        seller = Member.builder()
+                .accountEmail(sellerEmail).name("판매자").nickname("셀러")
+                .gender(Gender.M).birthday(LocalDate.of(1990,1,1))
+                .memberRole(MemberRole.U).memberState(MemberState.A).build();
+        memberRepository.save(seller);
+
+        reviewer = Member.builder()
+                .accountEmail(reviewerEmail).name("사용자2").nickname("리뷰어")
+                .gender(Gender.F).birthday(LocalDate.of(1995,5,5))
+                .memberRole(MemberRole.U).memberState(MemberState.A).build();
+        memberRepository.save(reviewer);
+
+        otherUser = Member.builder()
+                .accountEmail(otherEmail).name("사용자3").nickname("기타")
+                .gender(Gender.F).birthday(LocalDate.of(1997,5,5))
+                .memberRole(MemberRole.U).memberState(MemberState.A).build();
+        memberRepository.save(otherUser);
 
         product1 = Product.builder()
-                .productName("제주도 여행")
-                .description("아름다운 제주도 여행 상품입니다")
+                .productName("제주도 여행").description("아름다운 제주도 여행")
                 .thumbnailImageUrl("https://example.com/jeju.jpg")
-                .member(member1)
-                .country(country)
-                .build();
+                .member(seller).country(kr).build();
         productRepository.save(product1);
 
         product2 = Product.builder()
-                .productName("서울 도시 여행")
-                .description("서울의 다양한 관광지를 둘러보는 상품")
+                .productName("서울 여행").description("서울 투어")
                 .thumbnailImageUrl("https://example.com/seoul.jpg")
-                .member(member1)
-                .country(country)
-                .build();
+                .member(seller).country(kr).build();
         productRepository.save(product2);
 
-        // 주문 생성
-        order1 = Order.builder()
-                .member(member2)
-                .orderDate(LocalDate.now().minusDays(7))
-                .totalPrice(100000)
+        // reviewer의 과거 주문 + 작성된 리뷰
+        Order order1 = Order.builder()
+                .member(reviewer).orderDate(LocalDate.now().minusDays(7))
+                .totalPrice(100000).orderCode(code1)
                 .orderStatus(OrderStatus.SUCCESS)
-                .orderCode("ORDER-001")
                 .build();
         orderRepository.save(order1);
 
-        OrderItem orderItem1 = OrderItem.builder()
-                .order(order1)
-                .productId(product1.getId())
-                .quantity(1)
-                .price(100000)
-                .build();
-        order1.addOrderItem(orderItem1);
-
-        order2 = Order.builder()
-                .member(member1)
-                .orderDate(LocalDate.now().minusDays(5))
-                .totalPrice(150000)
-                .orderStatus(OrderStatus.SUCCESS)
-                .orderCode("ORDER-002")
-                .build();
+        // otherUser의 과거 주문 + 작성된 리뷰
+        Order order2 = Order.builder()
+                .member(otherUser).orderDate(LocalDate.now().minusDays(5))
+                .totalPrice(150000).orderCode(code2).build();
         orderRepository.save(order2);
 
-        OrderItem orderItem2 = OrderItem.builder()
-                .order(order2)
-                .productId(product1.getId())
-                .quantity(1)
-                .price(150000)
-                .build();
-        order2.addOrderItem(orderItem2);
-
-        order3 = Order.builder()
-                .member(member3)
-                .orderDate(LocalDate.now().minusDays(5))
-                .totalPrice(150000)
-                .orderStatus(OrderStatus.SUCCESS)
-                .orderCode("ORDER-003")
-                .build();
-        orderRepository.save(order3);
-
-        OrderItem orderItem3 = OrderItem.builder()
-                .order(order3)
-                .productId(product2.getId())
-                .quantity(1)
-                .price(150000)
-                .build();
-        order3.addOrderItem(orderItem3);
-
         review1 = Review.builder()
-                .product(product1)
-                .member(member2)
-                .order(order1)
-                .reviewStar(4.5)
-                .comment("정말 좋은 여행이었습니다!")
-                .build();
+                .member(reviewer).product(product1).order(order1)
+                .reviewStar(4.5).comment("좋은 여행이었습니다").build();
         reviewRepository.save(review1);
 
         review2 = Review.builder()
-                .product(product1)
-                .member(member1)
-                .order(order2)
-                .reviewStar(5.0)
-                .comment("완벽한 여행이었어요!")
-                .build();
+                .member(otherUser).product(product1).order(order2)
+                .reviewStar(5.0).comment("최고의 여행이었습니다!").build();
         reviewRepository.save(review2);
+
+        // JWT 발급
+        sellerToken   = JWTUtil.generateToken(Map.of("email", sellerEmail), 1800);
+        reviewerToken = JWTUtil.generateToken(Map.of("email", reviewerEmail), 1800);
+
+        // 리뷰 작성 가능/불가 케이스용 주문들
+        Order orderSuccess = Order.builder()
+                .member(reviewer).orderDate(LocalDate.now().minusDays(2))
+                .totalPrice(120000).orderStatus(OrderStatus.SUCCESS)
+                .orderCode("ORD-" + ts + "-S").build();
+        OrderItem oiS = OrderItem.createOrderItem(
+                product1.getId(), product1.getProductName(), product1.getThumbnailImageUrl(),
+                100000, null, null, 0, 0, LocalDate.now().plusDays(10), 1, 100000);
+        orderSuccess.addOrderItem(oiS);
+        orderRepository.save(orderSuccess);
+        orderSuccessId = orderSuccess.getId();
+
+        Order orderPending = Order.builder()
+                .member(reviewer).orderDate(LocalDate.now().minusDays(1))
+                .totalPrice(90000) // status default = PENDING
+                .orderCode("ORD-" + ts + "-P").build();
+        OrderItem oiP = OrderItem.createOrderItem(
+                product1.getId(), product1.getProductName(), product1.getThumbnailImageUrl(),
+                100000, null, null, 0, 0, LocalDate.now().plusDays(11), 1, 90000);
+        orderPending.addOrderItem(oiP);
+        orderRepository.save(orderPending);
+        orderPendingId = orderPending.getId();
+
+        Order orderEmpty = Order.builder()
+                .member(reviewer).orderDate(LocalDate.now().minusDays(1))
+                .totalPrice(80000).orderStatus(OrderStatus.SUCCESS)
+                .orderCode("ORD-" + ts + "-E").build(); // item 없음
+        orderRepository.save(orderEmpty);
+        orderEmptyId = orderEmpty.getId();
+
+        Order orderInvalidProduct = Order.builder()
+                .member(reviewer).orderDate(LocalDate.now().minusDays(1))
+                .totalPrice(80000).orderStatus(OrderStatus.SUCCESS)
+                .orderCode("ORD-" + ts + "-X").build();
+        OrderItem oiX = OrderItem.createOrderItem(
+                -9999L, "없음", null, 0, null, null, 0, 0,
+                LocalDate.now().plusDays(12), 1, 0);
+        orderInvalidProduct.addOrderItem(oiX);
+        orderRepository.save(orderInvalidProduct);
+        orderInvalidProductId = orderInvalidProduct.getId();
     }
 
-    @Test
-    @DisplayName("리뷰를 성공적으로 생성한다")
-    void createReview_Success() {
-        // given
-        Long orderId = order3.getId();
-        Long memberId = member3.getId();
-        ReviewRequest request = new ReviewRequest("서울 여행도 좋았습니다!", 4.0);
-
-        // when
-        reviewService.createReview(orderId, memberId, request);
-
-        // then
-        // 실제 DB에서 확인
-        List<Review> reviews = reviewRepository.findAll();
-        assertThat(reviews).hasSize(3);
-        assertThat(reviews).extracting("comment").contains("서울 여행도 좋았습니다!");
+    @AfterEach
+    void tearDown() {
+        // 리뷰 → 주문 → 상품 → 회원 → 국가 순서로 방어적 삭제
+        try { if (review1 != null && review1.getId() != null) reviewRepository.deleteById(review1.getId()); } catch (Exception ignored) {}
+        try { if (review2 != null && review2.getId() != null) reviewRepository.deleteById(review2.getId()); } catch (Exception ignored) {}
+        try { orderRepository.findByOrderCode(code1).ifPresent(o -> orderRepository.deleteById(o.getId())); } catch (Exception ignored) {}
+        try { orderRepository.findByOrderCode(code2).ifPresent(o -> orderRepository.deleteById(o.getId())); } catch (Exception ignored) {}
+        try { if (product1 != null && product1.getId() != null) productRepository.deleteById(product1.getId()); } catch (Exception ignored) {}
+        try { if (product2 != null && product2.getId() != null) productRepository.deleteById(product2.getId()); } catch (Exception ignored) {}
+        try { if (seller != null && seller.getId() != null)   memberRepository.deleteById(seller.getId()); } catch (Exception ignored) {}
+        try { if (reviewer != null && reviewer.getId() != null) memberRepository.deleteById(reviewer.getId()); } catch (Exception ignored) {}
+        try { if (otherUser != null && otherUser.getId() != null) memberRepository.deleteById(otherUser.getId()); } catch (Exception ignored) {}
+        try { countryRepository.findById(1L).ifPresent(countryRepository::delete); } catch (Exception ignored) {}
     }
 
-    @Test
-    @DisplayName("리뷰 생성 시 존재하지 않는 주문이면 예외가 발생한다")
-    void createReview_NonExistentOrder_ThrowsException() {
-        // given
-        Long nonExistentOrderId = 999L;
-        Long memberId = member2.getId();
-        ReviewRequest request = new ReviewRequest("테스트 리뷰", 4.0);
+    /* ============================================================
+     * 1) 관리자 상품별 리뷰 조회 (/api/admin/products/{productId}/reviews)
+     *    - RepositoryImpl.findByProductIdWithPaging 커버
+     * ============================================================ */
 
-        // when & then
-        assertThatThrownBy(() -> reviewService.createReview(nonExistentOrderId, memberId, request))
-                .isInstanceOf(OrderException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ORDER_NOT_FOUND);
+    @Test @DisplayName("관리자 상품별 리뷰 - 기본 정렬(updatedAt,desc)")
+    void admin_defaultSort_updatedAtDesc() {
+        String url = baseUrl + "/admin/products/" + product1.getId() + "/reviews?page=0&size=10";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        assertThat(res.getStatusCode().is2xxSuccessful()).isTrue();
+        List<Map<String, Object>> content = parseContent(res);
+        assertThat(content).hasSize(2);
+        assertThat(asLong(content.get(0).get("reviewId"))).isEqualTo(review2.getId());
+        assertThat(asLong(content.get(1).get("reviewId"))).isEqualTo(review1.getId());
     }
 
-    @Test
-    @DisplayName("리뷰 생성 시 존재하지 않는 회원이면 예외가 발생한다")
-    void createReview_NonExistentMember_ThrowsException() {
-        // given
-        Long orderId = order1.getId();
-        Long nonExistentMemberId = 999L;
-        ReviewRequest request = new ReviewRequest("테스트 리뷰", 4.0);
-
-        // when & then
-        assertThatThrownBy(() -> reviewService.createReview(orderId, nonExistentMemberId, request))
-                .isInstanceOf(MemberException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    @Test @DisplayName("관리자 상품별 리뷰 - reviewStar ASC")
+    void admin_sort_reviewStarAsc() {
+        String url = baseUrl + "/admin/products/" + product1.getId() + "/reviews?page=0&size=10&sort=reviewStar&sort=asc";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        assertThat(res.getStatusCode().is2xxSuccessful()).isTrue();
+        List<Map<String, Object>> c = parseContent(res);
+        assertThat(c).hasSize(2);
+        assertThat(c.get(0).get("reviewStar")).isEqualTo(4.5);
+        assertThat(c.get(1).get("reviewStar")).isEqualTo(5.0);
     }
 
-    @Test
-    @DisplayName("리뷰를 성공적으로 수정한다")
-    void updateReview_Success() {
-        // given
-        Long reviewId = review1.getId();
-        Long memberId = member2.getId();
-        ReviewRequest request = new ReviewRequest("수정된 리뷰입니다!", 5.0);
-
-        // when
-        reviewService.updateReview(reviewId, memberId, request);
-
-        // then
-        // 실제 DB에서 확인
-        Review updatedReview = reviewRepository.findById(reviewId).orElseThrow();
-        assertThat(updatedReview.getReviewStar()).isEqualTo(5.0);
-        assertThat(updatedReview.getComment()).isEqualTo("수정된 리뷰입니다!");
+    @Test @DisplayName("관리자 상품별 리뷰 - reviewStar DESC")
+    void admin_sort_reviewStarDesc() {
+        String url = baseUrl + "/admin/products/" + product1.getId() + "/reviews?page=0&size=10&sort=reviewStar&sort=desc";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        assertThat(res.getStatusCode().is2xxSuccessful()).isTrue();
+        List<Map<String, Object>> c = parseContent(res);
+        assertThat(c).hasSize(2);
+        assertThat(c.get(0).get("reviewStar")).isEqualTo(5.0);
+        assertThat(c.get(1).get("reviewStar")).isEqualTo(4.5);
     }
 
-    @Test
-    @DisplayName("리뷰 수정 시 존재하지 않는 리뷰이면 예외가 발생한다")
-    void updateReview_NonExistentReview_ThrowsException() {
-        // given
-        Long nonExistentReviewId = 999L;
-        Long memberId = member2.getId();
-        ReviewRequest request = new ReviewRequest("수정된 리뷰입니다!", 5.0);
-
-        // when & then
-        assertThatThrownBy(() -> reviewService.updateReview(nonExistentReviewId, memberId, request))
-                .isInstanceOf(ReviewException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REVIEW_NOT_FOUND);
+    @Test @DisplayName("관리자 상품별 리뷰 - updatedAt ASC")
+    void admin_sort_updatedAtAsc() {
+        String url = baseUrl + "/admin/products/" + product1.getId() + "/reviews?page=0&size=10&sort=updatedAt&sort=asc";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        assertThat(res.getStatusCode().is2xxSuccessful()).isTrue();
+        List<Map<String, Object>> c = parseContent(res);
+        assertThat(c).hasSize(2);
+        assertThat(asLong(c.get(0).get("reviewId"))).isEqualTo(review1.getId());
+        assertThat(asLong(c.get(1).get("reviewId"))).isEqualTo(review2.getId());
     }
 
-    @Test
-    @DisplayName("리뷰 수정 시 다른 회원의 리뷰이면 예외가 발생한다")
-    void updateReview_OtherMemberReview_ThrowsException() {
-        // given
-        Long reviewId = review1.getId();
-        Long otherMemberId = member1.getId(); // review1은 member2의 리뷰
-        ReviewRequest request = new ReviewRequest("수정된 리뷰입니다!", 5.0);
-
-        // when & then
-        assertThatThrownBy(() -> reviewService.updateReview(reviewId, otherMemberId, request))
-                .isInstanceOf(ReviewException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCESS_DENIED);
+    @Test @DisplayName("관리자 상품별 리뷰 - updatedAt DESC")
+    void admin_sort_updatedAtDesc() {
+        String url = baseUrl + "/admin/products/" + product1.getId() + "/reviews?page=0&size=10&sort=updatedAt&sort=desc";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        assertThat(res.getStatusCode().is2xxSuccessful()).isTrue();
+        List<Map<String, Object>> c = parseContent(res);
+        assertThat(c).hasSize(2);
+        assertThat(asLong(c.get(0).get("reviewId"))).isEqualTo(review2.getId());
+        assertThat(asLong(c.get(1).get("reviewId"))).isEqualTo(review1.getId());
     }
 
-    @Test
-    @DisplayName("리뷰를 성공적으로 삭제한다")
-    void deleteReview_Success() {
-        // given
-        Long reviewId = review1.getId();
-        Long memberId = member2.getId();
-
-        // when
-        reviewService.deleteReview(reviewId, memberId);
-
-        // then
-        // 실제 DB에서 확인
-        List<Review> reviews = reviewRepository.findAll();
-        assertThat(reviews).hasSize(1);
-        assertThat(reviews).extracting("id").doesNotContain(reviewId);
+    @Test @DisplayName("관리자 상품별 리뷰 - 미지원 정렬필드 → 400")
+    void admin_unsupportedSortProperty_400() {
+        String url = baseUrl + "/admin/products/" + product1.getId() + "/reviews?page=0&size=10&sort=notExistsProperty&sort=asc";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
     }
 
-    @Test
-    @DisplayName("리뷰 삭제 시 존재하지 않는 리뷰이면 예외가 발생한다")
-    void deleteReview_NonExistentReview_ThrowsException() {
-        // given
-        Long nonExistentReviewId = 999L;
-        Long memberId = member2.getId();
-
-        // when & then
-        assertThatThrownBy(() -> reviewService.deleteReview(nonExistentReviewId, memberId))
-                .isInstanceOf(ReviewException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REVIEW_NOT_FOUND);
+    @Test @DisplayName("관리자 상품별 리뷰 - 정렬 방향 INVALID → 400")
+    void admin_invalidDirection_400() {
+        String url = baseUrl + "/admin/products/" + product1.getId() + "/reviews?page=0&size=10&sort=updatedAt&sort=INVALID";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
     }
 
-    @Test
-    @DisplayName("리뷰 삭제 시 다른 회원의 리뷰이면 예외가 발생한다")
-    void deleteReview_OtherMemberReview_ThrowsException() {
-        // given
-        Long reviewId = review1.getId();
-        Long otherMemberId = member1.getId(); // review1은 member2의 리뷰
-
-        // when & then
-        assertThatThrownBy(() -> reviewService.deleteReview(reviewId, otherMemberId))
-                .isInstanceOf(ReviewException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ACCESS_DENIED);
+    @Test @DisplayName("관리자 상품별 리뷰 - 타 사용자(비소유자) 접근 → 403")
+    void admin_accessDenied_403() {
+        String url = baseUrl + "/admin/products/" + product1.getId() + "/reviews?page=0&size=10";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+        Map<String,Object> err = parseRoot(res);
+        assertThat(err.get("errorCode")).isEqualTo("ACCESS_DENIED");
     }
 
-    @Test
-    @DisplayName("내 리뷰 목록을 성공적으로 조회한다")
-    void getMyReviews_Success() {
-        // given
-        Long memberId = member2.getId();
-        Pageable pageable = PageRequest.of(0, 10);
-
-        // when
-        Page<ReviewResponse> result = reviewService.getMyReviews(memberId, pageable);
-
-        // then
-        assertThat(result.getContent()).hasSize(1);
-        ReviewResponse review = result.getContent().get(0);
-        assertThat(review.reviewId()).isEqualTo(review1.getId());
-        assertThat(review.reviewStar()).isEqualTo(4.5);
-        assertThat(review.comment()).isEqualTo("정말 좋은 여행이었습니다!");
-        assertThat(review.nickName()).isEqualTo("테스터2");
+    @Test @DisplayName("관리자 상품별 리뷰 - 상품 없음 → 404")
+    void admin_productNotFound_404() {
+        String url = baseUrl + "/admin/products/999999/reviews?page=0&size=10";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+        Map<String,Object> err = parseRoot(res);
+        assertThat(err.get("errorCode")).isEqualTo("PRODUCT_NOT_FOUND");
     }
 
-    @Test
-    @DisplayName("내 리뷰 목록 조회 시 존재하지 않는 회원이면 예외가 발생한다")
-    void getMyReviews_NonExistentMember_ThrowsException() {
-        // given
-        Long nonExistentMemberId = 999L;
-        Pageable pageable = PageRequest.of(0, 10);
-
-        // when & then
-        assertThatThrownBy(() -> reviewService.getMyReviews(nonExistentMemberId, pageable))
-                .isInstanceOf(MemberException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    @Test @DisplayName("관리자 상품별 리뷰 - 페이징(total=2 → size=1로 두 페이지)")
+    void admin_paging_totals() {
+        String url0 = baseUrl + "/admin/products/" + product1.getId() + "/reviews?page=0&size=1";
+        String url1 = baseUrl + "/admin/products/" + product1.getId() + "/reviews?page=1&size=1";
+        ResponseEntity<String> res0 = restTemplate.exchange(url0, HttpMethod.GET, auth(sellerToken), String.class);
+        ResponseEntity<String> res1 = restTemplate.exchange(url1, HttpMethod.GET, auth(sellerToken), String.class);
+        Map<String,Object> root0 = parseRoot(res0);
+        Map<String,Object> root1 = parseRoot(res1);
+        assertThat(((Number)root0.get("totalElements")).longValue()).isEqualTo(2L);
+        assertThat(((Number)root1.get("totalElements")).longValue()).isEqualTo(2L);
+        assertThat(((Number)root0.get("totalPages")).intValue()).isEqualTo(2);
+        assertThat(((Number)root1.get("totalPages")).intValue()).isEqualTo(2);
     }
 
-    @Test
-    @DisplayName("내 리뷰 목록 조회 시 페이징이 올바르게 적용된다")
-    void getMyReviews_WithPaging() {
-        // given
-        Long memberId = member1.getId(); // member1은 1개의 리뷰를 가짐
-        Pageable pageable = PageRequest.of(0, 1); // 페이지 크기 1
-
-        // when
-        Page<ReviewResponse> result = reviewService.getMyReviews(memberId, pageable);
-
-        // then
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getTotalElements()).isEqualTo(1);
-        assertThat(result.getTotalPages()).isEqualTo(1);
-        assertThat(result.isFirst()).isTrue();
-        assertThat(result.isLast()).isTrue();
+    @Test @DisplayName("관리자 상품별 리뷰 - 리뷰 없음(total=0)")
+    void admin_emptyTotal_zero() {
+        String url = baseUrl + "/admin/products/" + product2.getId() + "/reviews?page=0&size=10";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        Map<String,Object> root = parseRoot(res);
+        assertThat(((Number)root.get("totalElements")).longValue()).isEqualTo(0L);
+        assertThat(((Number)root.get("totalPages")).intValue()).isEqualTo(0);
+        assertThat(parseContent(res)).isEmpty();
     }
 
-    @Test
-    @DisplayName("상품별 평균 별점을 일괄 조회한다")
-    void fetchAvgStarsByProductIds_Success() {
-        // given
-        List<Long> productIds = List.of(product1.getId(), product2.getId());
-
-        // when
-        Map<Long, Double> result = reviewRepository.fetchAvgStarsByProductIds(productIds);
-
-        // then
-        assertThat(result).hasSize(1); // product2는 리뷰가 없으므로 제외
-        assertThat(result.get(product1.getId())).isEqualTo(4.8); // (4.5 + 5.0) / 2
+    @Test @DisplayName("관리자 상품별 리뷰 - 응답 필드 스키마 확인")
+    void admin_responseSchema_ok() {
+        String url = baseUrl + "/admin/products/" + product1.getId() + "/reviews?page=0&size=10&sort=updatedAt&sort=desc";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        List<Map<String, Object>> c = parseContent(res);
+        assertThat(c).isNotEmpty();
+        Map<String, Object> first = c.get(0);
+        assertThat(first.get("productName")).isEqualTo(product1.getProductName());
+        assertThat(first.get("thumbnailImageUrl")).isEqualTo(product1.getThumbnailImageUrl());
+        assertThat(first.get("comment")).isInstanceOf(String.class);
+        assertThat(first.get("reviewStar")).isInstanceOf(Number.class);
+        assertThat(first.get("updatedAt")).isInstanceOf(String.class);
     }
 
-    @Test
-    @DisplayName("상품별 평균 별점 조회 시 리뷰가 없는 상품은 제외된다")
-    void fetchAvgStarsByProductIds_ExcludesProductsWithoutReviews() {
-        // given
-        List<Long> productIds = List.of(product2.getId()); // product2는 리뷰가 없음
+    /* ============================================================
+     * 2) 내 리뷰 목록 (/api/me/reviews)
+     *    - RepositoryImpl.findByMemberIdWithProduct 커버
+     * ============================================================ */
 
-        // when
-        Map<Long, Double> result = reviewRepository.fetchAvgStarsByProductIds(productIds);
-
-        // then
-        assertThat(result).isEmpty();
+    @Test @DisplayName("내 리뷰 - 기본 정렬(updatedAt,desc)")
+    void me_defaultSort_updatedAtDesc() {
+        String url = baseUrl + "/me/reviews?page=0&size=9";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        List<Map<String, Object>> c = parseContent(res);
+        assertThat(c).hasSize(1);
+        assertThat(asLong(c.get(0).get("reviewId"))).isEqualTo(review1.getId());
     }
 
-    @Test
-    @DisplayName("상품별 평균 별점 조회 시 빈 리스트를 전달하면 빈 결과를 반환한다")
-    void fetchAvgStarsByProductIds_EmptyList() {
-        // given
-        List<Long> productIds = List.of();
+    // (컨트롤러 경유 null 문자열 PathVariable 테스트는 서비스 단위 테스트로 이관)
 
-        // when
-        Map<Long, Double> result = reviewRepository.fetchAvgStarsByProductIds(productIds);
+    @Test @DisplayName("내 리뷰 - reviewStar ASC/DESC, updatedAt ASC/DESC")
+    void me_sort_all() {
+        // 정렬 검증 강화를 위해 리뷰어의 추가 리뷰 데이터를 만든다 (product2, 낮은 별점)
+        long tsLocal = System.nanoTime();
+        Order extraOrder = Order.builder()
+                .member(reviewer)
+                .orderDate(LocalDate.now().minusDays(3))
+                .totalPrice(110000)
+                .orderCode("ORD-" + tsLocal + "-ME3")
+                .build();
+        orderRepository.save(extraOrder);
 
-        // then
-        assertThat(result).isEmpty();
+        Review myReview2 = Review.builder()
+                .member(reviewer)
+                .product(product2)
+                .order(extraOrder)
+                .reviewStar(2.0)
+                .comment("두번째 리뷰")
+                .build();
+        reviewRepository.save(myReview2);
+
+        String base = baseUrl + "/me/reviews?page=0&size=9";
+
+        // reviewStar asc: 2.0 -> 4.5
+        ResponseEntity<String> res1 = restTemplate.exchange(base + "&sort=reviewStar&sort=asc", HttpMethod.GET, auth(reviewerToken), String.class);
+        List<Map<String, Object>> c1 = parseContent(res1);
+        assertThat(c1).hasSize(2);
+        assertThat(((Number)c1.get(0).get("reviewStar")).doubleValue()).isEqualTo(2.0);
+        assertThat(((Number)c1.get(1).get("reviewStar")).doubleValue()).isEqualTo(4.5);
+
+        // reviewStar desc: 4.5 -> 2.0
+        ResponseEntity<String> res2 = restTemplate.exchange(base + "&sort=reviewStar&sort=desc", HttpMethod.GET, auth(reviewerToken), String.class);
+        List<Map<String, Object>> c2 = parseContent(res2);
+        assertThat(c2).hasSize(2);
+        assertThat(((Number)c2.get(0).get("reviewStar")).doubleValue()).isEqualTo(4.5);
+        assertThat(((Number)c2.get(1).get("reviewStar")).doubleValue()).isEqualTo(2.0);
+
+        // updatedAt asc: 먼저 생성된 review1 -> 나중 생성된 myReview2
+        ResponseEntity<String> res3 = restTemplate.exchange(base + "&sort=updatedAt&sort=asc", HttpMethod.GET, auth(reviewerToken), String.class);
+        List<Map<String, Object>> c3 = parseContent(res3);
+        assertThat(c3).hasSize(2);
+        assertThat(asLong(c3.get(0).get("reviewId"))).isEqualTo(review1.getId());
+        assertThat(asLong(c3.get(1).get("reviewId"))).isEqualTo(myReview2.getId());
+
+        // updatedAt desc: 나중 생성된 myReview2 -> 먼저 생성된 review1
+        ResponseEntity<String> res4 = restTemplate.exchange(base + "&sort=updatedAt&sort=desc", HttpMethod.GET, auth(reviewerToken), String.class);
+        List<Map<String, Object>> c4 = parseContent(res4);
+        assertThat(c4).hasSize(2);
+        assertThat(asLong(c4.get(0).get("reviewId"))).isEqualTo(myReview2.getId());
+        assertThat(asLong(c4.get(1).get("reviewId"))).isEqualTo(review1.getId());
+
+        // 정리: 추가한 리뷰/주문 삭제 (다른 테스트 격리에 영향 없도록)
+        try { if (myReview2.getId() != null) reviewRepository.deleteById(myReview2.getId()); } catch (Exception ignored) {}
+        try { if (extraOrder.getId() != null) orderRepository.deleteById(extraOrder.getId()); } catch (Exception ignored) {}
     }
 
-    @Test
-    @DisplayName("상품별 평균 별점 조회 시 null 리스트를 전달하면 빈 결과를 반환한다")
-    void fetchAvgStarsByProductIds_NullList() {
-        // given
-        List<Long> productIds = null;
-
-        // when
-        Map<Long, Double> result = reviewRepository.fetchAvgStarsByProductIds(productIds);
-
-        // then
-        assertThat(result).isEmpty();
+    @Test @DisplayName("내 리뷰 - 미지원 정렬필드 → 400")
+    void me_unsupportedSortProperty_400() {
+        String url = baseUrl + "/me/reviews?page=0&size=9&sort=notExistsProperty&sort=asc";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
     }
 
-    @Test
-    @DisplayName("상품 ID로 리뷰를 페이징하여 조회한다")
-    void findByProductId_WithPaging() {
-        // given
-        Long productId = product1.getId();
-        Pageable pageable = PageRequest.of(0, 1); // 페이지 크기 1
-
-        // when
-        Page<Review> result = reviewRepository.findByProductId(productId, pageable);
-
-        // then
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getTotalElements()).isEqualTo(2);
-        assertThat(result.getTotalPages()).isEqualTo(2);
-        assertThat(result.isFirst()).isTrue();
-        assertThat(result.isLast()).isFalse();
+    @Test @DisplayName("내 리뷰 - 정렬 방향 INVALID → 400")
+    void me_invalidDirection_400() {
+        String url = baseUrl + "/me/reviews?page=0&size=9&sort=updatedAt&sort=INVALID";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
     }
 
-    @Test
-    @DisplayName("상품 ID로 리뷰 조회 시 리뷰가 없으면 빈 페이지를 반환한다")
-    void findByProductId_NoReviews() {
-        // given
-        Long productId = product2.getId(); // product2는 리뷰가 없음
-        Pageable pageable = PageRequest.of(0, 10);
+    
 
-        // when
-        Page<Review> result = reviewRepository.findByProductId(productId, pageable);
+    @Test @DisplayName("내 리뷰 - totalElements=1")
+    void me_paging_total_one() {
+        String url = baseUrl + "/me/reviews?page=0&size=10";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        Map<String,Object> root = parseRoot(res);
+        assertThat(((Number)root.get("totalElements")).longValue()).isEqualTo(1L);
+        assertThat(((Number)root.get("totalPages")).intValue()).isEqualTo(1);
+        assertThat(parseContent(res)).hasSize(1);
+    }
 
-        // then
-        assertThat(result.getContent()).isEmpty();
-        assertThat(result.getTotalElements()).isEqualTo(0);
-        assertThat(result.getTotalPages()).isEqualTo(0);
+    @Test @DisplayName("내 리뷰 - totalElements=0 (셀러 계정은 리뷰 없음)")
+    void me_paging_total_zero() {
+        String url = baseUrl + "/me/reviews?page=0&size=10";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        Map<String,Object> root = parseRoot(res);
+        assertThat(((Number)root.get("totalElements")).longValue()).isEqualTo(0L);
+        assertThat(((Number)root.get("totalPages")).intValue()).isEqualTo(0);
+        assertThat(parseContent(res)).isEmpty();
+    }
+
+    @Test @DisplayName("내 리뷰 - 응답 필드 스키마 확인")
+    void me_responseSchema_ok() {
+        String url = baseUrl + "/me/reviews?page=0&size=9";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        Map<String, Object> row = parseContent(res).get(0);
+        assertThat(row.get("productName")).isEqualTo(product1.getProductName());
+        assertThat(row.get("thumbnailImageUrl")).isEqualTo(product1.getThumbnailImageUrl());
+        assertThat(row.get("comment")).isInstanceOf(String.class);
+        assertThat(row.get("reviewStar")).isInstanceOf(Number.class);
+        assertThat(row.get("updatedAt")).isInstanceOf(String.class);
+    }
+
+    
+
+    /* ============================================================
+     * 3) 리뷰 생성/수정/삭제 + 폼 조회
+     *    - Service의 validateXXX 전 케이스 커버
+     * ============================================================ */
+
+    // ---- 생성
+    @Test @DisplayName("리뷰 생성 - 성공(201)")
+    void review_create_201() {
+        String url = baseUrl + "/orders/" + orderSuccessId + "/review";
+        Map<String,Object> body = Map.of("comment", "아주 만족스러웠습니다!", "reviewStar", 5.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.POST, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().value()).isEqualTo(201);
+    }
+
+    @Test @DisplayName("리뷰 생성 - 주문 없음(404)")
+    void review_create_orderNotFound_404() {
+        Order temp = Order.builder()
+                .member(reviewer)
+                .orderDate(LocalDate.now().minusDays(1))
+                .totalPrice(50000)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderCode("ORD-" + System.nanoTime() + "-TMP")
+                .build();
+        orderRepository.save(temp);
+        Long deletedId = temp.getId();
+        orderRepository.deleteById(deletedId);
+
+        String url = baseUrl + "/orders/" + deletedId + "/review";
+        Map<String,Object> body = Map.of("comment","올바른 테스트 코멘트입니다", "reviewStar", 4.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.POST, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().value()).isEqualTo(404);
+    }
+
+    @Test @DisplayName("리뷰 생성 - 주문 미완료(400)")
+    void review_create_orderNotCompleted_400() {
+        String url = baseUrl + "/orders/" + orderPendingId + "/review";
+        Map<String,Object> body = Map.of("comment","올바른 테스트 코멘트입니다", "reviewStar", 4.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.POST, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().value()).isEqualTo(400);
+    }
+
+    @Test @DisplayName("리뷰 생성 - 주문 아이템 없음(400)")
+    void review_create_orderEmpty_400() {
+        Order newEmptyOrder = Order.builder()
+                .member(reviewer)
+                .orderDate(LocalDate.now().minusDays(1))
+                .totalPrice(70000)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderCode("ORD-" + System.nanoTime() + "-E2")
+                .build();
+        orderRepository.save(newEmptyOrder);
+
+        String url = baseUrl + "/orders/" + newEmptyOrder.getId() + "/review";
+        Map<String,Object> body = Map.of("comment","테스트", "reviewStar", 4.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.POST, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    @Test @DisplayName("리뷰 생성 - 주문 아이템의 상품 미존재(404)")
+    void review_create_orderProductNotFound_404() {
+        Order orderBadProduct = Order.builder()
+                .member(reviewer)
+                .orderDate(LocalDate.now().minusDays(1))
+                .totalPrice(80000)
+                .orderStatus(OrderStatus.SUCCESS)
+                .orderCode("ORD-" + System.nanoTime() + "-X2")
+                .build();
+        OrderItem oiBad = OrderItem.createOrderItem(
+                -999999L, "없음", null, 0, null, null, 0, 0,
+                LocalDate.now().plusDays(12), 1, 0);
+        orderBadProduct.addOrderItem(oiBad);
+        orderRepository.save(orderBadProduct);
+
+        String url = baseUrl + "/orders/" + orderBadProduct.getId() + "/review";
+        Map<String,Object> body = Map.of("comment","올바른 테스트 코멘트입니다", "reviewStar", 4.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.POST, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().value()).isEqualTo(404);
+    }
+
+    @Test @DisplayName("리뷰 생성 - 타인 주문(403)")
+    void review_create_accessDenied_403() {
+        String url = baseUrl + "/orders/" + orderSuccessId + "/review";
+        Map<String,Object> body = Map.of("comment","권한오류", "reviewStar", 4.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.POST, authJson(sellerToken, body), String.class);
+        assertThat(res.getStatusCode().value()).isEqualTo(403);
+    }
+
+    @Test @DisplayName("리뷰 생성 - 이미 리뷰 작성(409)")
+    void review_create_alreadyReviewed_409() {
+        String url = baseUrl + "/orders/" + orderSuccessId + "/review";
+        Map<String,Object> first = Map.of("comment","이미 작성 사전 생성용 코멘트", "reviewStar", 5.0);
+        ResponseEntity<String> created = restTemplate.exchange(url, HttpMethod.POST, authJson(reviewerToken, first), String.class);
+        assertThat(created.getStatusCode().value()).isEqualTo(201);
+
+        Map<String,Object> dup = Map.of("comment","중복 생성 시도 코멘트", "reviewStar", 4.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.POST, authJson(reviewerToken, dup), String.class);
+        assertThat(res.getStatusCode().value()).isEqualTo(409);
+        Map<String,Object> err = parseRoot(res);
+        if (!err.isEmpty()) {
+            assertThat(err.get("errorCode")).isEqualTo("ALREADY_REVIEWED");
+        }
+    }
+
+    @Test @DisplayName("리뷰 생성 - @Valid 실패(코멘트 짧음)")
+    void review_create_valid_shortComment_400() {
+        String url = baseUrl + "/orders/" + orderSuccessId + "/review";
+        Map<String,Object> body = Map.of("comment","짧다", "reviewStar", 4.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.POST, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    @Test @DisplayName("리뷰 생성 - @Valid 실패(코멘트 null)")
+    void review_create_valid_nullComment_400() {
+        String url = baseUrl + "/orders/" + orderSuccessId + "/review";
+        Map<String,Object> body = new HashMap<>();
+        body.put("comment", null);
+        body.put("reviewStar", 4.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.POST, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    @Test @DisplayName("리뷰 생성 - @Valid 실패(별점 null)")
+    void review_create_valid_nullStar_400() {
+        String url = baseUrl + "/orders/" + orderSuccessId + "/review";
+        Map<String,Object> body = new HashMap<>();
+        body.put("comment", "유효한 코멘트 내용입니다.");
+        body.put("reviewStar", null);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.POST, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    @Test @DisplayName("리뷰 생성 - @Valid 실패(별점 범위 밖)")
+    void review_create_valid_starOutOfRange_400() {
+        String url = baseUrl + "/orders/" + orderSuccessId + "/review";
+        Map<String,Object> body = Map.of("comment","유효한 코멘트 내용입니다.", "reviewStar", 6.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.POST, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    
+
+    // ---- 수정
+    @Test @DisplayName("리뷰 수정 - 성공(200)")
+    void review_update_200() {
+        String url = baseUrl + "/reviews/" + review1.getId();
+        Map<String,Object> body = Map.of("comment","수정된 코멘트 충분히 길다", "reviewStar", 4.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.PUT, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().is2xxSuccessful()).isTrue();
+    }
+
+    @Test @DisplayName("리뷰 수정 - 본인 아님(403)")
+    void review_update_accessDenied_403() {
+        String url = baseUrl + "/reviews/" + review1.getId();
+        Map<String,Object> body = Map.of("comment","수정된 코멘트 충분히 길다", "reviewStar", 3.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.PUT, authJson(sellerToken, body), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+        Map<String,Object> err = parseRoot(res);
+        assertThat(err.get("errorCode")).isEqualTo("ACCESS_DENIED");
+    }
+
+    @Test @DisplayName("리뷰 수정 - 리뷰없음(404)")
+    void review_update_notFound_404() {
+        String url = baseUrl + "/reviews/999999";
+        Map<String,Object> body = Map.of("comment","수정된 코멘트 충분히 길다", "reviewStar", 3.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.PUT, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+        Map<String,Object> err = parseRoot(res);
+        assertThat(err.get("errorCode")).isEqualTo("REVIEW_NOT_FOUND");
+    }
+
+    @Test @DisplayName("리뷰 수정 - @Valid 실패(코멘트 짧음)")
+    void review_update_valid_shortComment_400() {
+        String url = baseUrl + "/reviews/" + review1.getId();
+        Map<String,Object> body = Map.of("comment","짧다", "reviewStar", 3.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.PUT, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    @Test @DisplayName("리뷰 수정 - @Valid 실패(코멘트 null)")
+    void review_update_valid_nullComment_400() {
+        String url = baseUrl + "/reviews/" + review1.getId();
+        Map<String,Object> body = new HashMap<>();
+        body.put("comment", null);
+        body.put("reviewStar", 3.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.PUT, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    @Test @DisplayName("리뷰 수정 - @Valid 실패(별점 null)")
+    void review_update_valid_nullStar_400() {
+        String url = baseUrl + "/reviews/" + review1.getId();
+        Map<String,Object> body = new HashMap<>();
+        body.put("comment", "수정 코멘트 충분히 긺.");
+        body.put("reviewStar", null);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.PUT, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    @Test @DisplayName("리뷰 수정 - @Valid 실패(별점 범위 밖)")
+    void review_update_valid_starOutOfRange_400() {
+        String url = baseUrl + "/reviews/" + review1.getId();
+        Map<String,Object> body = Map.of("comment","수정 코멘트 충분히 길다", "reviewStar", 0.0);
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.PUT, authJson(reviewerToken, body), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    
+
+    // ---- 삭제
+    @Test @DisplayName("리뷰 삭제 - 성공(204)")
+    void review_delete_204() {
+        String url = baseUrl + "/reviews/" + review1.getId();
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.DELETE, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().value()).isEqualTo(204);
+    }
+
+    @Test @DisplayName("리뷰 삭제 - 본인 아님(403)")
+    void review_delete_accessDenied_403() {
+        String url = baseUrl + "/reviews/" + review2.getId();
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.DELETE, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+        Map<String,Object> err = parseRoot(res);
+        assertThat(err.get("errorCode")).isEqualTo("ACCESS_DENIED");
+    }
+
+    @Test @DisplayName("리뷰 삭제 - 리뷰없음(404)")
+    void review_delete_notFound_404() {
+        String url = baseUrl + "/reviews/999999";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.DELETE, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+        Map<String,Object> err = parseRoot(res);
+        assertThat(err.get("errorCode")).isEqualTo("REVIEW_NOT_FOUND");
+    }
+
+    
+
+    // ---- 작성 폼/수정 폼
+    @Test @DisplayName("리뷰 작성 폼 - 성공(200)")
+    void review_form_create_ok() {
+        String url = baseUrl + "/orders/" + orderSuccessId + "/review/form";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test @DisplayName("리뷰 작성 폼 - 주문없음(404)")
+    void review_form_create_orderNotFound_404() {
+        String url = baseUrl + "/orders/999999/review/form";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+        Map<String,Object> err = parseRoot(res);
+        assertThat(err.get("errorCode")).isEqualTo("ORDER_NOT_FOUND");
+    }
+
+    @Test @DisplayName("리뷰 작성 폼 - 타인 주문(403)")
+    void review_form_create_accessDenied_403() {
+        String url = baseUrl + "/orders/" + orderSuccessId + "/review/form";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+        Map<String,Object> err = parseRoot(res);
+        assertThat(err.get("errorCode")).isEqualTo("ACCESS_DENIED");
+    }
+
+    @Test @DisplayName("리뷰 작성 폼 - 주문 미완료(400)")
+    void review_form_create_orderNotCompleted_400() {
+        String url = baseUrl + "/orders/" + orderPendingId + "/review/form";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+        Map<String,Object> err = parseRoot(res);
+        assertThat(err.get("errorCode")).isEqualTo("ORDER_NOT_COMPLETED");
+    }
+
+    @Test @DisplayName("리뷰 작성 폼 - 이미 리뷰 작성(409)")
+    void review_form_create_alreadyReviewed_409() {
+        Long reviewedOrderId = orderRepository.findByOrderCode(code1).orElseThrow().getId();
+        String url = baseUrl + "/orders/" + reviewedOrderId + "/review/form";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    @Test @DisplayName("리뷰 작성 폼 - 주문 아이템 없음(400)")
+    void review_form_create_orderEmpty_400() {
+        String url = baseUrl + "/orders/" + orderEmptyId + "/review/form";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+        Map<String,Object> err = parseRoot(res);
+        assertThat(err.get("errorCode")).isEqualTo("ORDER_EMPTY");
+    }
+
+    @Test @DisplayName("리뷰 작성 폼 - 주문 내 상품 미존재(404)")
+    void review_form_create_orderProductNotFound_404() {
+        String url = baseUrl + "/orders/" + orderInvalidProductId + "/review/form";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+        Map<String,Object> err = parseRoot(res);
+        assertThat(err.get("errorCode")).isEqualTo("PRODUCT_NOT_FOUND");
+    }
+
+    
+
+    @Test @DisplayName("리뷰 수정 폼 - 성공(200)")
+    void review_form_update_ok() {
+        String url = baseUrl + "/reviews/" + review1.getId() + "/form";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is2xxSuccessful()).isTrue();
+    }
+
+    @Test @DisplayName("리뷰 수정 폼 - 리뷰없음(404)")
+    void review_form_update_notFound_404() {
+        String url = baseUrl + "/reviews/999999/form";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+        Map<String,Object> err = parseRoot(res);
+        assertThat(err.get("errorCode")).isEqualTo("REVIEW_NOT_FOUND");
+    }
+
+    @Test @DisplayName("리뷰 수정 폼 - 본인 아님(403)")
+    void review_form_update_accessDenied_403() {
+        String url = baseUrl + "/reviews/" + review1.getId() + "/form";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    
+
+    /* ============================================================
+     * 4) 페이징 파라미터 유효성(컨트롤러/스프링 검증)
+     *    - 음수 page/size → 400 (스프링이 변환/검증 단계에서 튕김)
+     * ============================================================ */
+
+    @Test @DisplayName("관리자 상품별 리뷰 - page<0 → 400")
+    void admin_negativePage_400() {
+        String url = baseUrl + "/admin/products/" + product1.getId() + "/reviews?page=-1&size=10";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        // Controller 바인딩/검증 정책에 따라 400 또는 200(empty)이 될 수 있음.
+        // 정책상 400으로 기대 (잘못된 요청)
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    @Test @DisplayName("관리자 상품별 리뷰 - size<=0 → 400")
+    void admin_nonPositiveSize_400() {
+        String url = baseUrl + "/admin/products/" + product1.getId() + "/reviews?page=0&size=0";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(sellerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    @Test @DisplayName("내 리뷰 - page<0 → 400")
+    void me_negativePage_400() {
+        String url = baseUrl + "/me/reviews?page=-1&size=10";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    @Test @DisplayName("내 리뷰 - size<=0 → 400")
+    void me_nonPositiveSize_400() {
+        String url = baseUrl + "/me/reviews?page=0&size=0";
+        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(reviewerToken), String.class);
+        assertThat(res.getStatusCode().is4xxClientError()).isTrue();
     }
 }

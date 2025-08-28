@@ -1,6 +1,5 @@
 package com.talktrip.talktrip.domain.product.service;
 
-import com.talktrip.talktrip.domain.like.repository.LikeRepository;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.product.dto.ProductWithAvgStarAndLike;
 import com.talktrip.talktrip.domain.product.dto.response.ProductDetailResponse;
@@ -19,7 +18,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -35,7 +33,6 @@ import java.util.Map;
 public class ProductService {
 
     private static final String ALL_COUNTRIES = "전체";
-    private static final int DAYS_TO_ADD = 1;
 
     private final ProductRepository productRepository;
     private final ReviewRepository reviewRepository;
@@ -55,10 +52,8 @@ public class ProductService {
     ) {
         validateMember(memberId);
         validateCountry(countryName);
-        LocalDate tomorrow = getTomorrow();
-
         Page<ProductWithAvgStarAndLike> searchResults = productRepository.searchProductsWithAvgStarAndLike(
-                keyword, countryName, tomorrow, memberId, pageable
+                keyword, countryName, memberId, pageable
         );
         
         if (searchResults.isEmpty()) {
@@ -85,14 +80,12 @@ public class ProductService {
     ) {
         validateMember(memberId);
         validateProduct(productId);
-        LocalDate tomorrow = getTomorrow();
-        
-        ProductWithAvgStarAndLike productWithDetails = findProductWithDetailsAndAvgStarAndLike(productId, tomorrow, memberId);
+        ProductWithAvgStarAndLike productWithDetails = findProductWithDetailsAndAvgStarAndLike(productId, memberId);
 
         Double avgStar = productWithDetails.getAvgStar();
         boolean isLiked = productWithDetails.getIsLiked();
 
-        Page<Review> reviewPage = reviewRepository.findByProductId(productId, pageable);
+        Page<Review> reviewPage = reviewRepository.findByProductIdWithPaging(productId, pageable);
         List<ReviewResponse> reviewResponses = ReviewResponse.to(reviewPage.getContent(), productWithDetails.getProduct());
 
         return ProductDetailResponse.from(productWithDetails.getProduct(), avgStar, reviewResponses, isLiked);
@@ -128,12 +121,8 @@ public class ProductService {
         }
     }
 
-    private LocalDate getTomorrow() {
-        return LocalDate.now().plusDays(DAYS_TO_ADD);
-    }
-
-    private ProductWithAvgStarAndLike findProductWithDetailsAndAvgStarAndLike(Long productId, LocalDate tomorrow, Long memberId) {
-        return productRepository.findByIdWithDetailsAndAvgStarAndLike(productId, tomorrow, memberId)
+    private ProductWithAvgStarAndLike findProductWithDetailsAndAvgStarAndLike(Long productId, Long memberId) {
+        return productRepository.findByIdWithDetailsAndAvgStarAndLike(productId, memberId)
                 .orElseThrow(() -> new ProductException(ErrorCode.PRODUCT_NOT_FOUND));
     }
 

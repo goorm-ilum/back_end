@@ -10,7 +10,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.Where;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -86,8 +85,6 @@ public class Product extends BaseEntity {
         this.deletedAt = null;
     }
 
-
-
     public void updateThumbnailImage(String url, String hash) {
         this.thumbnailImageUrl = url;
         this.thumbnailImageHash = hash;
@@ -111,16 +108,5 @@ public class Product extends BaseEntity {
         return getFutureOptions()
                 .min(Comparator.comparingInt(ProductOption::getDiscountPrice))
                 .orElse(null);
-    }
-
-    public String getCountryName() {
-        return country != null ? country.getName() : "";
-    }
-
-    public Double getAverageReviewStar() {
-        return reviews.stream()
-                .mapToDouble(Review::getReviewStar)
-                .average()
-                .orElse(0.0);
     }
 }

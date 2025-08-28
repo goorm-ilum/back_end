@@ -19,14 +19,12 @@ public interface ProductRepositoryCustom {
     Page<ProductWithAvgStarAndLike> searchProductsWithAvgStarAndLike(
             String keyword,
             String countryName,
-            LocalDate tomorrow,
             Long memberId,
             Pageable pageable
     );
 
     Optional<ProductWithAvgStarAndLike> findByIdWithDetailsAndAvgStarAndLike(
             Long productId,
-            LocalDate tomorrow,
             Long memberId
     );
 

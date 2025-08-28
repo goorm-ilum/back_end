@@ -17,17 +17,6 @@ public interface ProductRepository extends JpaRepository<Product, Long>, Product
     Optional<Product> findByIdAndMemberIdIncludingDeleted(@Param("id") Long id, @Param("sellerId") Long sellerId);
 
     @Query("""
-            SELECT p FROM Product p
-            LEFT JOIN FETCH p.productOptions
-            LEFT JOIN FETCH p.country
-            LEFT JOIN FETCH p.member
-            WHERE p.id = :id
-            """)
-    Optional<Product> findByIdWithDetailsIncludingDeleted(@Param("id") Long id);
-    
-
-
-    @Query("""
             SELECT DISTINCT p FROM Product p
             LEFT JOIN FETCH p.country
             LEFT JOIN FETCH p.member

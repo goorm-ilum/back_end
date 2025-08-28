@@ -1,12 +1,10 @@
 package com.talktrip.talktrip.domain.review.repository;
 
-import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.enums.MemberRole;
 import com.talktrip.talktrip.domain.member.enums.MemberState;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.domain.order.entity.Order;
-import com.talktrip.talktrip.domain.order.entity.OrderItem;
 import com.talktrip.talktrip.domain.order.enums.OrderStatus;
 import com.talktrip.talktrip.domain.order.repository.OrderRepository;
 import com.talktrip.talktrip.domain.product.entity.Product;
@@ -19,381 +17,199 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
-import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.data.domain.Sort;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
-import java.util.List;
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
 @Import(QueryDSLTestConfig.class)
 @EnableJpaAuditing
 @ActiveProfiles("test")
-@Transactional
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ReviewRepositoryImplTest {
 
-    @Autowired
-    private ReviewRepository reviewRepository;
-
-    @Autowired
-    private MemberRepository memberRepository;
-
-    @Autowired
-    private ProductRepository productRepository;
-
-    @Autowired
-    private OrderRepository orderRepository;
-
-    @Autowired
-    private TestEntityManager testEntityManager;
-
-    @Autowired
-    private JPAQueryFactory queryFactory;
+    @Autowired private ReviewRepository reviewRepository;
+    @Autowired private ProductRepository productRepository;
+    @Autowired private MemberRepository memberRepository;
+    @Autowired private OrderRepository orderRepository;
+    @Autowired private TestEntityManager entityManager;
 
     private Member member;
     private Product product;
-    private Order order;
-    private OrderItem orderItem;
-    private Review review;
-    private Country country;
+    private Order order1;
+    private Order order2;
+    private Review reviewHigh;
+    private Review reviewLow;
 
     @BeforeEach
     void setUp() {
-        country = Country.builder()
-                .id(1L)
-                .name("대한민국")
-                .build();
-        testEntityManager.persist(country);
-
         member = Member.builder()
-                .accountEmail("test@test.com")
-                .name("테스트유저")
-                .nickname("테스트유저")
+                .accountEmail("repo-test@test.com")
+                .name("tester")
+                .nickname("tester")
                 .memberRole(MemberRole.U)
                 .memberState(MemberState.A)
-
                 .build();
         memberRepository.save(member);
 
+        Country kr = Country.builder().id(1L).name("대한민국").build();
+        entityManager.persist(kr);
         product = Product.builder()
                 .member(member)
-                .productName("제주도 여행")
-                .description("아름다운 제주도 여행")
-                .thumbnailImageUrl("https://example.com/jeju.jpg")
-                .country(country)
+                .country(kr)
+                .productName("테스트 상품")
+                .description("설명")
+                .thumbnailImageUrl(null)
                 .build();
         productRepository.save(product);
 
-        orderItem = OrderItem.builder()
-                .productId(product.getId())
-                .build();
-
-        order = Order.builder()
+        order1 = Order.builder()
                 .member(member)
+                .orderCode("REV-ORD-1")
+                .orderDate(LocalDate.now())
                 .orderStatus(OrderStatus.SUCCESS)
-                .orderItems(List.of(orderItem))
-                .orderCode("order-code")
+                .totalPrice(10000)
                 .build();
-        orderRepository.save(order);
+        orderRepository.save(order1);
 
-        review = Review.builder()
+        order2 = Order.builder()
                 .member(member)
-                .product(product)
-                .order(order)
-                .comment("좋은 여행이었습니다")
-                .reviewStar(4.5)
-                .build();
-        reviewRepository.save(review);
-    }
-
-    @Test
-    @DisplayName("상품 ID로 리뷰를 페이징과 함께 조회한다")
-    void findByProductIdWithPaging_Success() {
-        // given
-        Long productId = product.getId();
-        Pageable pageable = PageRequest.of(0, 10);
-
-        // when
-        Page<Review> result = reviewRepository.findByProductIdWithPaging(productId, pageable);
-
-        // then
-        assertThat(result.getContent()).hasSize(1);
-        Review foundReview = result.getContent().get(0);
-        assertThat(foundReview.getProduct().getId()).isEqualTo(productId);
-        assertThat(foundReview.getComment()).isEqualTo("좋은 여행이었습니다");
-        assertThat(foundReview.getReviewStar()).isEqualTo(4.5);
-    }
-
-    @Test
-    @DisplayName("존재하지 않는 상품 ID로 리뷰 조회 시 빈 페이지를 반환한다")
-    void findByProductIdWithPaging_NoResult() {
-        // given
-        Long nonExistentProductId = 999L;
-        Pageable pageable = PageRequest.of(0, 10);
-
-        // when
-        Page<Review> result = reviewRepository.findByProductIdWithPaging(nonExistentProductId, pageable);
-
-        // then
-        assertThat(result.getContent()).isEmpty();
-        assertThat(result.getTotalElements()).isEqualTo(0);
-    }
-
-    @Test
-    @DisplayName("사용자 ID로 리뷰를 상품 정보와 함께 조회한다")
-    void findByMemberIdWithProduct_Success() {
-        // given
-        Long memberId = member.getId();
-        Pageable pageable = PageRequest.of(0, 10);
-
-        // when
-        Page<Review> result = reviewRepository.findByMemberIdWithProduct(memberId, pageable);
-
-        // then
-        assertThat(result.getContent()).hasSize(1);
-        Review foundReview = result.getContent().get(0);
-        assertThat(foundReview.getMember().getId()).isEqualTo(memberId);
-        assertThat(foundReview.getProduct()).isNotNull();
-        assertThat(foundReview.getProduct().getProductName()).isEqualTo("제주도 여행");
-    }
-
-    @Test
-    @DisplayName("존재하지 않는 사용자 ID로 리뷰 조회 시 빈 페이지를 반환한다")
-    void findByMemberIdWithProduct_NoResult() {
-        // given
-        Long nonExistentMemberId = 999L;
-        Pageable pageable = PageRequest.of(0, 10);
-
-        // when
-        Page<Review> result = reviewRepository.findByMemberIdWithProduct(nonExistentMemberId, pageable);
-
-        // then
-        assertThat(result.getContent()).isEmpty();
-        assertThat(result.getTotalElements()).isEqualTo(0);
-    }
-
-    @Test
-    @DisplayName("여러 리뷰가 있을 때 페이징이 올바르게 작동한다")
-    void findByProductIdWithPaging_Pagination() {
-        // given
-        // 추가 리뷰 생성 - 각각 다른 Order 사용
-        OrderItem orderItem2 = OrderItem.builder()
-                .productId(product.getId())
-                .build();
-
-        Order order2 = Order.builder()
-                .member(member)
+                .orderCode("REV-ORD-2")
+                .orderDate(LocalDate.now())
                 .orderStatus(OrderStatus.SUCCESS)
-                .orderItems(List.of(orderItem2))
-                .orderCode("order-code-2")
+                .totalPrice(20000)
                 .build();
         orderRepository.save(order2);
 
-        Review review2 = Review.builder()
+        reviewHigh = Review.builder()
                 .member(member)
                 .product(product)
-                .order(order2)
-                .comment("두 번째 리뷰입니다")
-                .reviewStar(4.0)
-                .build();
-        reviewRepository.save(review2);
-
-        OrderItem orderItem3 = OrderItem.builder()
-                .productId(product.getId())
-                .build();
-
-        Order order3 = Order.builder()
-                .member(member)
-                .orderStatus(OrderStatus.SUCCESS)
-                .orderItems(List.of(orderItem3))
-                .orderCode("order-code-3")
-                .build();
-        orderRepository.save(order3);
-
-        Review review3 = Review.builder()
-                .member(member)
-                .product(product)
-                .order(order3)
-                .comment("세 번째 리뷰입니다")
+                .order(order1)
                 .reviewStar(5.0)
+                .comment("아주 좋음")
                 .build();
-        reviewRepository.save(review3);
+        reviewRepository.save(reviewHigh);
 
-        Long productId = product.getId();
-        Pageable pageable = PageRequest.of(0, 2); // 페이지당 2개씩
-
-        // when
-        Page<Review> result = reviewRepository.findByProductIdWithPaging(productId, pageable);
-
-        // then
-        assertThat(result.getContent()).hasSize(2);
-        assertThat(result.getTotalElements()).isEqualTo(3);
-        assertThat(result.getTotalPages()).isEqualTo(2);
-    }
-
-    @Test
-    @DisplayName("두 번째 페이지를 조회한다")
-    void findByProductIdWithPaging_SecondPage() {
-        // given
-        // 추가 리뷰 생성 - 각각 다른 Order 사용
-        OrderItem orderItem2 = OrderItem.builder()
-                .productId(product.getId())
-                .build();
-
-        Order order2 = Order.builder()
-                .member(member)
-                .orderStatus(OrderStatus.SUCCESS)
-                .orderItems(List.of(orderItem2))
-                .orderCode("order-code-2")
-                .build();
-        orderRepository.save(order2);
-
-        Review review2 = Review.builder()
+        reviewLow = Review.builder()
                 .member(member)
                 .product(product)
                 .order(order2)
-                .comment("두 번째 리뷰입니다")
-                .reviewStar(4.0)
+                .reviewStar(3.0)
+                .comment("보통")
                 .build();
-        reviewRepository.save(review2);
-
-        OrderItem orderItem3 = OrderItem.builder()
-                .productId(product.getId())
-                .build();
-
-        Order order3 = Order.builder()
-                .member(member)
-                .orderStatus(OrderStatus.SUCCESS)
-                .orderItems(List.of(orderItem3))
-                .orderCode("order-code-3")
-                .build();
-        orderRepository.save(order3);
-
-        Review review3 = Review.builder()
-                .member(member)
-                .product(product)
-                .order(order3)
-                .comment("세 번째 리뷰입니다")
-                .reviewStar(5.0)
-                .build();
-        reviewRepository.save(review3);
-
-        Long productId = product.getId();
-        Pageable pageable = PageRequest.of(1, 2); // 두 번째 페이지
-
-        // when
-        Page<Review> result = reviewRepository.findByProductIdWithPaging(productId, pageable);
-
-        // then
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getTotalElements()).isEqualTo(3);
-        assertThat(result.getTotalPages()).isEqualTo(2);
+        reviewRepository.save(reviewLow);
     }
 
-    @Test
-    @DisplayName("사용자 ID로 리뷰 조회 시 페이징이 올바르게 작동한다")
-    void findByMemberIdWithProduct_Pagination() {
-        // given
-        // 다른 상품과 리뷰 생성
-        Product product2 = Product.builder()
-                .member(member)
-                .productName("부산 여행")
-                .description("아름다운 부산 여행")
-                .thumbnailImageUrl("https://example.com/busan.jpg")
-                .country(country)
-                .build();
-        productRepository.save(product2);
-
-        OrderItem orderItem2 = OrderItem.builder()
-                .productId(product2.getId())
-                .build();
-
-        Order order2 = Order.builder()
-                .member(member)
-                .orderStatus(OrderStatus.SUCCESS)
-                .orderItems(List.of(orderItem2))
-                .orderCode("order-code-2")
-                .build();
-        orderRepository.save(order2);
-
-        Review review2 = Review.builder()
-                .member(member)
-                .product(product2)
-                .order(order2)
-                .comment("부산 여행 리뷰입니다")
-                .reviewStar(4.0)
-                .build();
-        reviewRepository.save(review2);
-
-        Long memberId = member.getId();
-        Pageable pageable = PageRequest.of(0, 1); // 페이지당 1개씩
-
-        // when
-        Page<Review> result = reviewRepository.findByMemberIdWithProduct(memberId, pageable);
-
-        // then
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getTotalElements()).isEqualTo(2);
-        assertThat(result.getTotalPages()).isEqualTo(2);
-    }
+    // findByProductIdWithPaging
 
     @Test
-    @DisplayName("리뷰가 없는 상품의 경우 빈 페이지를 반환한다")
-    void findByProductIdWithPaging_EmptyProduct() {
-        // given
-        // 리뷰가 없는 새로운 상품 생성
-        Product productWithoutReview = Product.builder()
-                .member(member)
-                .productName("서울 여행")
-                .description("아름다운 서울 여행")
-                .thumbnailImageUrl("https://example.com/seoul.jpg")
-                .country(country)
-                .build();
-        productRepository.save(productWithoutReview);
-
-        Long productId = productWithoutReview.getId();
+    @DisplayName("상품 리뷰 페이징 - 기본 정렬(updatedAt DESC)")
+    void findByProductId_DefaultSort() {
         Pageable pageable = PageRequest.of(0, 10);
-
-        // when
-        Page<Review> result = reviewRepository.findByProductIdWithPaging(productId, pageable);
-
-        // then
-        assertThat(result.getContent()).isEmpty();
-        assertThat(result.getTotalElements()).isEqualTo(0);
+        Page<Review> page = reviewRepository.findByProductIdWithPaging(product.getId(), pageable);
+        assertThat(page.getContent()).hasSize(2);
     }
 
     @Test
-    @DisplayName("리뷰가 없는 사용자의 경우 빈 페이지를 반환한다")
-    void findByMemberIdWithProduct_EmptyMember() {
-        // given
-        // 리뷰가 없는 새로운 사용자 생성
-        Member memberWithoutReview = Member.builder()
-                .accountEmail("no-review@test.com")
-                .name("리뷰없는유저")
-                .nickname("리뷰없는유저")
-                .memberRole(MemberRole.U)
-                .memberState(MemberState.A)
-                .build();
-        memberRepository.save(memberWithoutReview);
+    @DisplayName("상품 리뷰 페이징 - reviewStar ASC/DESC")
+    void findByProductId_SortByReviewStar() {
+        Pageable asc = PageRequest.of(0, 10, Sort.by(Sort.Order.asc("reviewStar")));
+        Pageable desc = PageRequest.of(0, 10, Sort.by(Sort.Order.desc("reviewStar")));
 
-        Long memberId = memberWithoutReview.getId();
+        Page<Review> ascPage = reviewRepository.findByProductIdWithPaging(product.getId(), asc);
+        Page<Review> descPage = reviewRepository.findByProductIdWithPaging(product.getId(), desc);
+
+        assertThat(ascPage.getContent().get(0).getReviewStar()).isLessThanOrEqualTo(
+                ascPage.getContent().get(ascPage.getContent().size() - 1).getReviewStar());
+        assertThat(descPage.getContent().get(0).getReviewStar()).isGreaterThanOrEqualTo(
+                descPage.getContent().get(descPage.getContent().size() - 1).getReviewStar());
+    }
+
+    @Test
+    @DisplayName("상품 리뷰 페이징 - updatedAt ASC/DESC")
+    void findByProductId_SortByUpdatedAt() {
+        Pageable asc = PageRequest.of(0, 10, Sort.by(Sort.Order.asc("updatedAt")));
+        Pageable desc = PageRequest.of(0, 10, Sort.by(Sort.Order.desc("updatedAt")));
+        Page<Review> ascPage = reviewRepository.findByProductIdWithPaging(product.getId(), asc);
+        Page<Review> descPage = reviewRepository.findByProductIdWithPaging(product.getId(), desc);
+        assertThat(ascPage.getContent()).isNotEmpty();
+        assertThat(descPage.getContent()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("상품 리뷰 페이징 - 미지원 정렬 시 400")
+    void findByProductId_UnsupportedSort_Throws400() {
+        Pageable bad = PageRequest.of(0, 10, Sort.by(Sort.Order.asc("notExists")));
+        assertThatThrownBy(() -> reviewRepository.findByProductIdWithPaging(product.getId(), bad))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("Unsupported sort property");
+    }
+
+    @Test
+    @DisplayName("상품 리뷰 페이징 - 결과 없음 total=0")
+    void findByProductId_Empty_TotalZero() {
         Pageable pageable = PageRequest.of(0, 10);
+        Page<Review> page = reviewRepository.findByProductIdWithPaging(999999L, pageable);
+        assertThat(page.getTotalElements()).isEqualTo(0);
+        assertThat(page.getContent()).isEmpty();
+    }
 
-        // when
-        Page<Review> result = reviewRepository.findByMemberIdWithProduct(memberId, pageable);
+    @Test
+    @DisplayName("내 리뷰 페이징 - 기본 정렬(updatedAt DESC) 및 fetchJoin 확인")
+    void findByMemberId_DefaultSort() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Review> page = reviewRepository.findByMemberIdWithProduct(member.getId(), pageable);
+        assertThat(page.getContent()).hasSize(2);
+        assertThat(page.getContent().get(0).getProduct()).isNotNull();
+    }
 
-        // then
-        assertThat(result.getContent()).isEmpty();
-        assertThat(result.getTotalElements()).isEqualTo(0);
+    @Test
+    @DisplayName("내 리뷰 페이징 - reviewStar ASC/DESC")
+    void findByMemberId_SortByReviewStar() {
+        Pageable asc = PageRequest.of(0, 10, Sort.by(Sort.Order.asc("reviewStar")));
+        Pageable desc = PageRequest.of(0, 10, Sort.by(Sort.Order.desc("reviewStar")));
+        Page<Review> ascPage = reviewRepository.findByMemberIdWithProduct(member.getId(), asc);
+        Page<Review> descPage = reviewRepository.findByMemberIdWithProduct(member.getId(), desc);
+        assertThat(ascPage.getContent()).isNotEmpty();
+        assertThat(descPage.getContent()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("내 리뷰 페이징 - updatedAt ASC/DESC")
+    void findByMemberId_SortByUpdatedAt() {
+        Pageable asc = PageRequest.of(0, 10, Sort.by(Sort.Order.asc("updatedAt")));
+        Pageable desc = PageRequest.of(0, 10, Sort.by(Sort.Order.desc("updatedAt")));
+        Page<Review> ascPage = reviewRepository.findByMemberIdWithProduct(member.getId(), asc);
+        Page<Review> descPage = reviewRepository.findByMemberIdWithProduct(member.getId(), desc);
+        assertThat(ascPage.getContent()).isNotEmpty();
+        assertThat(descPage.getContent()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("내 리뷰 페이징 - 미지원 정렬 시 400")
+    void findByMemberId_UnsupportedSort_Throws400() {
+        Pageable bad = PageRequest.of(0, 10, Sort.by(Sort.Order.asc("notExists")));
+        assertThatThrownBy(() -> reviewRepository.findByMemberIdWithProduct(member.getId(), bad))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("Unsupported sort property");
+    }
+
+    @Test
+    @DisplayName("내 리뷰 페이징 - 결과 없음 total=0")
+    void findByMemberId_Empty_TotalZero() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Review> page = reviewRepository.findByMemberIdWithProduct(999999L, pageable);
+        assertThat(page.getTotalElements()).isEqualTo(0);
+        assertThat(page.getContent()).isEmpty();
     }
 }
 

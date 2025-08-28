@@ -41,11 +41,13 @@ public class JWTCheckFilter extends OncePerRequestFilter {
         // 1. 헤더에서 토큰 추출
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             accessToken = authHeader.substring(7);
+            log.info("[JWTCheckFilter] Authorization header detected. tokenLength={}", accessToken.length());
         } else if (request.getCookies() != null) {
             // 2. 쿠키에서 토큰 추출
             for (Cookie cookie : request.getCookies()) {
                 if (cookie.getName().equals("accessToken")) {
                     accessToken = cookie.getValue();
+                    log.info("[JWTCheckFilter] accessToken cookie detected. tokenLength={}", accessToken == null ? 0 : accessToken.length());
                     break;
                 }
                 if (cookie.getName().equals("member")) {
@@ -55,6 +57,7 @@ public class JWTCheckFilter extends OncePerRequestFilter {
                         Map<String, Object> memberMap = mapper.readValue(decoded, Map.class);
                         if (memberMap.containsKey("accessToken")) {
                             accessToken = (String) memberMap.get("accessToken");
+                            log.info("[JWTCheckFilter] accessToken extracted from member cookie. tokenLength={}", accessToken == null ? 0 : accessToken.length());
                             break;
                         }
                     } catch (Exception e) {
@@ -80,10 +83,13 @@ public class JWTCheckFilter extends OncePerRequestFilter {
         try {
             // JWT 검증
             Map<String, Object> claims = jwtUtil.validateToken(accessToken);
+            log.info("[JWTCheckFilter] JWT 검증 성공");
             String email = claims.get("email").toString();
+            log.info("[JWTCheckFilter] claims.email={}", email);
 
             Optional<Member> memberOptional = memberRepository.findByAccountEmail(email);
             if (memberOptional.isEmpty()) {
+                log.warn("[JWTCheckFilter] 회원 조회 실패(email={}) → 401 반환", email);
                 respondWithUnauthorized(response, "MEMBER_NOT_FOUND");
                 return;
             }
@@ -99,6 +105,7 @@ public class JWTCheckFilter extends OncePerRequestFilter {
 
         } catch (Exception e) {
             // JWT 검증 실패 → 비로그인 허용 경로면 통과, 아니면 401
+            log.warn("[JWTCheckFilter] JWT 검증 실패. uri={}, message={}", uri, e.getMessage());
             if (isPublicPath(uri)) {
                 log.info("[JWTCheckFilter] JWT 검증 실패, 하지만 공개 URI → 비로그인으로 통과");
                 filterChain.doFilter(request, response);
@@ -110,6 +117,7 @@ public class JWTCheckFilter extends OncePerRequestFilter {
             return;
         }
 
+        log.info("[JWTCheckFilter] 필터 체인 계속 진행 (인증 세팅 완료)");
         filterChain.doFilter(request, response);
     }
 
@@ -126,7 +134,6 @@ public class JWTCheckFilter extends OncePerRequestFilter {
                 // 상품 조회 및 AI 검색은 비로그인 허용 (좋아요 제외)
                 (uri.startsWith("/api/products") && !uri.contains("/like")) ||
                 uri.startsWith("/api/ai-search") ||
-                uri.startsWith("/api/reviews")||
                 uri.startsWith("/api/orders")||
                 uri.startsWith("/api/chat/") ||  // 채팅 API 제외
                 uri.startsWith("/api/alarm/")  // 알림 API 제외 (개발 단계)
@@ -145,7 +152,9 @@ public class JWTCheckFilter extends OncePerRequestFilter {
         PrintWriter writer = response.getWriter();
         new ObjectMapper().writeValue(writer, Map.of("error", message));
         writer.flush();
+        log.warn("[JWTCheckFilter] 401 응답 전송. body.error={}", message);
     }
+
 }
 
 
