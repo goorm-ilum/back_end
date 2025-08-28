@@ -25,10 +25,8 @@ import java.util.stream.Stream;
 @NoArgsConstructor
 @SQLDelete(sql = "UPDATE product SET deleted = true, deleted_at = NOW() WHERE id = ?")
 @Table(indexes = {
-    @Index(name = "idx_product_search", columnList = "deleted, country_id, updatedAt"),
-    @Index(name = "idx_product_name_search", columnList = "productName"),
-    @Index(name = "idx_product_updated_at", columnList = "updatedAt DESC"),
-    @Index(name = "idx_product_seller", columnList = "seller_id, deleted")
+    @Index(name = "idx_product_seller", columnList = "seller_id, deleted, updatedAt DESC"),
+    @Index(name = "idx_product", columnList = "deleted, updatedAt DESC, country_id")
 })
 public class Product extends BaseEntity {
 

@@ -17,9 +17,8 @@ import lombok.NoArgsConstructor;
         @UniqueConstraint(columnNames = {"product_id", "member_id"})
     },
     indexes = {
-        @Index(name = "idx_like_member", columnList = "member_id"),
-        @Index(name = "idx_like_product", columnList = "product_id"),
-        @Index(name = "idx_like_member_product", columnList = "member_id, product_id")
+        @Index(name = "idx_like_member_updated_at", columnList = "member_id, updatedAt DESC"),
+        @Index(name = "idx_like_product_member", columnList = "product_id, member_id")
     }
 )
 public class Like extends BaseEntity {
@@ -33,6 +32,4 @@ public class Like extends BaseEntity {
 
     @Column(name = "member_id", nullable = false)
     private Long memberId;
-
-
 }

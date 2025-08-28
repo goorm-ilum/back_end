@@ -17,10 +17,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(indexes = {
-    @Index(name = "idx_review_product", columnList = "product_id"),
-    @Index(name = "idx_review_member", columnList = "member_id"),
-    @Index(name = "idx_review_star", columnList = "reviewStar DESC"),
-    @Index(name = "idx_review_product_star", columnList = "product_id, reviewStar")
+    @Index(name = "idx_review_product_latest", columnList = "product_id, updatedAt DESC"),
+    @Index(name = "idx_review_member_latest", columnList = "member_id, updatedAt DESC")
 })
 public class Review extends BaseEntity {
 

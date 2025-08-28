@@ -48,8 +48,11 @@ public class AdminProductService {
     private final S3Uploader s3Uploader;
 
     @Transactional
-    public void createProduct(AdminProductCreateRequest request, Long memberId,
-                              MultipartFile thumbnailImage, List<MultipartFile> detailImages) {
+    public void createProduct(AdminProductCreateRequest request,
+                              Long memberId,
+                              MultipartFile thumbnailImage,
+                              List<MultipartFile> detailImages) {
+
         Member member = findAdminMember(memberId);
         Country country = findCountry(request.countryName());
         Product product = request.to(member, country);
@@ -59,6 +62,25 @@ public class AdminProductService {
         addProductData(product, request);
 
         productRepository.save(product);
+    }
+
+    @Transactional
+    public void updateProduct(Long productId,
+                              AdminProductUpdateRequest request,
+                              Long memberId,
+                              MultipartFile thumbnailImage,
+                              List<MultipartFile> detailImages,
+                              List<String> detailImageOrder) {
+
+        validateAdminMember(memberId);
+        Product product = findProduct(productId, memberId);
+        Country country = findCountry(request.countryName());
+
+        updateThumbnailImage(product, thumbnailImage, request.existingThumbnailHash());
+        updateDetailImages(product, detailImages, detailImageOrder, request.existingDetailImageIds());
+
+        product.updateBasicInfo(request.productName(), request.description(), country);
+        updateProductData(product, request);
     }
 
     @Transactional(readOnly = true)
@@ -79,25 +101,6 @@ public class AdminProductService {
         validateAdminMember(memberId);
         Product product = findProduct(productId, memberId);
         return AdminProductEditResponse.from(product);
-    }
-
-    @Transactional
-    public void updateProduct(Long productId,
-                              AdminProductUpdateRequest request,
-                              Long memberId,
-                              MultipartFile thumbnailImage,
-                              List<MultipartFile> detailImages,
-                              List<String> detailImageOrder) {
-
-        validateAdminMember(memberId);
-        Product product = findProduct(productId, memberId);
-        Country country = findCountry(request.countryName());
-
-        updateThumbnailImage(product, thumbnailImage, request.existingThumbnailHash());
-        updateDetailImages(product, detailImages, detailImageOrder, request.existingDetailImageIds());
-
-        product.updateBasicInfo(request.productName(), request.description(), country);
-        updateProductData(product, request);
     }
 
     @Transactional
@@ -178,7 +181,6 @@ public class AdminProductService {
         }
     }
 
-    // 이미지 처리 메서드들
     private void processThumbnailImage(Product product, MultipartFile thumbnailImage) {
         if (thumbnailImage != null && !thumbnailImage.isEmpty()) {
             String thumbnailUrl = s3Uploader.upload(thumbnailImage, THUMBNAIL_PATH);
