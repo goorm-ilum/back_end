@@ -30,6 +30,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("integration-test")
 class AdminProductIntegrationTest {
@@ -133,11 +135,12 @@ class AdminProductIntegrationTest {
     @DisplayName("판매자 상품 목록 - 일반유저 토큰 → 403 ACCESS_DENIED")
     void admin_list_user_forbidden_403() {
         String url = baseUrl() + "/admin/products?page=0&size=10&status=ACTIVE";
-        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(userToken), String.class);
+        ResponseEntity<String> res = restTemplate.exchange(
+                url, HttpMethod.GET, auth(userToken), String.class);
         org.assertj.core.api.Assertions.assertThat(res.getStatusCode().value()).isEqualTo(403);
         java.util.Map<String,Object> root = parseRoot(res);
         if (!root.isEmpty()) {
-            org.assertj.core.api.Assertions.assertThat(root.get("errorCode")).isEqualTo("ACCESS_DENIED");
+            assertThat(root.get("errorCode")).isEqualTo("ACCESS_DENIED");
         }
     }
 
@@ -145,19 +148,21 @@ class AdminProductIntegrationTest {
     @DisplayName("판매자 상품 상세 - 본인 소유 → 200")
     void admin_detail_ok() {
         String url = baseUrl() + "/admin/products/" + productA.getId();
-        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(admin1Token), String.class);
-        org.assertj.core.api.Assertions.assertThat(res.getStatusCode().is2xxSuccessful()).isTrue();
+        ResponseEntity<String> res = restTemplate.exchange(
+                url, HttpMethod.GET, auth(admin1Token), String.class);
+        assertThat(res.getStatusCode().is2xxSuccessful()).isTrue();
     }
 
     @Test
     @DisplayName("판매자 상품 상세 - 타 관리자 소유 → 403 ACCESS_DENIED")
     void admin_detail_access_denied_403() {
         String url = baseUrl() + "/admin/products/" + productA.getId();
-        ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.GET, auth(admin2Token), String.class);
+        ResponseEntity<String> res = restTemplate.exchange(
+                url, HttpMethod.GET, auth(admin2Token), String.class);
         org.assertj.core.api.Assertions.assertThat(res.getStatusCode().value()).isEqualTo(403);
         java.util.Map<String,Object> root = parseRoot(res);
         if (!root.isEmpty()) {
-            org.assertj.core.api.Assertions.assertThat(root.get("errorCode")).isEqualTo("ACCESS_DENIED");
+            assertThat(root.get("errorCode")).isEqualTo("ACCESS_DENIED");
         }
     }
 

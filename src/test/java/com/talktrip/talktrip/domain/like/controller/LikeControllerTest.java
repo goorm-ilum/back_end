@@ -140,7 +140,10 @@ class LikeControllerTest {
     void getMyLikes_WithPagination() throws Exception {
         // given
         Long memberId = memberDetails.getId();
-        Pageable pageable = PageRequest.of(1, 5, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        Pageable pageable = PageRequest.of(
+                1,
+                5,
+                Sort.by(Sort.Direction.DESC, "updatedAt"));
         
         ProductSummaryResponse response = ProductSummaryResponse.builder()
                 .productId(2L)

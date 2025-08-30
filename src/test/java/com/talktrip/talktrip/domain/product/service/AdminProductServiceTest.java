@@ -225,7 +225,11 @@ class AdminProductServiceTest {
                 .hashtags(createRequest.hashtags())
                 .build();
 
-        assertThatThrownBy(() -> adminProductService.createProduct(invalid, memberId, thumbnailImage, List.of()))
+        assertThatThrownBy(() -> adminProductService.createProduct(
+                invalid,
+                memberId,
+                thumbnailImage,
+                List.of()))
                 .isInstanceOf(ProductException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.COUNTRY_NOT_FOUND);
     }
@@ -244,7 +248,7 @@ class AdminProductServiceTest {
                 adminProductService.getMyProducts(memberId, "제주도", "ACTIVE", pageable);
 
         assertThat(page.getContent()).hasSize(1);
-        assertThat(page.getContent().get(0).productName()).isEqualTo("제주도 여행");
+        assertThat(page.getContent().getFirst().productName()).isEqualTo("제주도 여행");
     }
 
     @Test

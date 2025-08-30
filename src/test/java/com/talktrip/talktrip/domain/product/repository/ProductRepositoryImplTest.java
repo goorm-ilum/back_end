@@ -191,7 +191,7 @@ class ProductRepositoryImplTest {
         Page<ProductWithAvgStarAndLike> result = productRepository.searchProductsWithAvgStarAndLike(
                 "서울", null, member.getId(), PageRequest.of(0, 10));
         assertThat(result.getContent()).hasSize(1);
-        ProductWithAvgStarAndLike dto = result.getContent().get(0);
+        ProductWithAvgStarAndLike dto = result.getContent().getFirst();
         assertThat(dto.getProduct().getProductName()).isEqualTo("서울 여행");
         assertThat(dto.getIsLiked()).isFalse();
     }
