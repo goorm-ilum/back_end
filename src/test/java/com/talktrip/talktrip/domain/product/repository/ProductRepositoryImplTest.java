@@ -52,7 +52,7 @@ class ProductRepositoryImplTest {
         return m;
     }
 
-    private Country country(Long id, String name) {
+    private Country country(String id, String name) {  // Long에서 String으로 변경
         Country c = Country.builder().id(id).name(name).continent(CONTINENT_ASIA).build();
         em.persist(c);
         return c;
