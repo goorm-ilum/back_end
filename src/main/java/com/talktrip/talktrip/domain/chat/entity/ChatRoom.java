@@ -1,9 +1,7 @@
 package com.talktrip.talktrip.domain.chat.entity;
 
 import com.talktrip.talktrip.global.entity.BaseEntity;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -16,12 +14,21 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Table(name = "chatting_room_tab")
 public class ChatRoom extends BaseEntity {
+
     @Id
+    @Column(name = "room_id", nullable = false, unique = true)
     private String roomId;
-    private String roomAccountId;
+
+    @Column(name = "title", nullable = false, length = 255)
     private String title;
-    private String lastMessage;
+
+    @Column(name = "not_read_message_count", nullable = false)
     private int notReadMessageCount;
+
+    @Column(name = "product_id", nullable = false)
     private int productId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "room_type", nullable = false)
+    private RoomType roomType;
 }

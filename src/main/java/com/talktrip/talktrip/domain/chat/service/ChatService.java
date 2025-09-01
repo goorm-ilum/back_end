@@ -3,6 +3,7 @@ package com.talktrip.talktrip.domain.chat.service;
 import com.talktrip.talktrip.domain.chat.dto.request.ChatMessageRequestDto;
 import com.talktrip.talktrip.domain.chat.dto.request.ChatRoomRequestDto;
 import com.talktrip.talktrip.domain.chat.dto.response.*;
+import com.talktrip.talktrip.domain.chat.dto.response.ChatMessagePush;
 import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
 import com.talktrip.talktrip.domain.chat.entity.ChatRoom;
 import com.talktrip.talktrip.domain.chat.entity.ChatRoomAccount;
@@ -21,11 +22,15 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 @Slf4j
@@ -39,54 +44,136 @@ public class ChatService {
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final ChannelTopic topic;//Spring Data Redis에서 Pub/Sub 구조에서 사용하는 "채널 이름"
     private final ChannelTopic roomUpdateTopic;
-
+    private final RedisPublisher redisPublisher;
+    private final org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
 
 
     @Transactional
-    public void saveAndSend(ChatMessageRequestDto dto,Principal principal) {
-    try {
-        String accountEmail = principal.getName();
-        ChatMessage entity = chatMessageRepository.save(dto.toEntity(accountEmail));
-        String receiverAccountEmail = chatMessageRepository.getOtherMemberIdByRoomIdandUserId(accountEmail, dto.getRoomId());
-        int unreadCount = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(dto.getRoomId(), accountEmail);
+    public void saveAndSend(ChatMessageRequestDto dto, Principal principal) {
+        try {
+            // Redis 연결 상태 미리 확인 (메시지 저장 전에 체크)
+            if (!isRedisAvailable()) {
+                log.error("Redis 연결이 불가능합니다.");
+                throw new RuntimeException("Redis 서버에 연결할 수 없습니다.");
+            }
+            final String sender = principal.getName();
+            
+            // 테스트용: 특정 메시지로 에러 발생 (실제 운영에서는 제거)
+            if (dto.getMessage() != null && dto.getMessage().contains("테스트에러")) {
+                throw new RuntimeException("테스트용 에러: 메시지에 '테스트에러'가 포함되어 있습니다.");
+            }
 
+            // (선택) 권한 체크
+            // if (!chatRoomMemberRepository.existsByRoomIdAndAccountEmail(dto.getRoomId(), sender)) {
+            //     throw new AccessDeniedException("Not a member of this room");
+            // }
 
-        // 3) 사용자별 안읽음 수 계산
-        int unreadCountForReceiver = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(
-                dto.getRoomId(), receiverAccountEmail
-        );
-        int unreadCountForSender = chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(
-                dto.getRoomId(), accountEmail
-        );
+            // 1) DB 저장
+            ChatMessage entity = chatMessageRepository.save(dto.toEntity(sender));
+            
+            // 2) ChatRoom의 updatedAt 업데이트 (최신 메시지 시간으로)
+            chatRoomRepository.updateUpdatedAt(dto.getRoomId(), entity.getCreatedAt());
 
+            // 2) 방 브로드캐스트 payload
+            ChatMessagePush push = ChatMessagePush.builder()
+                    .messageId(entity.getMessageId())
+                    .roomId(entity.getRoomId())
+                    .sender(sender)
+                    .senderName(sender.split("@")[0])
+                    .message(entity.getMessage())
+                    .createdAt(String.valueOf(entity.getCreatedAt()))
+                    .build();
 
-        ChatRoomUpdateMessage updateMessage = ChatRoomUpdateMessage.builder()
-                .accountEmail(accountEmail)
-                .receiverAccountEmail(receiverAccountEmail)
-                .message(entity.getMessage())
-                .roomId(dto.getRoomId())
-                .notReadMessageCount(unreadCount)
-                .unreadCountForSender(unreadCountForSender)
-                .unreadCountForReceiver(unreadCountForReceiver)
-                .updatedAt(Timestamp.valueOf(LocalDateTime.now()))
-                .build();
+            // 3) 개인 사이드바 payload들 미리 계산 (트랜잭션 안에서 조회 OK)
+            List<String> memberEmails = chatRoomMemberRepository
+                    .findAllAccountEmailsByRoomId(dto.getRoomId())
+                    .stream().map(ChatRoomAccount::getAccountEmail).toList();
 
-        //redisPublisher.publish(topic, updateMessage);
-        //String destination = "/topic/chat/room/" +dto.getRoomId();
-        messagingTemplate.convertAndSend("/topic/chat/room/", updateMessage);
+            List<ChatRoomUpdateMessage> sidebars = new ArrayList<>(memberEmails.size());
+            for (String email : memberEmails) {
+                int unreadForThisUser = email.equals(sender)
+                        ? 0
+                        : chatMessageRepository.countUnreadMessagesByRoomIdAndMemberId(dto.getRoomId(), email);
 
-        // 5) 실시간 전송: 단건 메시지 이벤트(채팅창 append 용)
-        var messagePayload = ChatMessageResponseDto.from(entity);
-        //redisPublisher.publish(roomUpdateTopic, updateMessage); //"/topic/chat/room/{roomId}/update"로 전달됨
-        messagingTemplate.convertAndSend("/topic/chat/room/" +dto.getRoomId()+ "/update", updateMessage);
+                sidebars.add(ChatRoomUpdateMessage.builder()
+                        .roomId(dto.getRoomId())
+                        .messageId(entity.getMessageId())
+                        .message(entity.getMessage())
+                        .senderAccountEmail(sender)
+                        .createdAt(entity.getCreatedAt())
+                        .unreadCountForReceiver(unreadForThisUser)
+                        .updatedAt(Timestamp.valueOf(LocalDateTime.now()))
+                        .build());
+            }
 
-    chatRoomMemberRepository.resetIsDelByRoomId(dto.getRoomId());
+            // 4) ❗ DB 커밋이 "성공한 뒤에만" Redis로 팬아웃
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() {
+                    publishToRedis(dto, push, memberEmails, sidebars);
+                }
+            });
 
-    } catch (Exception e) {
-        log.error("채팅 메시지 저장 및 발행 중 오류 발생: {}", e.getMessage());
-        throw new RuntimeException("채팅 처리 중 오류가 발생했습니다.");
+        } catch (AccessDeniedException e) {
+            log.error("채팅방 접근 권한 없음: {}", e.getMessage(), e);
+            throw new RuntimeException("채팅방에 접근할 권한이 없습니다.");
+        } catch (IllegalArgumentException e) {
+            log.error("잘못된 메시지 데이터: {}", e.getMessage(), e);
+            throw new RuntimeException("잘못된 메시지 형식입니다: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("채팅 메시지 저장 및 발행 중 오류 발생: {}", e.getMessage(), e);
+            throw new RuntimeException("채팅 처리 중 오류가 발생했습니다: " + e.getMessage());
+        }
+
+        // (선택) 기타 후처리
+        chatRoomMemberRepository.resetIsDelByRoomId(dto.getRoomId());
     }
-}
+
+    /**
+     * Redis로 채팅 메시지와 사이드바 업데이트를 발행합니다.
+     * DB 커밋 후 실행되므로 예외가 발생해도 트랜잭션에 영향을 주지 않습니다.
+     */
+    private void publishToRedis(ChatMessageRequestDto dto, ChatMessagePush push, 
+                               List<String> memberEmails, List<ChatRoomUpdateMessage> sidebars) {
+        try {
+            // 방 전체 브로드캐스트 → 모든 WS 서버가 이 채널을 구독 중
+            redisPublisher.publish("chat:room:" + dto.getRoomId(), push);
+
+            // 개인별 사이드바 업데이트 → 각 사용자 채널로 발행
+            publishSidebarUpdates(memberEmails, sidebars);
+            
+        } catch (Exception e) {
+            log.error("Redis 발행 실패: {}", e.getMessage(), e);
+            // afterCommit에서는 예외를 던져도 트랜잭션이 이미 커밋되어 WebSocket 컨트롤러에서 잡히지 않음
+            // 대신 로그만 남기고, 클라이언트는 메시지가 성공적으로 저장되었다고 생각할 수 있음
+            // 실제 운영에서는 Redis 모니터링이나 알림 시스템을 통해 처리해야 함
+        }
+    }
+
+    /**
+     * 각 사용자별로 사이드바 업데이트 메시지를 Redis에 발행합니다.
+     */
+    private void publishSidebarUpdates(List<String> memberEmails, List<ChatRoomUpdateMessage> sidebars) {
+        for (int i = 0; i < memberEmails.size(); i++) {
+            String email = memberEmails.get(i);
+            ChatRoomUpdateMessage sidebar = sidebars.get(i);
+            redisPublisher.publish("chat:user:" + email, sidebar);
+        }
+    }
+
+    /**
+     * Redis 연결 상태 확인
+     */
+    private boolean isRedisAvailable() {
+        try {
+            // Redis 연결 상태를 간단한 명령으로 확인
+            // 연결이 안되면 예외 발생
+            stringRedisTemplate.opsForValue().get("health_check");
+            return true;
+        } catch (Exception e) {
+            log.warn("Redis 연결 확인 실패: {}", e.getMessage());
+            return false;
+        }
+    }
     public String createRoom(String userA, String userB) {
         // 기존 방 있으면 재사용, 없으면 새로 생성
         // room_id = UUID.ranㄴdomUUID().toString()
@@ -94,8 +181,12 @@ public class ChatService {
     }
     public List<ChatRoomDTO> getRooms(String accountEmail) {
         //redis 추가
-
-        return chatRoomRepository.findRoomsWithLastMessageByMemberId(accountEmail);
+        List<ChatRoomDTO> rooms = chatRoomRepository.findRoomsWithLastMessageByMemberId(accountEmail);
+        
+        // updatedAt 내림차순으로 정렬 (최신 메시지 순)
+        rooms.sort((a, b) -> b.getUpdatedAt().compareTo(a.getUpdatedAt()));
+        
+        return rooms;
     }
     public int getCountALLUnreadMessagesRooms(String accountEmail) {
         return chatMessageRepository.countUnreadMessagesRooms( accountEmail);
@@ -109,7 +200,7 @@ public class ChatService {
 
 
     @Transactional
-    public SliceResponse<ChatMessageDto> getRoomChattingHistoryAndMarkAsRead(
+    public SliceResponse<ChatMemberRoomWithMessageDto> getRoomChattingHistoryAndMarkAsRead(
             String roomId,
             String accountEmail,
             Integer limit,
@@ -139,7 +230,10 @@ public class ChatService {
         chatRoomMemberRepository.updateLastReadTime(roomId, accountEmail);
 
         // 5) DTO 매핑
-        var items = entities.stream().map(ChatMessageDto::from).toList();
+        var items = entities.stream()
+                .map(ChatMemberRoomWithMessageDto::from) // ChatMessage -> ChatMemberRoomWithMessageDto 매핑
+                .toList();
+
 
         // 6) nextCursor/hasNext 계산
         String nextCursor = null;
@@ -154,19 +248,19 @@ public class ChatService {
     }
 
     // 기존 시그니처 유지용(호출부 점진 교체)
-    @Transactional
-    public SliceResponse<ChatMessageDto> getRoomChattingHistoryAndMarkAsRead(
-            String roomId, String accountEmail
-    ) {
-        return getRoomChattingHistoryAndMarkAsRead(roomId, accountEmail, 50, null);
-    }
+//    @Transactional
+//    public SliceResponse<ChatMemberRoomWithMessageDto> getRoomChattingHistoryAndMarkAsRead(
+//            String roomId, String accountEmail
+//    ) {
+//        return getRoomChattingHistoryAndMarkAsRead(roomId, accountEmail, 50, null);
+//    }
 
-    public void updateLastReadTime(String roomId, String accountEmail) {
-        chatRoomMemberRepository.updateLastReadTime(roomId, accountEmail);
-        // Redis로 업데이트 알림 발행 - roomId 포함하여 생성
-        ChatUpdateMessage updateMessage = new ChatUpdateMessage(accountEmail);
-        messagingTemplate.convertAndSend("/topic/chat/room/" +roomId+ "/update", updateMessage);
-    }
+//    public void updateLastReadTime(String roomId, String accountEmail) {
+//        chatRoomMemberRepository.updateLastReadTime(roomId, accountEmail);
+//        // Redis로 업데이트 알림 발행 - roomId 포함하여 생성
+//        ChatUpdateMessage updateMessage = new ChatUpdateMessage(accountEmail);
+//        messagingTemplate.convertAndSend("/topic/chat/room/" +roomId+ "/update", updateMessage);
+//    }
     
     @Transactional
     public String enterOrCreateRoom(Principal principal, ChatRoomRequestDto chatRoomRequestDto) {
@@ -198,42 +292,12 @@ public class ChatService {
     public void markChatRoomAsDeleted(String accountEmail, String roomId) {
         chatRoomMemberRepository.updateIsDelByMemberIdAndRoomId(accountEmail, roomId, 1);
     }
-    public SliceResponse<ChatMessageDto> getRecentMessages(String roomId, Integer limit, String cursor) {
-        int size = (limit == null || limit <= 0 || limit > 200) ? 50 : limit;
-
-        var sort = Sort.by(Sort.Direction.DESC, "createdAt", "messageId");
-        var pageable = PageRequest.of(0, size, sort);
-
-        var messages = (cursor == null || cursor.isBlank())
-                ? chatMessageRepository.findFirstPage(roomId, pageable)
-                : loadBeforeCursor(roomId, size, cursor, pageable);
-
-        // nextCursor 계산: 마지막 아이템 기준
-        String nextCursor = null;
-        boolean hasNext = false;
-        if (!messages.isEmpty()) {
-            var last = messages.get(messages.size() - 1);
-            nextCursor = CursorUtil.encode(last.getCreatedAt(), last.getMessageId());
-
-            // 다음 페이지가 더 있는지 가볍게 확인 (size 개수 꽉 찼으면 더 있다고 볼 수 있음)
-            hasNext = messages.size() == size;
-        }
-
-        var items = messages.stream().map(ChatMessageDto::from).toList();
-        return new SliceResponse<>(items, hasNext ? nextCursor : null, hasNext);
-    }
-
-    private List<ChatMessage> loadBeforeCursor(String roomId, int size, String cursor, PageRequest pageable) {
-        var c = CursorUtil.decode(cursor);
-        return chatMessageRepository.findSliceBefore(roomId, c.createdAt(), c.messageId(), pageable);
-    }
-
     public ChatRoomDetailDto getRoomDetail(String roomId, String email) {
         var s = chatRoomRepository.findRoomScalar(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("room not found: " + roomId));
 
         // 추가 메타가 필요하면 다른 리포지토리에서 가져와 합쳐주세요.
-        var myLastReadAt = chatRoomMemberRepository.findMyLastReadAt(roomId, email).orElse(null);
+        var roomUpdatedAt = chatRoomRepository.findChatRoomUpdateAtByRoomId(roomId);
         var memberCount  = chatRoomMemberRepository.countMembers(roomId);
         var participants = chatRoomMemberRepository.findParticipantEmails(roomId);
 
@@ -242,7 +306,7 @@ public class ChatService {
                 s.title(),
                 s.productId(),
                 null,            // ownerEmail 필요시 r.roomAccountId도 JPQL에 추가하세요
-                myLastReadAt,
+                roomUpdatedAt,
                 memberCount,
                 participants
         );

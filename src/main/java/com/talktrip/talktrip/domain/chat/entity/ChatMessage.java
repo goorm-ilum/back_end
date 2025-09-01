@@ -42,14 +42,14 @@ public class ChatMessage {
     private LocalDateTime createdAt;
 
     // 선택: 편의용 읽기 전용 연관 (insertable=false, updatable=false)
-//    @ManyToOne(fetch = FetchType.LAZY)
-//    @JoinColumn(name = "room_id", insertable = false, updatable = false)
-//    private ChatRoom roomRef;   // 가끔 room 타이틀 등 읽을 때만 사용
-//
-//    @ManyToOne(fetch = FetchType.LAZY)
-//    @JoinColumn(name = "account_email", referencedColumnName = "account_email",
-//            insertable = false, updatable = false)
-//    private Member senderRef;   // 프로필 필요할 때만 사용
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_id", insertable = false, updatable = false)
+    private ChatRoom roomRef;   // 가끔 room 타이틀 등 읽을 때만 사용
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "account_email", referencedColumnName = "account_email",
+            insertable = false, updatable = false)
+    private Member senderRef;   // 프로필 필요할 때만 사용
 
     public ChatMessage(String messageId, String roomId, String accountEmail, String message, LocalDateTime createdAt) {
         this.messageId = messageId;
@@ -58,4 +58,8 @@ public class ChatMessage {
         this.message = message;
         this.createdAt = createdAt;
     }
+
+
+
+
 }

@@ -4,9 +4,11 @@ import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDTO;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatRoomDetailScalar;
 import com.talktrip.talktrip.domain.chat.entity.ChatRoom;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,10 +20,10 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
             crmt.roomAccountId,
             crt.createdAt,
             crt.updatedAt,
-            CONCAT(
-                CONCAT(COALESCE(m.name, ''), '_'),
-                CONCAT(CONCAT(COALESCE(p.productName, ''), '_'), crt.roomId)
-            ) as title,
+            COALESCE(
+                    NULLIF(crt.title, ''),
+                    CONCAT(COALESCE(p.productName, ''), '_', crt.roomId)
+                ) as title,
             COALESCE((
                 SELECT cm1.message
                 FROM ChatMessage cm1
@@ -31,27 +33,24 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
                       FROM ChatMessage cm1b
                       WHERE cm1b.roomId = crt.roomId
                   )
-            ), '')AS lastMessage,
-            (
-                SELECT COUNT(cm2)
-                FROM ChatMessage cm2
-                WHERE cm2.roomId = crt.roomId
-                  AND cm2.createdAt > COALESCE(crmt.lastMemberReadTime, '1970-01-01 00:00:00')
-                  AND cm2.accountEmail <> :memberId
-            )AS notReadMessageCount
-        )
-        FROM ChatRoomAccount crmt
-        JOIN ChatRoom crt ON crt.roomId = crmt.roomId
-        LEFT JOIN ChatRoomAccount other
-               ON other.roomId = crmt.roomId
-              AND other.accountEmail <> :memberId
-              AND other.isDel = 0
-        LEFT JOIN Member m
-               ON m.accountEmail = other.accountEmail
-        LEFT JOIN Product p
-               ON p.id = crt.productId
-        WHERE crmt.accountEmail = :memberId
-          AND crmt.isDel = 0
+            ), '') AS lastMessage,
+        (
+            SELECT COUNT(cm2)
+            FROM ChatMessage cm2
+            WHERE cm2.roomId = crt.roomId
+              AND cm2.createdAt > COALESCE(crmt.lastMemberReadTime, '1970-01-01 00:00:00')
+              AND cm2.accountEmail <> :memberId
+        ) AS notReadMessageCount,
+        crt.roomType
+    )
+    FROM ChatRoomAccount crmt
+    JOIN ChatRoom crt ON crt.roomId = crmt.roomId
+    LEFT JOIN Member m
+           ON m.accountEmail = crmt.accountEmail
+    LEFT JOIN Product p
+           ON p.id = crt.productId
+    WHERE crmt.accountEmail = :memberId
+      AND crmt.isDel = 0
     """)
     List<ChatRoomDTO> findRoomsWithLastMessageByMemberId(
             @Param("memberId") String memberId
@@ -75,6 +74,22 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
         where r.roomId = :roomId
     """)
     Optional<ChatRoomDetailScalar> findRoomScalar(@Param("roomId") String roomId);
+
+    @Modifying
+    @Query("""
+        UPDATE ChatRoom r
+        SET r.updatedAt = :updatedAt
+        WHERE r.roomId = :roomId
+    """)
+    void updateUpdatedAt(@Param("roomId") String roomId, @Param("updatedAt") java.time.LocalDateTime updatedAt);
+
+
+    @Query("""
+        SELECT r.updatedAt
+        FROM ChatRoom r
+        WHERE r.roomId = :roomId
+    """)
+    LocalDateTime findChatRoomUpdateAtByRoomId(@Param("roomId") String roomId);
 }
 
 

@@ -15,20 +15,18 @@ public class ChatMessageRequestDto {
     private String roomId;
     private String accountEmail;
     private String message;
-    private String receiverAccountEmail;
+    //private String receiverAccountEmail;
 
     @JsonCreator
     public ChatMessageRequestDto(
             @JsonProperty("roomId") String roomId,
             @JsonProperty("accountEmail") String accountEmail,
-            @JsonProperty("message") String message,
-            @JsonProperty("receiverAccountEmail") String receiverAccountEmail
+            @JsonProperty("message") String message
 
             ) {
         this.roomId = roomId;
         this.accountEmail = accountEmail;
         this.message = message;
-        this.receiverAccountEmail=receiverAccountEmail;
 
     }
 

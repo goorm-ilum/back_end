@@ -2,7 +2,6 @@ package com.talktrip.talktrip.domain.chat.controller;
 
 import com.talktrip.talktrip.domain.chat.dto.request.ChatRoomRequestDto;
 import com.talktrip.talktrip.domain.chat.dto.response.*;
-import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
 import com.talktrip.talktrip.domain.chat.service.ChatService;
 import com.talktrip.talktrip.global.dto.SliceResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,8 +32,8 @@ public class ChatApiController {
     public List<ChatRoomDTO> getMyChats(Principal principal) {
         String accountEmail = principal.getName();
         // 실제 데이터베이스 조회는 나중에 활성화
-         List<ChatRoomDTO> rooms = chatService.getRooms(accountEmail);
-         return rooms;
+        return chatService.getRooms(accountEmail);
+
     }
     @Operation(summary = "채팅방 메타 + (옵션) 첫 페이지 메시지")
     @GetMapping("/me/chatRooms/{roomId}")
@@ -58,7 +57,7 @@ public class ChatApiController {
         return new ChatRoomWithMessagesDto(room, slice);
     }
     @GetMapping("/me/chatRooms/{roomId}/messages")
-    public SliceResponse<ChatMessageDto> getRoomMessages(
+    public SliceResponse<ChatMemberRoomWithMessageDto> getRoomMessages(
             @PathVariable String roomId,
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) String cursor,

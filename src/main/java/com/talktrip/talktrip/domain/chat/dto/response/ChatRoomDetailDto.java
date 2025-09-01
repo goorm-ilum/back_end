@@ -13,4 +13,6 @@ public record ChatRoomDetailDto(
         LocalDateTime myLastReadAt,  // 내가 마지막으로 읽은 시각
         Integer memberCount,         // 참여자 수
         List<String> participants    // (선택) 참여자 이메일 목록
-) {}
+) {
+
+}

@@ -2,6 +2,8 @@ package com.talktrip.talktrip.domain.chat.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
+import lombok.*;
+
 import java.time.LocalDateTime;
 //record - 자바에서 불변(immutable) 데이터 전달용 클래스를 간단히 정의하는 방법.
 public record ChatMessageDto(

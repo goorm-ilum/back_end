@@ -25,6 +25,7 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomAccount,
         SELECT crm1.room_id
         FROM chatting_room_account_tab crm1
         JOIN chatting_room_account_tab crm2 ON crm1.room_id = crm2.room_id
+        join chatting_room_tab crt on crt.room_id = crm1.room_id and crt.room_type ='DIRECT'
         WHERE crm1.account_email = :buyerId
           AND crm2.account_email = :sellerId
         LIMIT 1
@@ -72,6 +73,9 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomAccount,
         order by m.accountEmail asc
     """)
     List<String> findParticipantEmails(@Param("roomId") String roomId);
+
+
+    List<ChatRoomAccount> findAllAccountEmailsByRoomId(String roomId);
 }
 
 

@@ -5,7 +5,7 @@ import com.talktrip.talktrip.global.dto.SliceResponse;
 
 public record ChatRoomWithMessagesDto(
         ChatRoomDetailDto room,
-        SliceResponse<ChatMessageDto> messages // includeMessages=false면 null 가능
+        SliceResponse<ChatMemberRoomWithMessageDto> messages // includeMessages=false면 null 가능
 ) {
 
 }
