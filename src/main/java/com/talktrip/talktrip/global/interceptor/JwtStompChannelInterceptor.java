@@ -4,6 +4,7 @@ import com.talktrip.talktrip.domain.member.entity.Member;
 import com.talktrip.talktrip.domain.member.repository.MemberRepository;
 import com.talktrip.talktrip.global.util.JWTUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -21,6 +22,7 @@ import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "spring.profiles.active", havingValue = "!test", matchIfMissing = true)
 public class JwtStompChannelInterceptor implements ChannelInterceptor {
 
     private final JWTUtil jwtProvider;

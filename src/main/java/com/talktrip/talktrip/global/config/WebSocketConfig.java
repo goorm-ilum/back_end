@@ -3,6 +3,7 @@ package com.talktrip.talktrip.global.config;
 import com.talktrip.talktrip.global.interceptor.JwtStompChannelInterceptor;
 import com.talktrip.talktrip.global.interceptor.WebSocketHandshakeInterceptor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
@@ -16,13 +17,20 @@ import org.springframework.web.socket.config.annotation.WebSocketTransportRegist
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    private final JwtStompChannelInterceptor jwtStompChannelInterceptor;
     private final WebSocketHandshakeInterceptor handshakeInterceptor;
+    
+    // JwtStompChannelInterceptor를 선택적 의존성으로 변경
+    @Autowired(required = false)
+    private JwtStompChannelInterceptor jwtStompChannelInterceptor;
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(jwtStompChannelInterceptor); // 👈 인터셉터 등록
+        // jwtStompChannelInterceptor가 null이 아닐 때만 등록
+        if (jwtStompChannelInterceptor != null) {
+            registration.interceptors(jwtStompChannelInterceptor);
+        }
     }
+    
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")// localhost:8080/ws

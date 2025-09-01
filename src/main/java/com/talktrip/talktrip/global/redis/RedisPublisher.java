@@ -2,9 +2,11 @@ package com.talktrip.talktrip.global.redis;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.talktrip.talktrip.domain.chat.dto.response.ChatMessageDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Component;
 
@@ -13,12 +15,19 @@ import org.springframework.stereotype.Component;
 @Log4j2
 
 public class RedisPublisher {
+    private final StringRedisTemplate redis;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
     private final RedisPublisherWithRetry publisherWithRetry; // ← 여기서 사용
 
-    public void publish(ChannelTopic topic, Object dto) {
-        doPublish(topic, dto); // 즉시 발행 (재시도 X)
+    public void publish(String channel, Object payload) {
+        try {
+            String message = objectMapper.writeValueAsString(payload);
+            redis.convertAndSend(channel, message);
+            log.info("[RedisPublisher] Redis로 메시지 발행 (Channel: {}, Message: {})", channel, message);
+        } catch (Exception e) {
+            log.error("[RedisPublisher] Redis 메시지 발행 중 오류 발생: {}", e.getMessage(), e);
+        }
     }
 
     public void publishAfterCommit(ChannelTopic topic, Object dto) {
@@ -34,6 +43,16 @@ public class RedisPublisher {
         // 커밋 보장 + 일시 오류 재시도
         runAfterCommit(() -> publisherWithRetry.publishWithRetry(topic, dto));
     }
+
+    public void publishToRoom(String roomId, ChatMessageDto dto) {
+        try {
+            String channel = "chat:room:" + roomId; // ✅ 방별 채널
+            redis.convertAndSend(channel, objectMapper.writeValueAsString(dto));
+        } catch (Exception e) {
+            throw new RuntimeException("Redis publish failed", e);
+        }
+    }
+
 
     private void doPublish(ChannelTopic topic, Object dto) {
         try {
