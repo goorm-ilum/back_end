@@ -43,7 +43,7 @@ class ChatRoomRepositoryTest {
         ChatRoom chatRoom1 = ChatRoom.builder()
                 .roomId(roomId1)
                 .title("Chat Room 1")
-                .notReadMessageCount(0)
+
                 .productId(1)
                 .roomType(RoomType.DIRECT)
                 .build();
@@ -51,7 +51,7 @@ class ChatRoomRepositoryTest {
         ChatRoom chatRoom2 = ChatRoom.builder()
                 .roomId(roomId2)
                 .title("Chat Room 2")
-                .notReadMessageCount(5)
+               
                 .productId(2)
                 .roomType(RoomType.GROUP)
                 .build();
