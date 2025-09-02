@@ -49,7 +49,7 @@ class ChatMessageRepositoryTest {
         ChatRoom chatRoom = ChatRoom.builder()
                 .roomId(testRoomId)
                 .title("테스트 채팅방")
-                .notReadMessageCount(0)
+
                 .productId(1)
                 .roomType(RoomType.DIRECT)
                 .build();
@@ -688,7 +688,7 @@ class ChatMessageRepositoryTest {
         ChatRoom anotherRoom = ChatRoom.builder()
                 .roomId(anotherRoomId)
                 .title("다른 채팅방")
-                .notReadMessageCount(0)
+
                 .productId(2)
                 .roomType(RoomType.GROUP)
                 .build();
@@ -705,7 +705,7 @@ class ChatMessageRepositoryTest {
         ChatRoom emptyRoom = ChatRoom.builder()
                 .roomId(emptyRoomId)
                 .title("빈 채팅방")
-                .notReadMessageCount(0)
+
                 .productId(3)
                 .roomType(RoomType.DIRECT)
                 .build();
