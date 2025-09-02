@@ -22,9 +22,6 @@ public class ChatRoom extends BaseEntity {
     @Column(name = "title", nullable = false, length = 255)
     private String title;
 
-    @Column(name = "not_read_message_count", nullable = false)
-    private int notReadMessageCount;
-
     @Column(name = "product_id", nullable = false)
     private int productId;
 
