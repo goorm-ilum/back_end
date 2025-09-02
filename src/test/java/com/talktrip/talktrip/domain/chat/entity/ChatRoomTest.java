@@ -21,7 +21,7 @@ class ChatRoomTest {
         ChatRoom chatRoom = ChatRoom.builder()
                 .roomId(roomId)
                 .title(title)
-                .notReadMessageCount(notReadMessageCount)
+
                 .productId(productId)
                 .roomType(roomType)
                 .build();
@@ -29,28 +29,10 @@ class ChatRoomTest {
         // Then
         assertThat(chatRoom.getRoomId()).isEqualTo(roomId);
         assertThat(chatRoom.getTitle()).isEqualTo(title);
-        assertThat(chatRoom.getNotReadMessageCount()).isEqualTo(notReadMessageCount);
+
         assertThat(chatRoom.getProductId()).isEqualTo(productId);
         assertThat(chatRoom.getRoomType()).isEqualTo(roomType);
     }
 
-    @Test
-    @DisplayName("생성된 ChatRoom 객체의 기본값을 확인한다")
-    void defaultValues() {
-        // Given
-        String roomId = "ROOM_123";
-        String title = "Default Test Room";
 
-        // When
-        ChatRoom chatRoom = ChatRoom.builder()
-                .roomId(roomId)
-                .title(title)
-                .notReadMessageCount(0)
-                .productId(0)
-                .roomType(RoomType.GROUP)
-                .build();
-
-        // Then
-        assertThat(chatRoom.getNotReadMessageCount()).isEqualTo(0);
-    }
 }
