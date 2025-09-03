@@ -2,7 +2,7 @@ package com.talktrip.talktrip.global.util;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -17,7 +17,7 @@ import java.util.Map;
 
 import static com.querydsl.collections.CollQueryFunctions.coalesce;
 
-@Log4j2
+@Slf4j
 @Component
 public class JWTUtil {
 

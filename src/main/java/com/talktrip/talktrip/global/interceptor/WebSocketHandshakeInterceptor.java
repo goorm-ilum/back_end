@@ -1,7 +1,7 @@
 package com.talktrip.talktrip.global.interceptor;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.security.core.Authentication;
@@ -14,7 +14,7 @@ import java.net.URI;
 import java.util.Map;
 
 @Component
-@Log4j2
+@Slf4j
 @RequiredArgsConstructor
 public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
 
