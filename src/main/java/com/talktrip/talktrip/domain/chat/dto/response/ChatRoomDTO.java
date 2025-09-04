@@ -1,7 +1,7 @@
 package com.talktrip.talktrip.domain.chat.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.talktrip.talktrip.domain.chat.entity.RoomType;
+import com.talktrip.talktrip.domain.chat.enums.RoomType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 

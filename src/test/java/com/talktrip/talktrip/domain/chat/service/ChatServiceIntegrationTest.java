@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.talktrip.talktrip.domain.chat.dto.request.ChatMessageRequestDto;
 import com.talktrip.talktrip.domain.chat.dto.response.ChatMessagePush;
-import com.talktrip.talktrip.global.redis.RedisPublisherWithRetry;
+import com.talktrip.talktrip.global.redis.RedisMessageBroker;
 import org.junit.jupiter.api.*;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -24,11 +24,11 @@ import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
 @SpringBootTest
-@Import({RedisPublisherWithRetry.class})
+@Import({RedisMessageBroker.class})
 class ChatServiceIntegrationTest {
 
     @Autowired
-    private RedisPublisherWithRetry redisPublisherWithRetry;
+    private RedisMessageBroker redisMessageBroker;
 
     @Mock
     private RedisTemplate<String, Object> redisTemplate;
@@ -70,17 +70,17 @@ class ChatServiceIntegrationTest {
         when(redisTemplate.convertAndSend("chat:user:user2@test.com", push)).thenReturn(null); // 성공
 
         // When
-        redisPublisherWithRetry.publishWithRetry(new ChannelTopic("chat:room:ROOM_001"), push);
+        redisMessageBroker.publishWithRetry("chat:room:ROOM_001", push);
 
         // Then
         // 실패한 WebSocket 서버는 에러가 로그에 기록되며 프로세스는 종료되지 않는다.
         // 다른 WebSocket 연결은 정상적으로 유지
         Assertions.assertDoesNotThrow(() ->
-                redisPublisherWithRetry.publishWithRetry(new ChannelTopic("chat:user:user1@test.com"), push)
+                redisMessageBroker.publishWithRetry("chat:user:user1@test.com", push)
         );
 
         Assertions.assertDoesNotThrow(() ->
-                redisPublisherWithRetry.publishWithRetry(new ChannelTopic("chat:user:user2@test.com"), push)
+                redisMessageBroker.publishWithRetry("chat:user:user2@test.com", push)
         );
     }
 
@@ -97,13 +97,13 @@ class ChatServiceIntegrationTest {
 
         // When - 첫 번째 시도 (실패)
         Assertions.assertDoesNotThrow(() ->
-                redisPublisherWithRetry.publishWithRetry(new ChannelTopic("chat:room:ROOM_001"), push)
+                redisMessageBroker.publishWithRetry("chat:room:ROOM_001", push)
         );
 
         // Simulate server recovery by allowing the second call to succeed
         // 두 번째 시도 (성공)
         Assertions.assertDoesNotThrow(() ->
-                redisPublisherWithRetry.publishWithRetry(new ChannelTopic("chat:room:ROOM_001"), push)
+                redisMessageBroker.publishWithRetry("chat:room:ROOM_001", push)
         );
 
         // Then - 서버가 복구된 후에는 메시지가 정상적으로 발행됨

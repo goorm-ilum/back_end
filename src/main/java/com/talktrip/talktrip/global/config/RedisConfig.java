@@ -1,52 +1,29 @@
 package com.talktrip.talktrip.global.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.listener.PatternTopic;
-import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
-
+/**
+ * Redis 기본 설정 클래스
+ * 
+ * 주요 기능:
+ * 1. Redis 템플릿 설정
+ * 2. String 기반 직렬화 설정
+ * 3. Redis 연결 팩토리 설정
+ */
 @Configuration
 @RequiredArgsConstructor
 public class RedisConfig {
 
     @Bean
-    public ObjectMapper objectMapper() {
-        // record + LocalDateTime 직렬화 지원
-        return new ObjectMapper()
-                .registerModule(new JavaTimeModule())
-                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-    }
-
-    // RedisConfig.java
-    @Bean
-    public RedisMessageListenerContainer redisContainer(
-            RedisConnectionFactory connectionFactory,
-            @Qualifier("redisSubscriber") MessageListener subscriber // ✅ 스프링 Qualifier
-    ) {
-        var c = new RedisMessageListenerContainer();
-        c.setConnectionFactory(connectionFactory);
-        c.addMessageListener(subscriber, new PatternTopic("chat.*"));
-        return c;
-    }
-
-
-
-    @Bean
     public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory cf) {
         return new StringRedisTemplate(cf);
     }
-
 
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {

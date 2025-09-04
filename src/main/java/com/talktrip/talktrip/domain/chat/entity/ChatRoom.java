@@ -1,5 +1,6 @@
 package com.talktrip.talktrip.domain.chat.entity;
 
+import com.talktrip.talktrip.domain.chat.enums.RoomType;
 import com.talktrip.talktrip.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

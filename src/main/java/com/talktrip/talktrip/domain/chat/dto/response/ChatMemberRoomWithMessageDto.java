@@ -2,7 +2,6 @@ package com.talktrip.talktrip.domain.chat.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
-import com.talktrip.talktrip.domain.chat.entity.RoomType;
 
 import java.time.LocalDateTime;
 

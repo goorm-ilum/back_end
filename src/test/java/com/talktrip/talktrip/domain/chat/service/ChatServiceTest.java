@@ -11,7 +11,7 @@ import com.talktrip.talktrip.domain.chat.repository.ChatMessageRepository;
 import com.talktrip.talktrip.domain.chat.repository.ChatRoomMemberRepository;
 import com.talktrip.talktrip.domain.chat.repository.ChatRoomRepository;
 import com.talktrip.talktrip.global.dto.SliceResponse;
-import com.talktrip.talktrip.global.redis.RedisPublisher;
+import com.talktrip.talktrip.global.redis.RedisMessageBroker;
 import com.talktrip.talktrip.global.util.CursorUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -69,7 +69,7 @@ class ChatServiceTest {
     private ChannelTopic roomUpdateTopic;
 
     @Mock
-    private RedisPublisher redisPublisher;
+    private RedisMessageBroker redisMessageBroker;
 
     @Mock
     private StringRedisTemplate stringRedisTemplate;

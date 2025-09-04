@@ -3,7 +3,6 @@ package com.talktrip.talktrip.domain.chat.repository;
 import com.talktrip.talktrip.domain.chat.entity.ChatMessage;
 import com.talktrip.talktrip.domain.chat.entity.ChatRoom;
 import com.talktrip.talktrip.domain.chat.entity.ChatRoomAccount;
-import com.talktrip.talktrip.domain.chat.entity.RoomType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

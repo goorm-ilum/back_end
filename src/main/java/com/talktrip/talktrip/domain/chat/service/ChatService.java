@@ -13,7 +13,7 @@ import com.talktrip.talktrip.domain.chat.repository.ChatMessageRepository;
 import com.talktrip.talktrip.domain.chat.repository.ChatRoomMemberRepository;
 import com.talktrip.talktrip.domain.chat.repository.ChatRoomRepository;
 import com.talktrip.talktrip.global.dto.SliceResponse;
-import com.talktrip.talktrip.global.redis.RedisPublisher;
+import com.talktrip.talktrip.global.redis.RedisMessageBroker;
 import com.talktrip.talktrip.global.util.CursorUtil;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +44,7 @@ public class ChatService {
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final ChannelTopic topic;//Spring Data Redis에서 Pub/Sub 구조에서 사용하는 "채널 이름"
     private final ChannelTopic roomUpdateTopic;
-    private final RedisPublisher redisPublisher;
+    private final RedisMessageBroker redisMessageBroker;
     private final org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
 
 
@@ -136,7 +136,7 @@ public class ChatService {
                                List<String> memberEmails, List<ChatRoomUpdateMessage> sidebars) {
         try {
             // 방 전체 브로드캐스트 → 모든 WS 서버가 이 채널을 구독 중
-            redisPublisher.publish("chat:room:" + dto.getRoomId(), push);
+            redisMessageBroker.publish("chat:room:" + dto.getRoomId(), push);
 
             // 개인별 사이드바 업데이트 → 각 사용자 채널로 발행
             publishSidebarUpdates(memberEmails, sidebars);
@@ -156,7 +156,7 @@ public class ChatService {
         for (int i = 0; i < memberEmails.size(); i++) {
             String email = memberEmails.get(i);
             ChatRoomUpdateMessage sidebar = sidebars.get(i);
-            redisPublisher.publish("chat:user:" + email, sidebar);
+            redisMessageBroker.publish("chat:user:" + email, sidebar);
         }
     }
 

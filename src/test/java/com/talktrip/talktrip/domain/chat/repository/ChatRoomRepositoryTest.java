@@ -1,7 +1,6 @@
 package com.talktrip.talktrip.domain.chat.repository;
 
 import com.talktrip.talktrip.domain.chat.entity.ChatRoom;
-import com.talktrip.talktrip.domain.chat.entity.RoomType;
 import com.talktrip.talktrip.global.config.QuerydslConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
