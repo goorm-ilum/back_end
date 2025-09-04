@@ -1,7 +1,7 @@
 package com.talktrip.talktrip.domain.chat.controller;
 
 import com.talktrip.talktrip.domain.chat.dto.response.ChatMessagePush;
-import com.talktrip.talktrip.global.redis.RedisPublisher;
+import com.talktrip.talktrip.global.redis.RedisMessageBroker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 class TestRedisControllerTest {
 
     @Mock
-    private RedisPublisher redisPublisher;
+    private RedisMessageBroker redisMessageBroker;
 
     @InjectMocks
     private TestRedisController testRedisController;
@@ -42,7 +42,7 @@ class TestRedisControllerTest {
         String roomId = "ROOM_001";
         String message = "테스트 메시지입니다.";
 
-        doNothing().when(redisPublisher).publish(eq(channel), any(ChatMessagePush.class));
+        doNothing().when(redisMessageBroker).publish(eq(channel), any(ChatMessagePush.class));
 
         // When
         var result = mockMvc.perform(post("/api/test/publish")
@@ -56,7 +56,7 @@ class TestRedisControllerTest {
         assertThat(result.getResponse().getContentAsString()).contains("Test");
         assertThat(result.getResponse().getContentAsString()).contains("Redis");
 
-        verify(redisPublisher, times(1)).publish(eq(channel), any(ChatMessagePush.class));
+        verify(redisMessageBroker, times(1)).publish(eq(channel), any(ChatMessagePush.class));
     }
 
     @Test
@@ -67,7 +67,7 @@ class TestRedisControllerTest {
         String roomId = "ROOM_001";
         String message = "";
 
-        doNothing().when(redisPublisher).publish(eq(channel), any(ChatMessagePush.class));
+        doNothing().when(redisMessageBroker).publish(eq(channel), any(ChatMessagePush.class));
 
         // When
         var result = mockMvc.perform(post("/api/test/publish")
@@ -81,7 +81,7 @@ class TestRedisControllerTest {
         assertThat(result.getResponse().getContentAsString()).contains("Test");
         assertThat(result.getResponse().getContentAsString()).contains("Redis");
 
-        verify(redisPublisher, times(1)).publish(eq(channel), any(ChatMessagePush.class));
+        verify(redisMessageBroker, times(1)).publish(eq(channel), any(ChatMessagePush.class));
     }
 
     @Test
@@ -92,7 +92,7 @@ class TestRedisControllerTest {
         String roomId = "ROOM_001";
         String message = "안녕하세요! @#$%^&*() 테스트 메시지입니다.";
 
-        doNothing().when(redisPublisher).publish(eq(channel), any(ChatMessagePush.class));
+        doNothing().when(redisMessageBroker).publish(eq(channel), any(ChatMessagePush.class));
 
         // When
         var result = mockMvc.perform(post("/api/test/publish")
@@ -106,7 +106,7 @@ class TestRedisControllerTest {
         assertThat(result.getResponse().getContentAsString()).contains("Test");
         assertThat(result.getResponse().getContentAsString()).contains("Redis");
 
-        verify(redisPublisher, times(1)).publish(eq(channel), any(ChatMessagePush.class));
+        verify(redisMessageBroker, times(1)).publish(eq(channel), any(ChatMessagePush.class));
     }
 
     @Test
@@ -117,7 +117,7 @@ class TestRedisControllerTest {
         String roomId = "ROOM_001";
         String message = "이것은 매우 긴 테스트 메시지입니다. ".repeat(10);
 
-        doNothing().when(redisPublisher).publish(eq(channel), any(ChatMessagePush.class));
+        doNothing().when(redisMessageBroker).publish(eq(channel), any(ChatMessagePush.class));
 
         // When
         var result = mockMvc.perform(post("/api/test/publish")
@@ -131,7 +131,7 @@ class TestRedisControllerTest {
         assertThat(result.getResponse().getContentAsString()).contains("Test");
         assertThat(result.getResponse().getContentAsString()).contains("Redis");
 
-        verify(redisPublisher, times(1)).publish(eq(channel), any(ChatMessagePush.class));
+        verify(redisMessageBroker, times(1)).publish(eq(channel), any(ChatMessagePush.class));
     }
 
     @Test
@@ -142,7 +142,7 @@ class TestRedisControllerTest {
         String roomId = "ROOM_001";
         String message = "테스트 메시지";
 
-        doNothing().when(redisPublisher).publish(eq(channel), any(ChatMessagePush.class));
+        doNothing().when(redisMessageBroker).publish(eq(channel), any(ChatMessagePush.class));
 
         // When
         var result = mockMvc.perform(post("/api/test/publish")
@@ -155,7 +155,7 @@ class TestRedisControllerTest {
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
         
         // ChatMessagePush 객체가 올바른 파라미터로 생성되었는지 검증
-        verify(redisPublisher, times(1)).publish(
+        verify(redisMessageBroker, times(1)).publish(
                 eq(channel), 
                 argThat(push -> {
                     assertThat(push).isInstanceOf(ChatMessagePush.class);
@@ -179,7 +179,7 @@ class TestRedisControllerTest {
         String roomId = "ROOM_001";
         String message = "응답 검증 테스트";
 
-        doNothing().when(redisPublisher).publish(eq(channel), any(ChatMessagePush.class));
+        doNothing().when(redisMessageBroker).publish(eq(channel), any(ChatMessagePush.class));
 
         // When
         var result = mockMvc.perform(post("/api/test/publish")
@@ -198,6 +198,6 @@ class TestRedisControllerTest {
         assertThat(responseContent).doesNotContain("error");
         assertThat(responseContent).doesNotContain("실패");
 
-        verify(redisPublisher, times(1)).publish(eq(channel), any(ChatMessagePush.class));
+        verify(redisMessageBroker, times(1)).publish(eq(channel), any(ChatMessagePush.class));
     }
 }
