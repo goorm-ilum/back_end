@@ -2,7 +2,7 @@ package com.talktrip.talktrip.domain.chat.controller;
 
 
 import com.talktrip.talktrip.domain.chat.dto.response.ChatMessagePush;
-import com.talktrip.talktrip.global.redis.RedisPublisher;
+import com.talktrip.talktrip.global.redis.RedisMessageBroker;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @RequestMapping("/api/test")
 public class TestRedisController {
 
-    private final RedisPublisher redisPublisher;
+    private final RedisMessageBroker redisMessageBroker;
 
     @PostMapping("/publish")
     public ResponseEntity<String> publishTestMessage(
@@ -31,7 +31,7 @@ public class TestRedisController {
                 .createdAt(LocalDateTime.now().toString())
                 .build();
 
-        redisPublisher.publish(channel, pushMessage);
+        redisMessageBroker.publish(channel, pushMessage);
         return ResponseEntity.ok("[TestRedisController] Test 메시지가 Redis로 발행되었습니다.");
     }
 }
