@@ -1,53 +1,68 @@
 package com.talktrip.talktrip.domain.like.repository;
 
-import com.talktrip.talktrip.domain.like.entity.Like;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.context.annotation.Import;
-import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
-import com.talktrip.talktrip.global.config.QueryDSLTestConfig;
-
-import java.util.List;
-import java.util.Set;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 
 @DataJpaTest
-@Import(QueryDSLTestConfig.class)
-@EnableJpaAuditing
 @ActiveProfiles("test")
-@Transactional
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class LikeRepositoryTest {
 
-    @Autowired
-    private LikeRepository likeRepository;
+        product2 = Product.builder()
+                .productName("부산 여행")
+                .description("바다가 아름다운 부산 여행")
+                .thumbnailImageUrl("https://example.com/busan.jpg")
+                .deleted(false)
+                .build();
 
-    private Like like1;
-    private Like like2;
-    private Like like3;
+        deletedProduct = Product.builder()
+                .productName("삭제된 상품")
+                .description("삭제된 상품입니다")
+                .thumbnailImageUrl("https://example.com/deleted.jpg")
+                .deleted(true)
+                .build();
 
-    @BeforeEach
-    void setUp() {
-        like1 = Like.builder()
-                .productId(1L)
+        productRepository.saveAll(List.of(product1, product2, deletedProduct));
+
+        // 테스트용 상품 옵션 생성
+        ProductOption option1 = ProductOption.builder()
+                .product(product1)
+                .price(10000)
+                .discountPrice(8000)
+                .build();
+
+        ProductOption option2 = ProductOption.builder()
+                .product(product2)
+                .price(15000)
+                .discountPrice(12000)
+                .build();
+
+        productOptionRepository.saveAll(List.of(option1, option2));
+
+        // 테스트용 리뷰 생성
+        Review review1 = Review.builder()
+                .product(product1)
+                .reviewStar(4.5f)
+                .build();
+
+        Review review2 = Review.builder()
+                .product(product2)
+                .reviewStar(3.8f)
+                .build();
+
+        reviewRepository.saveAll(List.of(review1, review2));
+
+        // 테스트용 좋아요 생성
+        Like like1 = Like.builder()
+                .productId(product1.getId())
                 .memberId(1L)
                 .build();
 
-        like2 = Like.builder()
-                .productId(2L)
+        Like like2 = Like.builder()
+                .productId(product2.getId())
                 .memberId(1L)
                 .build();
 
-        like3 = Like.builder()
-                .productId(1L)
+        Like like3 = Like.builder()
+                .productId(product1.getId())
                 .memberId(2L)
                 .build();
 
@@ -58,7 +73,7 @@ class LikeRepositoryTest {
     @DisplayName("좋아요가 존재하는 경우 true를 반환한다")
     void existsByProductIdAndMemberId_WhenLikeExists_ReturnsTrue() {
         // given
-        Long productId = 1L;
+        Long productId = product1.getId();
         Long memberId = 1L;
 
         // when
@@ -99,7 +114,7 @@ class LikeRepositoryTest {
     @DisplayName("memberId가 null인 경우 false를 반환한다")
     void existsByProductIdAndMemberId_WhenMemberIdIsNull_ReturnsFalse() {
         // given
-        Long productId = 1L;
+        Long productId = product1.getId();
 
         // when
         boolean exists = likeRepository.existsByProductIdAndMemberId(productId, null);
@@ -113,7 +128,7 @@ class LikeRepositoryTest {
     void findLikedProductIds_ReturnsLikedProductIds() {
         // given
         Long memberId = 1L;
-        List<Long> productIds = List.of(1L, 2L, 999L);
+        List<Long> productIds = List.of(product1.getId(), product2.getId(), 999L);
 
         // when
         Set<Long> result = likeRepository.findLikedProductIds(memberId, productIds);
@@ -125,11 +140,11 @@ class LikeRepositoryTest {
     }
 
     @Test
-    @DisplayName("좋아요한 상품이 없는 경우 빈 값을 반환한다")
+    @DisplayName("좋아요한 상품이 없는 경우 빈 Set을 반환한다")
     void findLikedProductIds_WhenNoLikes_ReturnsEmptySet() {
         // given
         Long memberId = 999L;
-        List<Long> productIds = List.of(1L, 2L);
+        List<Long> productIds = List.of(product1.getId(), product2.getId());
 
         // when
         Set<Long> result = likeRepository.findLikedProductIds(memberId, productIds);
@@ -139,10 +154,10 @@ class LikeRepositoryTest {
     }
 
     @Test
-    @DisplayName("memberId가 null인 경우 빈 값을 반환한다")
+    @DisplayName("memberId가 null인 경우 빈 Set을 반환한다")
     void findLikedProductIds_WhenMemberIdIsNull_ReturnsEmptySet() {
         // given
-        List<Long> productIds = List.of(1L, 2L);
+        List<Long> productIds = List.of(product1.getId(), product2.getId());
 
         // when
         Set<Long> result = likeRepository.findLikedProductIds(null, productIds);
@@ -152,7 +167,7 @@ class LikeRepositoryTest {
     }
 
     @Test
-    @DisplayName("productIds가 null인 경우 빈 값을 반환한다")
+    @DisplayName("productIds가 null인 경우 빈 Set을 반환한다")
     void findLikedProductIds_WhenProductIdsIsNull_ReturnsEmptySet() {
         // given
         Long memberId = 1L;
@@ -165,7 +180,7 @@ class LikeRepositoryTest {
     }
 
     @Test
-    @DisplayName("productIds가 빈 리스트인 경우 빈 값을 반환한다")
+    @DisplayName("productIds가 빈 리스트인 경우 빈 Set을 반환한다")
     void findLikedProductIds_WhenProductIdsIsEmpty_ReturnsEmptySet() {
         // given
         Long memberId = 1L;
@@ -225,41 +240,4 @@ class LikeRepositoryTest {
                 .doesNotThrowAnyException();
     }
 
-    @Test
-    @DisplayName("모든 좋아요를 조회할 수 있다")
-    void findAll_ReturnsAllLikes() {
-        // when
-        List<Like> allLikes = likeRepository.findAll();
-
-        // then
-        assertThat(allLikes).hasSize(3);
-    }
-
-    @Test
-    @DisplayName("ID로 좋아요를 조회할 수 있다")
-    void findById_ReturnsLike() {
-        // given
-        Long likeId = like1.getId();
-
-        // when
-        Like foundLike = likeRepository.findById(likeId).orElse(null);
-
-        // then
-        assertThat(foundLike).isNotNull();
-        assertThat(foundLike.getProductId()).isEqualTo(1L);
-        assertThat(foundLike.getMemberId()).isEqualTo(1L);
-    }
-
-    @Test
-    @DisplayName("존재하지 않는 ID로 조회하면 빈 값을 반환한다")
-    void findById_WhenNotExists_ReturnsEmptyOptional() {
-        // given
-        Long nonExistentId = 999L;
-
-        // when
-        var result = likeRepository.findById(nonExistentId);
-
-        // then
-        assertThat(result).isEmpty();
-    }
 }

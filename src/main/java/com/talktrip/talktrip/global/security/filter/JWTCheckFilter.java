@@ -123,6 +123,7 @@ public class JWTCheckFilter extends OncePerRequestFilter {
 
     private boolean isPublicPath(String uri) {
         return uri.equals("/api/member/kakao") ||
+                uri.startsWith("/actuator/") ||
                 uri.equals("/api/member/kakao-login-url") ||
 
                 uri.startsWith("/swagger") ||

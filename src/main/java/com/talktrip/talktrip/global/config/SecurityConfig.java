@@ -42,6 +42,7 @@ public class SecurityConfig {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/api/products").permitAll()
                         .requestMatchers("/api/products/{productId}").permitAll()
                         .requestMatchers("/api/products/aisearch").permitAll()

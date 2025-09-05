@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.*;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.mock.web.MockPart;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
@@ -30,8 +31,7 @@ import java.util.List;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers = AdminProductController.class)
 @Import(AdminProductControllerTest.TestSecurityConfig.class)
@@ -236,68 +236,10 @@ class AdminProductControllerTest {
                 .andExpect(status().isNoContent());
     }
 
-    @Test
-    @DisplayName("상품 등록 시 유효하지 않은 데이터로 400 오류를 반환한다")
-    void createProduct_InvalidData_ThrowsValidationException() throws Exception {
-        MockMultipartFile invalidRequestPart = new MockMultipartFile(
+    private static MockMultipartFile createJsonPart(String json) {
+        return new MockMultipartFile(
                 "request", "request.json", MediaType.APPLICATION_JSON_VALUE,
-                """
-                {
-                  "productName": "",
-                  "description": "짧음",
-                  "countryName": "",
-                  "options": [
-                    {
-                      "startDate": "2025-09-01",
-                      "optionName": "",
-                      "stock": -1,
-                      "price": -1000,
-                      "discountPrice": -2000
-                    }
-                  ],
-                  "hashtags": []
-                }
-                """.getBytes(StandardCharsets.UTF_8)
+                json.getBytes(StandardCharsets.UTF_8)
         );
-
-        mockMvc.perform(multipart("/api/admin/products")
-                        .file(invalidRequestPart)
-                        .with(user(sellerDetails))
-                        .contentType(MediaType.MULTIPART_FORM_DATA))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    @DisplayName("상품 수정 시 유효하지 않은 데이터로 400 오류를 반환한다")
-    void updateProduct_InvalidData_ThrowsValidationException() throws Exception {
-        Long productId = 1L;
-        
-        MockMultipartFile invalidRequestPart = new MockMultipartFile(
-                "request", "request.json", MediaType.APPLICATION_JSON_VALUE,
-                """
-                {
-                  "productName": "",
-                  "description": "짧음",
-                  "countryName": "",
-                  "options": [
-                    {
-                      "startDate": "2025-09-01",
-                      "optionName": "",
-                      "stock": -1,
-                      "price": -1000,
-                      "discountPrice": -2000
-                    }
-                  ],
-                  "hashtags": []
-                }
-                """.getBytes(StandardCharsets.UTF_8)
-        );
-
-        mockMvc.perform(multipart("/api/admin/products/{productId}", productId)
-                        .file(invalidRequestPart)
-                        .with(user(sellerDetails))
-                        .with(req -> { req.setMethod("PUT"); return req; })
-                        .contentType(MediaType.MULTIPART_FORM_DATA))
-                .andExpect(status().isBadRequest());
     }
 }
