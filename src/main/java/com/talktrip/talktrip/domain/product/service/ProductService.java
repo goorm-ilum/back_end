@@ -92,11 +92,7 @@ public class ProductService {
     }
 
     private void validateMember(Long memberId) {
-        if (memberId == null) {
-            throw new MemberException(ErrorCode.USER_NOT_FOUND);
-        }
-
-        if (!memberRepository.existsById(memberId)) {
+        if (memberId != null && !memberRepository.existsById(memberId)) {
             throw new MemberException(ErrorCode.USER_NOT_FOUND);
         }
     }
