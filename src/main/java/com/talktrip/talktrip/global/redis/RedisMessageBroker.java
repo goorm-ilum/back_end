@@ -327,7 +327,9 @@ public class RedisMessageBroker implements MessageListener {
             // 모든 채팅방 구독 취소 (개별 채널 구독이 있는 경우)
             for (String roomId : subscribedRooms) {
                 try {
-                    subscriptionManager.unsubscribeFromRoomChannel(roomId);
+                    if (subscriptionManager != null) {
+                        subscriptionManager.unsubscribeFromRoomChannel(roomId);
+                    }
                     log.debug("[RedisMessageBroker] 채팅방 구독 취소: {}", roomId);
                 } catch (Exception e) {
                     log.warn("[RedisMessageBroker] 채팅방 구독 취소 실패: {}, 오류: {}", roomId, e.getMessage());

@@ -76,6 +76,9 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomAccount,
 
 
     List<ChatRoomAccount> findAllAccountEmailsByRoomId(String roomId);
+
+
+    Boolean existsByRoomIdAndAccountEmail(String roomId, String accountEmail);
 }
 
 

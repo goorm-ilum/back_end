@@ -27,47 +27,43 @@ public class ChatApiController {
     public void enterChatRoom() {}
 
 
-    @Operation(summary = "내 채팅 목록")
+    @Operation(summary = "내 채팅 목록 (페이지네이션)")
     @GetMapping("/me/chatRooms")
-    public List<ChatRoomDTO> getMyChats(Principal principal) {
-        String accountEmail = principal.getName();
-        // 실제 데이터베이스 조회는 나중에 활성화
-        return chatService.getRooms(accountEmail);
-
-    }
-    @Operation(summary = "채팅방 메타 + (옵션) 첫 페이지 메시지")
-    @GetMapping("/me/chatRooms/{roomId}")
-    public ChatRoomWithMessagesDto getChatRoom(
-            @PathVariable String roomId,
-            @RequestParam(defaultValue = "false") boolean includeMessages,
+    public SliceResponse<ChatRoomDTO> getMyChats(
+            Principal principal,
             @RequestParam(required = false) Integer limit,
-            Principal principal
+            @RequestParam(required = false) String cursor
     ) {
-        String email = principal.getName();
-
-        ChatRoomDetailDto room = chatService.getRoomDetail(roomId, email);
-
-        if (!includeMessages) {
-            return new ChatRoomWithMessagesDto(room, null);
-        }
-
-        int size = (limit == null || limit <= 0 || limit > 200) ? 50 : limit;
-        var slice = chatService.getRoomChattingHistoryAndMarkAsRead(roomId, email, size, null);
-
-        return new ChatRoomWithMessagesDto(room, slice);
+        String accountEmail = principal.getName();
+        return chatService.getRooms(accountEmail, limit, cursor);
     }
+
+    @Operation(summary = "내 채팅 목록 (전체 - 기존 호환성)")
+    @GetMapping("/me/chatRooms/all")
+    public List<ChatRoomDTO> getAllMyChats(Principal principal) {
+        String accountEmail = principal.getName();
+        return chatService.getAllRooms(accountEmail);
+    }
+    @Operation(summary = "채팅방 메시지 조회 (includeMessages=true: 첫 페이지, false: 무한스크롤)")
     @GetMapping("/me/chatRooms/{roomId}/messages")
     public SliceResponse<ChatMemberRoomWithMessageDto> getRoomMessages(
             @PathVariable String roomId,
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "false") boolean includeMessages,
             Principal principal
     ) {
+        String email = principal.getName();
+        
+        // includeMessages=true이면 첫 페이지 (cursor 무시)
+        // includeMessages=false이면 무한 스크롤 (cursor 사용)
+        String effectiveCursor = includeMessages ? null : cursor;
+        
         return chatService.getRoomChattingHistoryAndMarkAsRead(
                 roomId,
-                principal.getName(), // 로그인 유저 이메일
+                email,
                 limit,
-                cursor
+                effectiveCursor
         );
     }
     @Operation(summary = "안읽은 모든 채팅갯수")
